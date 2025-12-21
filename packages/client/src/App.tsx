@@ -5,6 +5,7 @@ import { ExamSetup } from './components/exam/ExamSetup';
 import { ExamContainer } from './components/exam/ExamContainer';
 import { ExamReview } from './components/exam/ExamReview';
 import { StudyHub } from './components/study/StudyHub';
+import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Route path="/exam/:id" element={<ExamContainer />} />
         <Route path="/exam/:id/review" element={<ExamReview />} />
         <Route path="/study" element={<StudyHub />} />
+        <Route path="/review" element={<Review />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </AppShell>

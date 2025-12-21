@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '◉' },
   { path: '/exam', label: 'Practice Exam', icon: '◈' },
   { path: '/study', label: 'Study', icon: '◎' },
+  { path: '/review', label: 'Review', icon: '↻' },
   { path: '/settings', label: 'Settings', icon: '⚙' },
 ];
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { settingsApi, questionApi } from '../../api/client';
+import { settingsApi, questionApi, progressApi } from '../../api/client';
 import styles from './Settings.module.css';
 
 export function Settings() {
@@ -168,7 +168,7 @@ export function Settings() {
 
         <div className={styles.buttonGroup}>
           <button className="btn btn-secondary" onClick={async () => {
-            const data = await settingsApi.get();
+            const data = await progressApi.exportData();
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
