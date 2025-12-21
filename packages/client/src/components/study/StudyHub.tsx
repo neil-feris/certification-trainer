@@ -1,23 +1,87 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { studyApi } from '../../api/client';
+import { useState, useEffect } from 'react';
+import { useStudyStore } from '../../stores/studyStore';
+import { LearningPathList } from './learning-path/LearningPathList';
+import { DomainList } from './domains/DomainList';
+import { TopicPractice } from './practice/TopicPractice';
+import { SummaryBrowser } from './summaries/SummaryBrowser';
+import { SessionRecoveryModal } from './SessionRecoveryModal';
 import styles from './StudyHub.module.css';
 
+type Tab = 'path' | 'domains' | 'practice' | 'summaries';
+
 export function StudyHub() {
-  const [activeTab, setActiveTab] = useState<'path' | 'domains'>('path');
+  const [activeTab, setActiveTab] = useState<Tab>('path');
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
-  const { data: learningPath } = useQuery({
-    queryKey: ['learningPath'],
-    queryFn: studyApi.getLearningPath,
-  });
+  const {
+    sessionId,
+    needsRecovery,
+    startSession,
+    recoverSession,
+    abandonSession,
+    resetSession,
+    setNeedsRecovery,
+  } = useStudyStore();
 
-  const { data: domains } = useQuery({
-    queryKey: ['studyDomains'],
-    queryFn: studyApi.getDomains,
-  });
+  // Check for session recovery on mount
+  useEffect(() => {
+    const checkRecovery = async () => {
+      const hasSession = await recoverSession();
+      if (hasSession) {
+        setShowRecoveryModal(true);
+      }
+    };
+    checkRecovery();
+  }, [recoverSession]);
+
+  // If there's an active session, show practice view
+  useEffect(() => {
+    if (sessionId && !needsRecovery) {
+      setActiveTab('practice');
+    }
+  }, [sessionId, needsRecovery]);
+
+  const handleContinueSession = () => {
+    setShowRecoveryModal(false);
+    setNeedsRecovery(false);
+    setActiveTab('practice');
+  };
+
+  const handleDiscardSession = async () => {
+    await abandonSession();
+    setShowRecoveryModal(false);
+    setNeedsRecovery(false);
+    resetSession();
+  };
+
+  const handleStartPractice = async (topicId: number, domainId: number) => {
+    try {
+      await startSession('topic_practice', topicId, domainId);
+      setActiveTab('practice');
+    } catch (error) {
+      console.error('Failed to start practice session:', error);
+    }
+  };
+
+  const handleExitPractice = () => {
+    resetSession();
+    setActiveTab('domains');
+  };
+
+  // If in practice mode, show the practice view full-screen
+  if (activeTab === 'practice' && sessionId) {
+    return <TopicPractice onExit={handleExitPractice} />;
+  }
 
   return (
     <div className={styles.container}>
+      {showRecoveryModal && (
+        <SessionRecoveryModal
+          onContinue={handleContinueSession}
+          onDiscard={handleDiscardSession}
+        />
+      )}
+
       <header className={styles.header}>
         <h1>Study Hub</h1>
         <div className={styles.tabs}>
@@ -31,65 +95,22 @@ export function StudyHub() {
             className={`${styles.tab} ${activeTab === 'domains' ? styles.tabActive : ''}`}
             onClick={() => setActiveTab('domains')}
           >
-            Exam Domains
+            Practice
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'summaries' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('summaries')}
+          >
+            Summaries
           </button>
         </div>
       </header>
 
-      {activeTab === 'path' && (
-        <div className={styles.pathList}>
-          {learningPath?.map((item: any, index: number) => (
-            <div key={index} className={styles.pathItem}>
-              <div className={styles.pathNumber}>{item.order}</div>
-              <div className={styles.pathContent}>
-                <div className={styles.pathHeader}>
-                  <h3 className={styles.pathTitle}>{item.title}</h3>
-                  <span className={`badge ${item.type === 'skill_badge' ? 'badge-accent' : item.type === 'exam' ? 'badge-success' : ''}`}>
-                    {item.type === 'skill_badge' ? 'Skill Badge' : item.type === 'exam' ? 'Certification' : 'Course'}
-                  </span>
-                </div>
-                <p className={styles.pathDescription}>{item.description}</p>
-
-                <div className={styles.pathTopics}>
-                  <strong>Topics:</strong> {item.topics.join(' • ')}
-                </div>
-
-                <div className={styles.pathWhy}>
-                  <strong>Why it matters:</strong> {item.whyItMatters}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'domains' && (
-        <div className={styles.domainList}>
-          {domains?.map((domain: any) => (
-            <div key={domain.id} className={styles.domainCard}>
-              <div className={styles.domainHeader}>
-                <h3>{domain.name}</h3>
-                <span className="badge badge-accent">{(domain.weight * 100).toFixed(0)}%</span>
-              </div>
-              <p className={styles.domainDescription}>{domain.description}</p>
-
-              <div className={styles.topicList}>
-                {domain.topics.map((topic: any) => (
-                  <div key={topic.id} className={styles.topicItem}>
-                    <span className={styles.topicBullet}>▸</span>
-                    <div>
-                      <div className={styles.topicName}>{topic.name}</div>
-                      {topic.description && (
-                        <div className={styles.topicDescription}>{topic.description}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className={styles.content}>
+        {activeTab === 'path' && <LearningPathList />}
+        {activeTab === 'domains' && <DomainList onStartPractice={handleStartPractice} />}
+        {activeTab === 'summaries' && <SummaryBrowser />}
+      </div>
     </div>
   );
 }

@@ -103,6 +103,46 @@ export const studySummaries = sqliteTable('study_summaries', {
   prompt: text('prompt'),
 });
 
+// Study sessions (practice sessions)
+export const studySessions = sqliteTable('study_sessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sessionType: text('session_type').notNull(), // 'topic_practice' | 'learning_path'
+  topicId: integer('topic_id').references(() => topics.id),
+  domainId: integer('domain_id').references(() => domains.id),
+  startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+  status: text('status').notNull(), // 'in_progress' | 'completed' | 'abandoned'
+  totalQuestions: integer('total_questions').notNull().default(0),
+  correctAnswers: integer('correct_answers').default(0),
+  timeSpentSeconds: integer('time_spent_seconds').default(0),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+}, (table) => [
+  index('sessions_status_idx').on(table.status),
+  index('sessions_topic_idx').on(table.topicId),
+]);
+
+// Responses within study sessions
+export const studySessionResponses = sqliteTable('study_session_responses', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sessionId: integer('session_id').notNull().references(() => studySessions.id),
+  questionId: integer('question_id').notNull().references(() => questions.id),
+  selectedAnswers: text('selected_answers').notNull(), // JSON array
+  isCorrect: integer('is_correct', { mode: 'boolean' }),
+  timeSpentSeconds: integer('time_spent_seconds'),
+  orderIndex: integer('order_index').notNull(),
+  addedToSR: integer('added_to_sr', { mode: 'boolean' }).default(false),
+}, (table) => [
+  index('session_responses_idx').on(table.sessionId),
+]);
+
+// Learning path completion tracking
+export const learningPathProgress = sqliteTable('learning_path_progress', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  pathItemOrder: integer('path_item_order').notNull().unique(),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+  notes: text('notes'),
+});
+
 // Settings (API keys stored encrypted)
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -125,3 +165,8 @@ export type SpacedRepetition = typeof spacedRepetition.$inferSelect;
 export type PerformanceStat = typeof performanceStats.$inferSelect;
 export type StudySummary = typeof studySummaries.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+export type StudySession = typeof studySessions.$inferSelect;
+export type NewStudySession = typeof studySessions.$inferInsert;
+export type StudySessionResponseRecord = typeof studySessionResponses.$inferSelect;
+export type NewStudySessionResponse = typeof studySessionResponses.$inferInsert;
+export type LearningPathProgressRecord = typeof learningPathProgress.$inferSelect;

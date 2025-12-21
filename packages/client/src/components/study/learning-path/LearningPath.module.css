@@ -1,0 +1,228 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.loading {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 48px;
+}
+
+/* Progress Header */
+.progressHeader {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.progressInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.progressLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.progressCount {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.progressBar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progressPercent {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  min-width: 48px;
+  text-align: right;
+}
+
+/* Path List */
+.pathList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pathItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all var(--transition-fast);
+}
+
+.pathItem:hover {
+  border-color: var(--border-color-hover);
+}
+
+.pathItem.completed {
+  opacity: 0.7;
+}
+
+.pathItem.completed .pathTitle {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.checkbox {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.checkbox:hover {
+  transform: scale(1.1);
+}
+
+.checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pathNumber {
+  width: 32px;
+  height: 32px;
+  background: var(--bg-tertiary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.pathContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.pathHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.pathTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.typeBadge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--bg-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pathDescription {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.pathTopics {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.pathTopics strong {
+  color: var(--text-secondary);
+}
+
+.pathWhy {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pathWhy strong {
+  color: var(--text-secondary);
+  font-style: normal;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .progressHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .progressInfo {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .progressPercent {
+    display: none;
+  }
+
+  .pathItem {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .checkbox {
+    order: 1;
+    align-self: flex-end;
+  }
+
+  .pathNumber {
+    order: 0;
+  }
+
+  .pathContent {
+    order: 2;
+  }
+}
+
+/* Index export */
+.index {
+  display: block;
+}

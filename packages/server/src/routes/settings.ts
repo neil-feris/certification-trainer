@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
-const DEFAULT_SETTINGS = {
+const DEFAULT_SETTINGS: Record<string, string | number> = {
   llmProvider: 'anthropic',
   openaiApiKey: '',
   anthropicApiKey: '',
@@ -18,16 +18,16 @@ export async function settingsRoutes(fastify: FastifyInstance) {
   fastify.get('/', async () => {
     const allSettings = await db.select().from(settings);
 
-    const result: Record<string, string> = { ...DEFAULT_SETTINGS };
+    const result: Record<string, string | number> = { ...DEFAULT_SETTINGS };
     for (const s of allSettings) {
       result[s.key] = s.value;
     }
 
     // Mask API keys for security
-    if (result.openaiApiKey) {
+    if (result.openaiApiKey && typeof result.openaiApiKey === 'string') {
       result.openaiApiKey = result.openaiApiKey.slice(0, 10) + '...' + result.openaiApiKey.slice(-4);
     }
-    if (result.anthropicApiKey) {
+    if (result.anthropicApiKey && typeof result.anthropicApiKey === 'string') {
       result.anthropicApiKey = result.anthropicApiKey.slice(0, 10) + '...' + result.anthropicApiKey.slice(-4);
     }
 

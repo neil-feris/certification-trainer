@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.js';
 import { join, dirname } from 'path';
@@ -14,7 +14,7 @@ if (!existsSync(dataDir)) {
 }
 
 const dbPath = join(dataDir, 'ace-prep.db');
-const sqlite = new Database(dbPath);
+const sqlite: DatabaseType = new Database(dbPath);
 
 // Enable WAL mode for better performance
 sqlite.pragma('journal_mode = WAL');

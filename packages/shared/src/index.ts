@@ -116,6 +116,62 @@ export interface StudySummary {
   generatedAt: Date;
 }
 
+// Study Session Types
+export type StudySessionType = 'topic_practice' | 'learning_path';
+export type StudySessionStatus = 'in_progress' | 'completed' | 'abandoned';
+
+export interface StudySession {
+  id: number;
+  sessionType: StudySessionType;
+  topicId: number | null;
+  domainId: number | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  status: StudySessionStatus;
+  totalQuestions: number;
+  correctAnswers: number;
+  timeSpentSeconds: number;
+  syncedAt: Date | null;
+}
+
+export interface StudySessionResponseItem {
+  id: number;
+  sessionId: number;
+  questionId: number;
+  selectedAnswers: number[];
+  isCorrect: boolean | null;
+  timeSpentSeconds: number | null;
+  orderIndex: number;
+  addedToSR: boolean;
+}
+
+export interface LearningPathItem {
+  order: number;
+  title: string;
+  type: 'course' | 'skill_badge' | 'exam';
+  description: string;
+  topics: string[];
+  whyItMatters: string;
+  isCompleted: boolean;
+  completedAt: Date | null;
+}
+
+export interface LearningPathStats {
+  completed: number;
+  total: number;
+  percentComplete: number;
+  nextRecommended: number | null;
+}
+
+export interface TopicPracticeStats {
+  topicId: number;
+  accuracy: number;
+  totalAttempted: number;
+  lastPracticed: Date | null;
+  questionsInSR: number;
+  recommendedAction: 'practice' | 'review' | 'mastered';
+}
+
 // API request/response types
 export interface CreateExamRequest {
   focusDomains?: number[];
@@ -152,6 +208,49 @@ export interface GenerateStudySummaryRequest {
 export interface ReviewQuestionRequest {
   questionId: number;
   quality: ReviewQuality;
+}
+
+// Study Session API Request/Response Types
+export interface StartStudySessionRequest {
+  sessionType: StudySessionType;
+  topicId?: number;
+  domainId?: number;
+  questionCount?: number;
+}
+
+export interface StartStudySessionResponse {
+  sessionId: number;
+  questions: QuestionWithDomain[];
+}
+
+export interface SubmitStudyAnswerRequest {
+  questionId: number;
+  selectedAnswers: number[];
+  timeSpentSeconds: number;
+}
+
+export interface SubmitStudyAnswerResponse {
+  isCorrect: boolean;
+  explanation: string;
+  addedToSR: boolean;
+}
+
+export interface CompleteStudySessionRequest {
+  responses: SubmitStudyAnswerRequest[];
+  totalTimeSeconds: number;
+}
+
+export interface CompleteStudySessionResponse {
+  score: number;
+  correctCount: number;
+  totalCount: number;
+  addedToSRCount: number;
+}
+
+export interface ActiveStudySessionResponse {
+  session: StudySession;
+  responses: StudySessionResponseItem[];
+  questions: QuestionWithDomain[];
 }
 
 // Settings

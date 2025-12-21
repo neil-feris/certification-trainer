@@ -90,6 +90,41 @@ CREATE TABLE IF NOT EXISTS study_summaries (
   prompt TEXT
 );
 
+CREATE TABLE IF NOT EXISTS study_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_type TEXT NOT NULL,
+  topic_id INTEGER REFERENCES topics(id),
+  domain_id INTEGER REFERENCES domains(id),
+  started_at INTEGER NOT NULL,
+  completed_at INTEGER,
+  status TEXT NOT NULL,
+  total_questions INTEGER NOT NULL DEFAULT 0,
+  correct_answers INTEGER DEFAULT 0,
+  time_spent_seconds INTEGER DEFAULT 0,
+  synced_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS sessions_status_idx ON study_sessions(status);
+CREATE INDEX IF NOT EXISTS sessions_topic_idx ON study_sessions(topic_id);
+
+CREATE TABLE IF NOT EXISTS study_session_responses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES study_sessions(id),
+  question_id INTEGER NOT NULL REFERENCES questions(id),
+  selected_answers TEXT NOT NULL,
+  is_correct INTEGER,
+  time_spent_seconds INTEGER,
+  order_index INTEGER NOT NULL,
+  added_to_sr INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS session_responses_idx ON study_session_responses(session_id);
+
+CREATE TABLE IF NOT EXISTS learning_path_progress (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  path_item_order INTEGER NOT NULL UNIQUE,
+  completed_at INTEGER,
+  notes TEXT
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
