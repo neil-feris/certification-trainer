@@ -1,0 +1,23 @@
+{
+  "name": "ace-prep",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w @ace-prep/server\" \"npm run dev -w @ace-prep/client\"",
+    "dev:server": "npm run dev -w @ace-prep/server",
+    "dev:client": "npm run dev -w @ace-prep/client",
+    "build": "npm run build -w @ace-prep/shared && npm run build -w @ace-prep/server && npm run build -w @ace-prep/client",
+    "db:setup": "npm run db:setup -w @ace-prep/server",
+    "db:generate": "npm run db:generate -w @ace-prep/server",
+    "db:migrate": "npm run db:migrate -w @ace-prep/server",
+    "db:seed": "npm run db:seed -w @ace-prep/server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.6.3"
+  }
+}

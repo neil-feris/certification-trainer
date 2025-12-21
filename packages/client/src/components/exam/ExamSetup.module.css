@@ -1,0 +1,136 @@
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+}
+
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 48px;
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+}
+
+.icon {
+  font-size: 48px;
+  color: var(--accent-primary);
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.description {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+.info {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.infoLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.infoValue {
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--accent-primary);
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 171, 0, 0.1);
+  border: 1px solid var(--warning);
+  border-radius: var(--border-radius);
+  margin-bottom: 24px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--warning);
+}
+
+.warningIcon {
+  font-size: 20px;
+}
+
+.error {
+  padding: 16px;
+  background: rgba(255, 82, 82, 0.1);
+  border: 1px solid var(--error);
+  border-radius: var(--border-radius);
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: var(--error);
+}
+
+.domains {
+  text-align: left;
+  margin-bottom: 32px;
+}
+
+.domainsTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.domainList {
+  list-style: none;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.domainList li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.domainList li:last-child {
+  border-bottom: none;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.actions .btn {
+  width: 100%;
+}
+
+.note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
