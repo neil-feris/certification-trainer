@@ -367,14 +367,13 @@ export async function studyRoutes(fastify: FastifyInstance) {
       totalQuestions: selectedQuestions.length,
     }).returning();
 
-    // Format questions for response
+    // Format questions for response - SECURITY: Do NOT include correctAnswers or explanation
+    // These are only revealed after user submits via /sessions/:id/answer
     const formattedQuestions = selectedQuestions.map((q, index) => ({
       id: q.question.id,
       questionText: q.question.questionText,
       questionType: q.question.questionType,
       options: JSON.parse(q.question.options as string),
-      correctAnswers: JSON.parse(q.question.correctAnswers as string),
-      explanation: q.question.explanation,
       difficulty: q.question.difficulty,
       gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
       domain: {
@@ -429,18 +428,29 @@ export async function studyRoutes(fastify: FastifyInstance) {
         .innerJoin(topics, eq(questions.topicId, topics.id))
         .where(inArray(questions.id, questionIds));
 
-      sessionQuestions = questionsData.map(q => ({
-        id: q.question.id,
-        questionText: q.question.questionText,
-        questionType: q.question.questionType,
-        options: JSON.parse(q.question.options as string),
-        correctAnswers: JSON.parse(q.question.correctAnswers as string),
-        explanation: q.question.explanation,
-        difficulty: q.question.difficulty,
-        gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
-        domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
-        topic: { id: q.topic.id, name: q.topic.name },
-      }));
+      // SECURITY: Only include correctAnswers/explanation for questions that have been answered
+      const answeredQuestionIds = new Set(responses.map(r => r.questionId));
+      sessionQuestions = questionsData.map(q => {
+        const base = {
+          id: q.question.id,
+          questionText: q.question.questionText,
+          questionType: q.question.questionType,
+          options: JSON.parse(q.question.options as string),
+          difficulty: q.question.difficulty,
+          gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+          domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
+          topic: { id: q.topic.id, name: q.topic.name },
+        };
+        // Only reveal answers for already-answered questions
+        if (answeredQuestionIds.has(q.question.id)) {
+          return {
+            ...base,
+            correctAnswers: JSON.parse(q.question.correctAnswers as string),
+            explanation: q.question.explanation,
+          };
+        }
+        return base;
+      });
     }
 
     return {
@@ -553,8 +563,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .set({ syncedAt: new Date() })
       .where(eq(studySessions.id, sessionId));
 
+    // Return correctAnswers and explanation ONLY after user has submitted
     return {
       isCorrect,
+      correctAnswers,
       explanation: question.explanation,
       addedToSR,
     };
@@ -573,87 +585,122 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Session not found' });
     }
 
-    // Process any remaining responses
-    let correctCount = 0;
-    let addedToSRCount = 0;
+    // Batch fetch all data upfront to avoid N+1
+    const questionIds = responses.map(r => r.questionId);
 
-    for (const response of responses) {
-      const [question] = await db.select().from(questions).where(eq(questions.id, response.questionId));
-      if (!question) continue;
+    // Fetch all questions in one query
+    const allQuestions = questionIds.length > 0
+      ? await db.select().from(questions).where(inArray(questions.id, questionIds))
+      : [];
+    const questionsMap = new Map(allQuestions.map(q => [q.id, q]));
 
-      const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
-      const isCorrect = response.selectedAnswers.length === correctAnswers.length &&
-        response.selectedAnswers.every(a => correctAnswers.includes(a)) &&
-        correctAnswers.every(a => response.selectedAnswers.includes(a));
+    // Fetch all existing responses in one query
+    const existingResponses = await db
+      .select()
+      .from(studySessionResponses)
+      .where(eq(studySessionResponses.sessionId, sessionId));
+    const existingResponsesMap = new Map(existingResponses.map(r => [r.questionId, r]));
 
-      if (isCorrect) correctCount++;
+    // Fetch all existing SR entries in one query
+    const existingSREntries = questionIds.length > 0
+      ? await db.select().from(spacedRepetition).where(inArray(spacedRepetition.questionId, questionIds))
+      : [];
+    const existingSRMap = new Set(existingSREntries.map(sr => sr.questionId));
 
-      // Upsert response
-      const [existing] = await db
-        .select()
-        .from(studySessionResponses)
-        .where(and(
-          eq(studySessionResponses.sessionId, sessionId),
-          eq(studySessionResponses.questionId, response.questionId)
-        ));
+    // Use transaction for atomic operations
+    const result = await db.transaction(async (tx) => {
+      let currentOrderIndex = existingResponses.length;
+      const responsesToInsert: Array<{
+        sessionId: number;
+        questionId: number;
+        selectedAnswers: string;
+        isCorrect: boolean;
+        timeSpentSeconds: number;
+        orderIndex: number;
+        addedToSR: boolean;
+      }> = [];
+      const srToInsert: Array<{
+        questionId: number;
+        easeFactor: number;
+        interval: number;
+        repetitions: number;
+        nextReviewAt: Date;
+      }> = [];
 
-      if (!existing) {
-        const countResult = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(studySessionResponses)
-          .where(eq(studySessionResponses.sessionId, sessionId));
+      for (const response of responses) {
+        const question = questionsMap.get(response.questionId);
+        if (!question) continue;
 
-        let addedToSR = false;
-        if (!isCorrect) {
-          const [existingSR] = await db.select().from(spacedRepetition).where(eq(spacedRepetition.questionId, response.questionId));
-          if (!existingSR) {
-            await db.insert(spacedRepetition).values({
+        const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+        const isCorrect = response.selectedAnswers.length === correctAnswers.length &&
+          response.selectedAnswers.every(a => correctAnswers.includes(a)) &&
+          correctAnswers.every(a => response.selectedAnswers.includes(a));
+
+        // Only insert if not already exists
+        if (!existingResponsesMap.has(response.questionId)) {
+          currentOrderIndex++;
+          let addedToSR = false;
+
+          if (!isCorrect && !existingSRMap.has(response.questionId)) {
+            srToInsert.push({
               questionId: response.questionId,
               easeFactor: 2.5,
               interval: 1,
               repetitions: 0,
               nextReviewAt: new Date(),
             });
+            existingSRMap.add(response.questionId); // Prevent duplicates within batch
             addedToSR = true;
-            addedToSRCount++;
           }
+
+          responsesToInsert.push({
+            sessionId,
+            questionId: response.questionId,
+            selectedAnswers: JSON.stringify(response.selectedAnswers),
+            isCorrect,
+            timeSpentSeconds: response.timeSpentSeconds,
+            orderIndex: currentOrderIndex,
+            addedToSR,
+          });
         }
-
-        await db.insert(studySessionResponses).values({
-          sessionId,
-          questionId: response.questionId,
-          selectedAnswers: JSON.stringify(response.selectedAnswers),
-          isCorrect,
-          timeSpentSeconds: response.timeSpentSeconds,
-          orderIndex: (countResult[0]?.count || 0) + 1,
-          addedToSR,
-        });
       }
-    }
 
-    // Count actual correct answers from DB
-    const allResponses = await db.select().from(studySessionResponses).where(eq(studySessionResponses.sessionId, sessionId));
-    const actualCorrect = allResponses.filter(r => r.isCorrect).length;
-    const actualTotal = allResponses.length;
-    const actualAddedToSR = allResponses.filter(r => r.addedToSR).length;
+      // Bulk insert responses
+      if (responsesToInsert.length > 0) {
+        await tx.insert(studySessionResponses).values(responsesToInsert);
+      }
 
-    // Complete the session
-    await db.update(studySessions)
-      .set({
-        status: 'completed',
-        completedAt: new Date(),
-        timeSpentSeconds: totalTimeSeconds,
-        correctAnswers: actualCorrect,
-        totalQuestions: actualTotal,
-      })
-      .where(eq(studySessions.id, sessionId));
+      // Bulk insert SR entries
+      if (srToInsert.length > 0) {
+        await tx.insert(spacedRepetition).values(srToInsert);
+      }
 
-    return {
-      score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
-      correctCount: actualCorrect,
-      totalCount: actualTotal,
-      addedToSRCount: actualAddedToSR,
-    };
+      // Count actual correct answers from combined data
+      const allResponsesData = [...existingResponses, ...responsesToInsert];
+      const actualCorrect = allResponsesData.filter(r => r.isCorrect).length;
+      const actualTotal = allResponsesData.length;
+      const actualAddedToSR = allResponsesData.filter(r => r.addedToSR).length;
+
+      // Complete the session
+      await tx.update(studySessions)
+        .set({
+          status: 'completed',
+          completedAt: new Date(),
+          timeSpentSeconds: totalTimeSeconds,
+          correctAnswers: actualCorrect,
+          totalQuestions: actualTotal,
+        })
+        .where(eq(studySessions.id, sessionId));
+
+      return {
+        score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
+        correctCount: actualCorrect,
+        totalCount: actualTotal,
+        addedToSRCount: actualAddedToSR,
+      };
+    });
+
+    return result;
   });
 
   // Abandon study session

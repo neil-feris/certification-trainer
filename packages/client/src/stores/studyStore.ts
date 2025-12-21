@@ -7,8 +7,10 @@ interface StudyQuestion {
   questionText: string;
   questionType: 'single' | 'multiple';
   options: string[];
-  correctAnswers: number[];
-  explanation: string;
+  // correctAnswers and explanation are NOT available until after answer submission
+  // They are returned by the /sessions/:id/answer endpoint
+  correctAnswers?: number[];
+  explanation?: string;
   difficulty: string;
   gcpServices: string[];
   domain: { id: number; name: string; code: string };
@@ -164,7 +166,7 @@ export const useStudyStore = create<StudySessionState>()(
           timeSpentSeconds: timeSpent,
         });
 
-        // Update local state
+        // Update local state with response
         const newResponses = new Map(responses);
         newResponses.set(question.id, {
           ...response,
@@ -173,7 +175,19 @@ export const useStudyStore = create<StudySessionState>()(
           addedToSR: result.addedToSR,
         });
 
+        // Update question with correctAnswers and explanation from server
+        const newQuestions = [...questions];
+        const questionIndex = newQuestions.findIndex(q => q.id === question.id);
+        if (questionIndex !== -1) {
+          newQuestions[questionIndex] = {
+            ...newQuestions[questionIndex],
+            correctAnswers: result.correctAnswers,
+            explanation: result.explanation,
+          };
+        }
+
         set({
+          questions: newQuestions,
           responses: newResponses,
           isRevealed: true,
         });

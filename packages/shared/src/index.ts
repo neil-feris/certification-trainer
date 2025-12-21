@@ -218,9 +218,26 @@ export interface StartStudySessionRequest {
   questionCount?: number;
 }
 
+// Question without answers - used in session start to prevent cheating
+export interface QuestionForSession {
+  id: number;
+  topicId: number;
+  domainId: number;
+  questionText: string;
+  questionType: QuestionType;
+  options: string[];
+  // correctAnswers and explanation are OMITTED to prevent cheating
+  difficulty: Difficulty;
+  gcpServices: string[];
+  isGenerated: boolean;
+  createdAt: Date;
+  domain: Domain;
+  topic: Topic;
+}
+
 export interface StartStudySessionResponse {
   sessionId: number;
-  questions: QuestionWithDomain[];
+  questions: QuestionForSession[];
 }
 
 export interface SubmitStudyAnswerRequest {
@@ -231,7 +248,8 @@ export interface SubmitStudyAnswerRequest {
 
 export interface SubmitStudyAnswerResponse {
   isCorrect: boolean;
-  explanation: string;
+  correctAnswers: number[];  // Revealed only after submission
+  explanation: string;       // Revealed only after submission
   addedToSR: boolean;
 }
 

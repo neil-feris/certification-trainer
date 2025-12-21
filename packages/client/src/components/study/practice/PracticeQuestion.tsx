@@ -6,7 +6,8 @@ interface PracticeQuestionProps {
     questionText: string;
     questionType: 'single' | 'multiple';
     options: string[];
-    correctAnswers: number[];
+    // correctAnswers only available after answer is revealed
+    correctAnswers?: number[];
   };
   selectedAnswers: number[];
   onAnswerChange: (answers: number[]) => void;
@@ -40,7 +41,7 @@ export function PracticeQuestion({
       classes.push(styles.selected);
     }
 
-    if (isRevealed) {
+    if (isRevealed && question.correctAnswers) {
       if (question.correctAnswers.includes(index)) {
         classes.push(styles.correct);
       } else if (selectedAnswers.includes(index)) {
@@ -79,7 +80,7 @@ export function PracticeQuestion({
               )}
             </span>
             <span className={styles.optionText}>{option}</span>
-            {isRevealed && question.correctAnswers.includes(index) && (
+            {isRevealed && question.correctAnswers?.includes(index) && (
               <span className={styles.correctMark}>✓</span>
             )}
           </button>
