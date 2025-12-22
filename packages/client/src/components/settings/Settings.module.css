@@ -89,11 +89,122 @@
   font-size: 18px;
 }
 
+.modelSelect {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.modelSelect:hover {
+  border-color: var(--accent-primary);
+}
+
+.modelSelect:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+}
+
+.modelSelect option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 8px;
+}
+
+.difficultySelect {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.difficultyBtn {
+  flex: 1;
+  min-width: 80px;
+  padding: 10px 16px;
+  background: var(--bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: var(--border-radius);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.difficultyBtn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.difficultyActive {
+  border-color: var(--accent-primary);
+  background: rgba(0, 212, 170, 0.1);
+  color: var(--accent-primary);
+}
+
+.generateInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  font-size: 13px;
+}
+
+.infoLabel {
+  color: var(--text-muted);
+}
+
+.infoValue {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Progress indicator */
+.progressContainer {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progressBar {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 3px;
+  transition: width 0.3s ease-out;
+}
+
+.progressText {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Status messages */
 .status {
   margin-top: 16px;
   padding: 12px;
   border-radius: var(--border-radius);
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .statusSuccess {
@@ -104,6 +215,24 @@
 .statusError {
   background: rgba(255, 82, 82, 0.1);
   color: var(--error);
+}
+
+.dismissBtn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.dismissBtn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .buttonGroup {

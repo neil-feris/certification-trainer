@@ -1,19 +1,66 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi, questionApi, progressApi } from '../../api/client';
+import { useSettingsStore } from '../../stores/settingsStore';
+import {
+  ANTHROPIC_MODELS,
+  OPENAI_MODELS,
+  MODEL_DISPLAY_NAMES,
+  DIFFICULTY_OPTIONS,
+  DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_OPENAI_MODEL,
+  type LLMProvider,
+  type AnthropicModel,
+  type OpenAIModel,
+  type DifficultyOption,
+} from '@ace-prep/shared';
 import styles from './Settings.module.css';
+
+const DIFFICULTY_LABELS: Record<DifficultyOption, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+  mixed: 'Mixed (Balanced)',
+};
 
 export function Settings() {
   const queryClient = useQueryClient();
   const [apiKey, setApiKey] = useState('');
-  const [provider, setProvider] = useState<'openai' | 'anthropic'>('anthropic');
+  const [provider, setProvider] = useState<LLMProvider>('anthropic');
+  const [anthropicModel, setAnthropicModel] = useState<AnthropicModel>(DEFAULT_ANTHROPIC_MODEL);
+  const [openaiModel, setOpenaiModel] = useState<OpenAIModel>(DEFAULT_OPENAI_MODEL);
+  const [generateDifficulty, setGenerateDifficulty] = useState<DifficultyOption>('mixed');
   const [testStatus, setTestStatus] = useState<{ success?: boolean; message?: string } | null>(null);
-  const [generateStatus, setGenerateStatus] = useState<{ loading?: boolean; message?: string } | null>(null);
+
+  // Use Zustand store for generation state (survives navigation)
+  const {
+    generation,
+    startGeneration,
+    updateGenerationProgress,
+    completeGeneration,
+    failGeneration,
+    clearGenerationStatus,
+  } = useSettingsStore();
 
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: settingsApi.get,
   });
+
+  // Sync local state with loaded settings
+  useEffect(() => {
+    if (settings) {
+      if (settings.llmProvider) {
+        setProvider(settings.llmProvider);
+      }
+      if (settings.anthropicModel && ANTHROPIC_MODELS.includes(settings.anthropicModel)) {
+        setAnthropicModel(settings.anthropicModel);
+      }
+      if (settings.openaiModel && OPENAI_MODELS.includes(settings.openaiModel)) {
+        setOpenaiModel(settings.openaiModel);
+      }
+    }
+  }, [settings]);
 
   const { data: questions } = useQuery({
     queryKey: ['questions'],
@@ -50,33 +97,65 @@ export function Settings() {
     }
   };
 
-  const handleGenerateQuestions = async () => {
-    setGenerateStatus({ loading: true, message: 'Generating questions...' });
+  const handleModelChange = async (newModel: AnthropicModel | OpenAIModel, isAnthropic: boolean) => {
+    if (isAnthropic) {
+      setAnthropicModel(newModel as AnthropicModel);
+      await updateSettings.mutateAsync({ anthropicModel: newModel as AnthropicModel });
+    } else {
+      setOpenaiModel(newModel as OpenAIModel);
+      await updateSettings.mutateAsync({ openaiModel: newModel as OpenAIModel });
+    }
+  };
 
-    try {
-      // Generate questions for each domain
-      const domains = [1, 2, 3, 4, 5]; // Domain IDs
-      let totalGenerated = 0;
+  // Generate questions mutation - runs in background, state persists via Zustand
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const currentModel = provider === 'anthropic' ? anthropicModel : openaiModel;
+      const domains = [1, 2, 3, 4, 5];
 
-      for (const domainId of domains) {
-        const result = await questionApi.generate({
-          domainId,
-          difficulty: 'medium',
-          count: 10,
-        });
-        totalGenerated += result.generated;
+      startGeneration(domains.length);
+
+      // Run all domain generations in parallel for speed
+      const results = await Promise.allSettled(
+        domains.map(async (domainId, index) => {
+          const result = await questionApi.generate({
+            domainId,
+            difficulty: generateDifficulty,
+            count: 10,
+            model: currentModel,
+          });
+          // Update progress after each domain completes
+          updateGenerationProgress(index + 1, result.generated);
+          return result.generated;
+        })
+      );
+
+      // Calculate total from successful results
+      const totalGenerated = results
+        .filter((r): r is PromiseFulfilledResult<number> => r.status === 'fulfilled')
+        .reduce((sum, r) => sum + r.value, 0);
+
+      const failures = results.filter((r) => r.status === 'rejected');
+      if (failures.length > 0 && totalGenerated === 0) {
+        const firstError = failures[0] as PromiseRejectedResult;
+        throw new Error(firstError.reason?.message || 'All generation requests failed');
       }
 
-      setGenerateStatus({
-        loading: false,
-        message: `Successfully generated ${totalGenerated} questions!`,
-      });
+      return totalGenerated;
+    },
+    onSuccess: (totalGenerated) => {
+      completeGeneration(totalGenerated);
       queryClient.invalidateQueries({ queryKey: ['questions'] });
-    } catch (err: any) {
-      setGenerateStatus({
-        loading: false,
-        message: `Error: ${err.message}`,
-      });
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      failGeneration(message);
+    },
+  });
+
+  const handleGenerateQuestions = () => {
+    if (!generation.isGenerating) {
+      generateMutation.mutate();
     }
   };
 
@@ -112,6 +191,24 @@ export function Settings() {
         </div>
 
         <div className={styles.formGroup}>
+          <label>Model</label>
+          <select
+            className={styles.modelSelect}
+            value={provider === 'anthropic' ? anthropicModel : openaiModel}
+            onChange={(e) => handleModelChange(e.target.value as any, provider === 'anthropic')}
+          >
+            {(provider === 'anthropic' ? ANTHROPIC_MODELS : OPENAI_MODELS).map((model) => (
+              <option key={model} value={model}>
+                {MODEL_DISPLAY_NAMES[model]}
+              </option>
+            ))}
+          </select>
+          <span className={styles.hint}>
+            Select the model to use for question generation
+          </span>
+        </div>
+
+        <div className={styles.formGroup}>
           <label>API Key</label>
           <input
             type="password"
@@ -144,17 +241,80 @@ export function Settings() {
           Generate practice questions using AI. You currently have <strong>{questions?.length || 0}</strong> questions.
         </p>
 
+        <div className={styles.formGroup}>
+          <label>Difficulty Level</label>
+          <div className={styles.difficultySelect}>
+            {DIFFICULTY_OPTIONS.map((diff) => (
+              <button
+                key={diff}
+                className={`${styles.difficultyBtn} ${generateDifficulty === diff ? styles.difficultyActive : ''}`}
+                onClick={() => setGenerateDifficulty(diff)}
+              >
+                {DIFFICULTY_LABELS[diff]}
+              </button>
+            ))}
+          </div>
+          <span className={styles.hint}>
+            "Mixed" generates a balanced distribution of easy, medium, and hard questions
+          </span>
+        </div>
+
+        <div className={styles.generateInfo}>
+          <span className={styles.infoLabel}>Model:</span>
+          <span className={styles.infoValue}>
+            {MODEL_DISPLAY_NAMES[provider === 'anthropic' ? anthropicModel : openaiModel]}
+          </span>
+        </div>
+
         <button
           className="btn btn-primary"
           onClick={handleGenerateQuestions}
-          disabled={generateStatus?.loading}
+          disabled={generation.isGenerating}
         >
-          {generateStatus?.loading ? 'Generating...' : 'Generate 50 Questions'}
+          {generation.isGenerating ? 'Generating...' : 'Generate 50 Questions'}
         </button>
 
-        {generateStatus?.message && (
-          <div className={`${styles.status} ${generateStatus.loading ? '' : styles.statusSuccess}`}>
-            {generateStatus.message}
+        {/* Progress indicator */}
+        {generation.isGenerating && (
+          <div className={styles.progressContainer}>
+            <div className={styles.progressBar}>
+              <div
+                className={styles.progressFill}
+                style={{ width: `${(generation.domainsCompleted / generation.domainsTotal) * 100}%` }}
+              />
+            </div>
+            <span className={styles.progressText}>
+              Domain {generation.domainsCompleted}/{generation.domainsTotal}
+              {generation.questionsGenerated > 0 && ` • ${generation.questionsGenerated} questions`}
+            </span>
+          </div>
+        )}
+
+        {/* Success message */}
+        {generation.lastResult && !generation.isGenerating && (
+          <div className={`${styles.status} ${styles.statusSuccess}`}>
+            Successfully generated {generation.lastResult.generated} questions!
+            <button
+              className={styles.dismissBtn}
+              onClick={clearGenerationStatus}
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Error message */}
+        {generation.error && !generation.isGenerating && (
+          <div className={`${styles.status} ${styles.statusError}`}>
+            Error: {generation.error}
+            <button
+              className={styles.dismissBtn}
+              onClick={clearGenerationStatus}
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
           </div>
         )}
       </section>
