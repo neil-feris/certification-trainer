@@ -2,20 +2,22 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { examApi, questionApi } from '../../api/client';
+import { EXAM_SIZE_OPTIONS as EXAM_SIZES, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 import styles from './ExamSetup.module.css';
 
-const EXAM_SIZE_OPTIONS = [
-  { value: 10, label: '10', description: 'Quick Practice (~12 min)' },
-  { value: 15, label: '15', description: 'Short (~18 min)' },
-  { value: 25, label: '25', description: 'Medium (~30 min)' },
-  { value: 50, label: '50', description: 'Full Exam (2 hrs)' },
-] as const;
+// UI-specific metadata for each exam size
+const EXAM_SIZE_UI: Record<ExamSize, { label: string; description: string; duration: string }> = {
+  10: { label: '10', description: 'Quick Practice', duration: '~12 min' },
+  15: { label: '15', description: 'Short', duration: '~18 min' },
+  25: { label: '25', description: 'Medium', duration: '~30 min' },
+  50: { label: '50', description: 'Full Exam', duration: '2 hrs' },
+};
 
 export function ExamSetup() {
   const navigate = useNavigate();
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSize, setSelectedSize] = useState<number>(50);
+  const [selectedSize, setSelectedSize] = useState<ExamSize>(EXAM_SIZE_DEFAULT);
 
   const { data: questions } = useQuery({
     queryKey: ['questions'],
@@ -37,7 +39,7 @@ export function ExamSetup() {
     }
   };
 
-  const selectedOption = EXAM_SIZE_OPTIONS.find(o => o.value === selectedSize);
+  const selectedOption = EXAM_SIZE_UI[selectedSize];
 
   return (
     <div className={styles.container}>
@@ -51,14 +53,14 @@ export function ExamSetup() {
         <div className={styles.sizeSelector}>
           <label className={styles.sizeLabel}>Exam Size</label>
           <div className={styles.sizeOptions}>
-            {EXAM_SIZE_OPTIONS.map((option) => (
+            {EXAM_SIZES.map((size) => (
               <button
-                key={option.value}
-                className={`${styles.sizeOption} ${selectedSize === option.value ? styles.sizeOptionActive : ''}`}
-                onClick={() => setSelectedSize(option.value)}
+                key={size}
+                className={`${styles.sizeOption} ${selectedSize === size ? styles.sizeOptionActive : ''}`}
+                onClick={() => setSelectedSize(size)}
               >
-                <span className={styles.sizeValue}>{option.label}</span>
-                <span className={styles.sizeDesc}>{option.description}</span>
+                <span className={styles.sizeValue}>{EXAM_SIZE_UI[size].label}</span>
+                <span className={styles.sizeDesc}>{EXAM_SIZE_UI[size].description}</span>
               </button>
             ))}
           </div>
@@ -71,7 +73,7 @@ export function ExamSetup() {
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Time Limit</span>
-            <span className={styles.infoValue}>{selectedOption?.description.split('(')[1]?.replace(')', '') || '2 hrs'}</span>
+            <span className={styles.infoValue}>{selectedOption.duration}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Passing Score</span>

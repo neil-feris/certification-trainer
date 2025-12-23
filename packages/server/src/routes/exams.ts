@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { exams, examResponses, questions, domains, topics } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
+import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Get all exams
@@ -52,10 +53,18 @@ export async function examRoutes(fastify: FastifyInstance) {
 
   // Create new exam
   fastify.post<{ Body: { focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
-    const { focusDomains, questionCount = 50 } = request.body || {};
+    const { focusDomains, questionCount = EXAM_SIZE_DEFAULT } = request.body || {};
 
-    // Validate question count (10-50)
-    const targetCount = Math.min(50, Math.max(10, questionCount));
+    // Validate question count against allowed sizes
+    const validSizes = EXAM_SIZE_OPTIONS as readonly number[];
+    if (!validSizes.includes(questionCount)) {
+      return reply.status(400).send({
+        error: `Invalid question count. Must be one of: ${EXAM_SIZE_OPTIONS.join(', ')}`,
+        received: questionCount,
+        validOptions: [...EXAM_SIZE_OPTIONS],
+      });
+    }
+    const targetCount = questionCount as ExamSize;
 
     // Get questions for the exam
     let questionQuery = db.select().from(questions);
@@ -64,11 +73,11 @@ export async function examRoutes(fastify: FastifyInstance) {
     // Otherwise, get questions distributed by domain weight
     const allQuestions = await questionQuery;
 
-    const minRequired = Math.min(10, targetCount);
-    if (allQuestions.length < minRequired) {
+    if (allQuestions.length < targetCount) {
       return reply.status(400).send({
-        error: `Not enough questions in database. Need at least ${minRequired} questions.`,
+        error: `Not enough questions in database. Have ${allQuestions.length}, need ${targetCount}.`,
         questionCount: allQuestions.length,
+        requested: targetCount,
       });
     }
 

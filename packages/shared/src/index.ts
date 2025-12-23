@@ -68,6 +68,13 @@ export const MODEL_DISPLAY_NAMES: Record<LLMModel, string> = {
 export const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard', 'mixed'] as const;
 export type DifficultyOption = typeof DIFFICULTY_OPTIONS[number];
 
+// Exam size options - single source of truth for valid question counts
+export const EXAM_SIZE_OPTIONS = [10, 15, 25, 50] as const;
+export type ExamSize = typeof EXAM_SIZE_OPTIONS[number];
+export const EXAM_SIZE_MIN = 10;
+export const EXAM_SIZE_MAX = 50;
+export const EXAM_SIZE_DEFAULT = 50;
+
 // Domain types
 export interface Domain {
   id: number;
@@ -243,7 +250,7 @@ export interface TopicPracticeStats {
 // API request/response types
 export interface CreateExamRequest {
   focusDomains?: number[];
-  questionCount?: number; // 10-50, defaults to 50
+  questionCount?: ExamSize; // Valid sizes: 10, 15, 25, 50 (defaults to 50)
 }
 
 export interface SubmitAnswerRequest {
