@@ -66,24 +66,30 @@ export async function examRoutes(fastify: FastifyInstance) {
     }
     const targetCount = questionCount as ExamSize;
 
-    // Get questions for the exam
-    let questionQuery = db.select().from(questions);
+    // Build base query - optionally filter by focus domains
+    let baseQuery = db.select().from(questions);
+    if (focusDomains && focusDomains.length > 0) {
+      baseQuery = baseQuery.where(inArray(questions.domainId, focusDomains)) as typeof baseQuery;
+    }
 
-    // If focus domains specified, filter by them
-    // Otherwise, get questions distributed by domain weight
-    const allQuestions = await questionQuery;
+    // Check available question count first (lightweight count query)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(focusDomains?.length ? baseQuery.as('filtered') : questions);
 
-    if (allQuestions.length < targetCount) {
+    const availableCount = countResult.count;
+    if (availableCount < targetCount) {
       return reply.status(400).send({
-        error: `Not enough questions in database. Have ${allQuestions.length}, need ${targetCount}.`,
-        questionCount: allQuestions.length,
+        error: `Not enough questions in database. Have ${availableCount}, need ${targetCount}.`,
+        questionCount: availableCount,
         requested: targetCount,
       });
     }
 
-    // Shuffle and select requested number of questions (or fewer if not enough)
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, Math.min(targetCount, shuffled.length));
+    // Use SQLite RANDOM() for efficient random selection - avoids loading all questions into memory
+    const selectedQuestions = await baseQuery
+      .orderBy(sql`RANDOM()`)
+      .limit(targetCount);
 
     // Create exam
     const [newExam] = await db
