@@ -235,6 +235,57 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Toggle label for checkbox settings */
+.toggleLabel {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  margin-bottom: 0 !important;
+}
+
+.toggleInput {
+  width: auto !important;
+  appearance: none;
+  width: 44px !important;
+  height: 24px;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-subtle);
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.toggleInput::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: all var(--transition-fast);
+}
+
+.toggleInput:checked {
+  background: rgba(0, 212, 170, 0.2);
+  border-color: var(--accent-primary);
+}
+
+.toggleInput:checked::after {
+  left: 22px;
+  background: var(--accent-primary);
+}
+
+.toggleText {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
 .buttonGroup {
   display: flex;
   gap: 12px;

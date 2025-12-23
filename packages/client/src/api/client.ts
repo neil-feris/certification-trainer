@@ -47,10 +47,10 @@ async function request<T>(
 export const examApi = {
   list: () => request<any[]>('/exams'),
   get: (id: number) => request<any>(`/exams/${id}`),
-  create: (focusDomains?: number[]) =>
+  create: (options?: { focusDomains?: number[]; questionCount?: number }) =>
     request<{ examId: number; totalQuestions: number }>('/exams', {
       method: 'POST',
-      body: JSON.stringify({ focusDomains }),
+      body: JSON.stringify(options || {}),
     }),
   submitAnswer: (examId: number, data: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number }) =>
     request(`/exams/${examId}/answer`, {

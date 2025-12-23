@@ -4,10 +4,18 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { examApi, questionApi } from '../../api/client';
 import styles from './ExamSetup.module.css';
 
+const EXAM_SIZE_OPTIONS = [
+  { value: 10, label: '10', description: 'Quick Practice (~12 min)' },
+  { value: 15, label: '15', description: 'Short (~18 min)' },
+  { value: 25, label: '25', description: 'Medium (~30 min)' },
+  { value: 50, label: '50', description: 'Full Exam (2 hrs)' },
+] as const;
+
 export function ExamSetup() {
   const navigate = useNavigate();
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<number>(50);
 
   const { data: questions } = useQuery({
     queryKey: ['questions'],
@@ -21,13 +29,15 @@ export function ExamSetup() {
     setError(null);
 
     try {
-      const result = await examApi.create();
+      const result = await examApi.create({ questionCount: selectedSize });
       navigate(`/exam/${result.examId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to start exam');
       setIsStarting(false);
     }
   };
+
+  const selectedOption = EXAM_SIZE_OPTIONS.find(o => o.value === selectedSize);
 
   return (
     <div className={styles.container}>
@@ -38,14 +48,30 @@ export function ExamSetup() {
           Test your knowledge with a full-length ACE certification practice exam.
         </p>
 
+        <div className={styles.sizeSelector}>
+          <label className={styles.sizeLabel}>Exam Size</label>
+          <div className={styles.sizeOptions}>
+            {EXAM_SIZE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                className={`${styles.sizeOption} ${selectedSize === option.value ? styles.sizeOptionActive : ''}`}
+                onClick={() => setSelectedSize(option.value)}
+              >
+                <span className={styles.sizeValue}>{option.label}</span>
+                <span className={styles.sizeDesc}>{option.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className={styles.info}>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Questions</span>
-            <span className={styles.infoValue}>50</span>
+            <span className={styles.infoValue}>{selectedSize}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Time Limit</span>
-            <span className={styles.infoValue}>2 hours</span>
+            <span className={styles.infoValue}>{selectedOption?.description.split('(')[1]?.replace(')', '') || '2 hrs'}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Passing Score</span>

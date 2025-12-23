@@ -8,6 +8,7 @@ interface ExamQuestion {
   options: string[];
   correctAnswers: number[];
   explanation: string;
+  difficulty: 'easy' | 'medium' | 'hard';
   domain: { id: number; name: string; code: string };
   topic: { id: number; name: string };
 }

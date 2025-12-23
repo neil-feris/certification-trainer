@@ -3,7 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { examApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import styles from './ExamContainer.module.css';
+
+const DIFFICULTY_STYLES: Record<string, string> = {
+  easy: styles.difficultyEasy,
+  medium: styles.difficultyMedium,
+  hard: styles.difficultyHard,
+};
 
 export function ExamContainer() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +32,8 @@ export function ExamContainer() {
     submitExam,
     getProgress,
   } = useExamStore();
+
+  const { showDifficultyDuringExam } = useSettingsStore();
 
   const { data: examData, isLoading } = useQuery({
     queryKey: ['exam', id],
@@ -117,7 +126,14 @@ export function ExamContainer() {
         {/* Question */}
         <div className={styles.questionCard}>
           <div className={styles.questionHeader}>
-            <span className={`badge badge-accent`}>{currentQuestion.domain.name}</span>
+            <div className={styles.questionHeaderLeft}>
+              <span className={`badge badge-accent`}>{currentQuestion.domain.name}</span>
+              {showDifficultyDuringExam && currentQuestion.difficulty && (
+                <span className={`${styles.difficultyBadge} ${DIFFICULTY_STYLES[currentQuestion.difficulty]}`}>
+                  {currentQuestion.difficulty}
+                </span>
+              )}
+            </div>
             <button
               className={`${styles.flagBtn} ${currentResponse?.flagged ? styles.flagged : ''}`}
               onClick={() => toggleFlag(currentQuestion.id)}

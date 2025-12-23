@@ -243,6 +243,7 @@ export interface TopicPracticeStats {
 // API request/response types
 export interface CreateExamRequest {
   focusDomains?: number[];
+  questionCount?: number; // 10-50, defaults to 50
 }
 
 export interface SubmitAnswerRequest {
@@ -349,6 +350,7 @@ export interface Settings {
   openaiModel: OpenAIModel;
   examDurationMinutes: number;
   questionsPerExam: number;
+  showDifficultyDuringExam: boolean;
 }
 
 // LLM generated content

@@ -51,8 +51,11 @@ export async function examRoutes(fastify: FastifyInstance) {
   });
 
   // Create new exam
-  fastify.post<{ Body: { focusDomains?: number[] } }>('/', async (request, reply) => {
-    const { focusDomains } = request.body || {};
+  fastify.post<{ Body: { focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
+    const { focusDomains, questionCount = 50 } = request.body || {};
+
+    // Validate question count (10-50)
+    const targetCount = Math.min(50, Math.max(10, questionCount));
 
     // Get questions for the exam
     let questionQuery = db.select().from(questions);
@@ -61,16 +64,17 @@ export async function examRoutes(fastify: FastifyInstance) {
     // Otherwise, get questions distributed by domain weight
     const allQuestions = await questionQuery;
 
-    if (allQuestions.length < 10) {
+    const minRequired = Math.min(10, targetCount);
+    if (allQuestions.length < minRequired) {
       return reply.status(400).send({
-        error: 'Not enough questions in database. Please generate more questions first.',
+        error: `Not enough questions in database. Need at least ${minRequired} questions.`,
         questionCount: allQuestions.length,
       });
     }
 
-    // Shuffle and select 50 questions (or fewer if not enough)
+    // Shuffle and select requested number of questions (or fewer if not enough)
     const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, Math.min(50, shuffled.length));
+    const selectedQuestions = shuffled.slice(0, Math.min(targetCount, shuffled.length));
 
     // Create exam
     const [newExam] = await db

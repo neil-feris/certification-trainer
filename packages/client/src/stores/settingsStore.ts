@@ -17,6 +17,7 @@ interface SettingsState {
   examDurationMinutes: number;
   questionsPerExam: number;
   showTimerWarning: boolean;
+  showDifficultyDuringExam: boolean;
 
   // Generation state (survives navigation)
   generation: GenerationProgress;
@@ -26,6 +27,7 @@ interface SettingsState {
   setExamDuration: (minutes: number) => void;
   setQuestionsPerExam: (count: number) => void;
   setShowTimerWarning: (show: boolean) => void;
+  setShowDifficultyDuringExam: (show: boolean) => void;
 
   // Generation actions
   startGeneration: (totalDomains: number) => void;
@@ -52,6 +54,7 @@ export const useSettingsStore = create<SettingsState>()(
       examDurationMinutes: 120,
       questionsPerExam: 50,
       showTimerWarning: true,
+      showDifficultyDuringExam: false,
       generation: initialGenerationState,
 
       setTheme: (theme) => set({ theme }),
@@ -59,6 +62,7 @@ export const useSettingsStore = create<SettingsState>()(
       setExamDuration: (examDurationMinutes) => set({ examDurationMinutes }),
       setQuestionsPerExam: (questionsPerExam) => set({ questionsPerExam }),
       setShowTimerWarning: (showTimerWarning) => set({ showTimerWarning }),
+      setShowDifficultyDuringExam: (showDifficultyDuringExam) => set({ showDifficultyDuringExam }),
 
       startGeneration: (totalDomains) =>
         set({
@@ -114,6 +118,7 @@ export const useSettingsStore = create<SettingsState>()(
         examDurationMinutes: state.examDurationMinutes,
         questionsPerExam: state.questionsPerExam,
         showTimerWarning: state.showTimerWarning,
+        showDifficultyDuringExam: state.showDifficultyDuringExam,
       }),
     }
   )

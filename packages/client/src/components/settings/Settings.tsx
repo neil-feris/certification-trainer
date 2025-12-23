@@ -23,6 +23,8 @@ const DIFFICULTY_LABELS: Record<DifficultyOption, string> = {
   mixed: 'Mixed (Balanced)',
 };
 
+const QUESTION_COUNT_OPTIONS = [10, 25, 50, 100] as const;
+
 export function Settings() {
   const queryClient = useQueryClient();
   const [apiKey, setApiKey] = useState('');
@@ -30,9 +32,10 @@ export function Settings() {
   const [anthropicModel, setAnthropicModel] = useState<AnthropicModel>(DEFAULT_ANTHROPIC_MODEL);
   const [openaiModel, setOpenaiModel] = useState<OpenAIModel>(DEFAULT_OPENAI_MODEL);
   const [generateDifficulty, setGenerateDifficulty] = useState<DifficultyOption>('mixed');
+  const [generateCount, setGenerateCount] = useState<number>(50);
   const [testStatus, setTestStatus] = useState<{ success?: boolean; message?: string } | null>(null);
 
-  // Use Zustand store for generation state (survives navigation)
+  // Use Zustand store for generation state (survives navigation) and exam preferences
   const {
     generation,
     startGeneration,
@@ -40,6 +43,8 @@ export function Settings() {
     completeGeneration,
     failGeneration,
     clearGenerationStatus,
+    showDifficultyDuringExam,
+    setShowDifficultyDuringExam,
   } = useSettingsStore();
 
   const { data: settings } = useQuery({
@@ -112,6 +117,7 @@ export function Settings() {
     mutationFn: async () => {
       const currentModel = provider === 'anthropic' ? anthropicModel : openaiModel;
       const domains = [1, 2, 3, 4, 5];
+      const questionsPerDomain = Math.ceil(generateCount / domains.length);
 
       startGeneration(domains.length);
 
@@ -121,7 +127,7 @@ export function Settings() {
           const result = await questionApi.generate({
             domainId,
             difficulty: generateDifficulty,
-            count: 10,
+            count: questionsPerDomain,
             model: currentModel,
           });
           // Update progress after each domain completes
@@ -242,6 +248,24 @@ export function Settings() {
         </p>
 
         <div className={styles.formGroup}>
+          <label>Number of Questions</label>
+          <div className={styles.difficultySelect}>
+            {QUESTION_COUNT_OPTIONS.map((count) => (
+              <button
+                key={count}
+                className={`${styles.difficultyBtn} ${generateCount === count ? styles.difficultyActive : ''}`}
+                onClick={() => setGenerateCount(count)}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+          <span className={styles.hint}>
+            Questions will be distributed evenly across all 5 exam domains
+          </span>
+        </div>
+
+        <div className={styles.formGroup}>
           <label>Difficulty Level</label>
           <div className={styles.difficultySelect}>
             {DIFFICULTY_OPTIONS.map((diff) => (
@@ -271,7 +295,7 @@ export function Settings() {
           onClick={handleGenerateQuestions}
           disabled={generation.isGenerating}
         >
-          {generation.isGenerating ? 'Generating...' : 'Generate 50 Questions'}
+          {generation.isGenerating ? 'Generating...' : `Generate ${generateCount} Questions`}
         </button>
 
         {/* Progress indicator */}
@@ -317,6 +341,29 @@ export function Settings() {
             </button>
           </div>
         )}
+      </section>
+
+      {/* Exam Preferences */}
+      <section className={`card ${styles.section}`}>
+        <h2 className={styles.sectionTitle}>Exam Preferences</h2>
+        <p className={styles.sectionDescription}>
+          Configure your exam-taking experience.
+        </p>
+
+        <div className={styles.formGroup}>
+          <label className={styles.toggleLabel}>
+            <input
+              type="checkbox"
+              checked={showDifficultyDuringExam}
+              onChange={(e) => setShowDifficultyDuringExam(e.target.checked)}
+              className={styles.toggleInput}
+            />
+            <span className={styles.toggleText}>Show question difficulty during exams</span>
+          </label>
+          <span className={styles.hint}>
+            Display easy/medium/hard badge next to each question while taking an exam
+          </span>
+        </div>
       </section>
 
       {/* Data Management */}
