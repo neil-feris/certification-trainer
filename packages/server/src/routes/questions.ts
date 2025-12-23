@@ -80,11 +80,12 @@ export async function questionRoutes(fastify: FastifyInstance) {
     Body: {
       domainId: number;
       topicId?: number;
-      difficulty: 'easy' | 'medium' | 'hard';
+      difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
       count: number;
+      model?: string;
     };
   }>('/generate', async (request, reply) => {
-    const { domainId, topicId, difficulty, count } = request.body;
+    const { domainId, topicId, difficulty, count, model } = request.body;
 
     // Get domain and topic info
     const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
@@ -112,6 +113,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
         topic: topic.name,
         difficulty,
         count,
+        model: model as any,
       });
 
       // Insert generated questions

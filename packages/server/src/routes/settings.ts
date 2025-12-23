@@ -9,6 +9,8 @@ const DEFAULT_SETTINGS: Record<string, string | number> = {
   llmProvider: 'anthropic',
   openaiApiKey: '',
   anthropicApiKey: '',
+  anthropicModel: 'claude-sonnet-4-20250514',
+  openaiModel: 'gpt-4o',
   examDurationMinutes: 120,
   questionsPerExam: 50,
 };
@@ -40,6 +42,8 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       llmProvider: 'openai' | 'anthropic';
       openaiApiKey: string;
       anthropicApiKey: string;
+      anthropicModel: string;
+      openaiModel: string;
       examDurationMinutes: number;
       questionsPerExam: number;
     }>;
