@@ -31,7 +31,7 @@ interface SettingsState {
 
   // Generation actions
   startGeneration: (totalDomains: number) => void;
-  updateGenerationProgress: (domainsCompleted: number, questionsGenerated: number) => void;
+  incrementGenerationProgress: (questionsGenerated: number) => void;
   completeGeneration: (totalGenerated: number) => void;
   failGeneration: (error: string) => void;
   clearGenerationStatus: () => void;
@@ -76,12 +76,12 @@ export const useSettingsStore = create<SettingsState>()(
           },
         }),
 
-      updateGenerationProgress: (domainsCompleted, questionsGenerated) =>
+      incrementGenerationProgress: (questionsGenerated) =>
         set((state) => ({
           generation: {
             ...state.generation,
-            domainsCompleted,
-            questionsGenerated,
+            domainsCompleted: state.generation.domainsCompleted + 1,
+            questionsGenerated: state.generation.questionsGenerated + questionsGenerated,
           },
         })),
 

@@ -39,7 +39,7 @@ export function Settings() {
   const {
     generation,
     startGeneration,
-    updateGenerationProgress,
+    incrementGenerationProgress,
     completeGeneration,
     failGeneration,
     clearGenerationStatus,
@@ -123,15 +123,15 @@ export function Settings() {
 
       // Run all domain generations in parallel for speed
       const results = await Promise.allSettled(
-        domains.map(async (domainId, index) => {
+        domains.map(async (domainId) => {
           const result = await questionApi.generate({
             domainId,
             difficulty: generateDifficulty,
             count: questionsPerDomain,
             model: currentModel,
           });
-          // Update progress after each domain completes
-          updateGenerationProgress(index + 1, result.generated);
+          // Increment progress after each domain completes (order-independent)
+          incrementGenerationProgress(result.generated);
           return result.generated;
         })
       );
