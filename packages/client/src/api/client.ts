@@ -9,6 +9,7 @@ import type {
   CompleteStudySessionRequest,
   CompleteStudySessionResponse,
   ActiveStudySessionResponse,
+  CreateExamRequest,
   DifficultyOption,
   LLMModel,
   LLMProvider,
@@ -47,7 +48,7 @@ async function request<T>(
 export const examApi = {
   list: () => request<any[]>('/exams'),
   get: (id: number) => request<any>(`/exams/${id}`),
-  create: (options?: { focusDomains?: number[]; questionCount?: number }) =>
+  create: (options?: CreateExamRequest) =>
     request<{ examId: number; totalQuestions: number }>('/exams', {
       method: 'POST',
       body: JSON.stringify(options || {}),
