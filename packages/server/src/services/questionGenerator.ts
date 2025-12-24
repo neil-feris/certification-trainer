@@ -3,7 +3,20 @@ import OpenAI from 'openai';
 import { db } from '../db/index.js';
 import { settings } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { GeneratedQuestion, Difficulty } from '@ace-prep/shared';
+import type {
+  GeneratedQuestion,
+  Difficulty,
+  DifficultyOption,
+  LLMModel,
+  AnthropicModel,
+  OpenAIModel,
+} from '@ace-prep/shared';
+import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from '@ace-prep/shared';
+
+// Helper to check if a model is an OpenAI model
+function isOpenAIModel(model: string): model is OpenAIModel {
+  return (OPENAI_MODELS as readonly string[]).includes(model);
+}
 
 const SYSTEM_PROMPT = `You are an expert Google Cloud Platform instructor creating practice questions for the Associate Cloud Engineer (ACE) certification exam.
 
@@ -31,29 +44,57 @@ Each question must include:
 interface GenerateParams {
   domain: string;
   topic: string;
-  difficulty: Difficulty;
+  difficulty: DifficultyOption;
   count: number;
   avoidConcepts?: string[];
+  model?: LLMModel;
 }
 
 async function getApiConfig() {
   const [provider] = await db.select().from(settings).where(eq(settings.key, 'llmProvider'));
   const [openaiKey] = await db.select().from(settings).where(eq(settings.key, 'openaiApiKey'));
   const [anthropicKey] = await db.select().from(settings).where(eq(settings.key, 'anthropicApiKey'));
+  const [anthropicModel] = await db.select().from(settings).where(eq(settings.key, 'anthropicModel'));
+  const [openaiModel] = await db.select().from(settings).where(eq(settings.key, 'openaiModel'));
 
   return {
     provider: provider?.value || 'anthropic',
     openaiApiKey: openaiKey?.value,
     anthropicApiKey: anthropicKey?.value,
+    anthropicModel: (anthropicModel?.value || DEFAULT_ANTHROPIC_MODEL) as AnthropicModel,
+    openaiModel: (openaiModel?.value || DEFAULT_OPENAI_MODEL) as OpenAIModel,
   };
 }
 
-function createUserPrompt(params: GenerateParams): string {
-  return `Generate ${params.count} ${params.difficulty} difficulty ACE certification practice question(s).
+// Resolve difficulty option to actual difficulties for generation
+function resolveDifficulties(difficulty: DifficultyOption, count: number): Difficulty[] {
+  if (difficulty === 'mixed') {
+    // Balanced distribution across difficulties
+    const difficulties: Difficulty[] = [];
+    const perDifficulty = Math.floor(count / 3);
+    const remainder = count % 3;
+
+    for (let i = 0; i < perDifficulty + (remainder > 0 ? 1 : 0); i++) difficulties.push('easy');
+    for (let i = 0; i < perDifficulty + (remainder > 1 ? 1 : 0); i++) difficulties.push('medium');
+    for (let i = 0; i < perDifficulty; i++) difficulties.push('hard');
+
+    // Shuffle for variety
+    return difficulties.sort(() => Math.random() - 0.5);
+  }
+  return Array(count).fill(difficulty as Difficulty);
+}
+
+function createUserPrompt(params: GenerateParams & { resolvedDifficulties?: Difficulty[] }): string {
+  const difficultyInstruction = params.difficulty === 'mixed'
+    ? `Generate ${params.count} ACE certification practice questions with a balanced mix of easy, medium, and hard difficulty levels.`
+    : `Generate ${params.count} ${params.difficulty} difficulty ACE certification practice question(s).`;
+
+  return `${difficultyInstruction}
 
 Domain: ${params.domain}
 Topic: ${params.topic}
 ${params.avoidConcepts?.length ? `Avoid these recently tested concepts: ${params.avoidConcepts.join(', ')}` : ''}
+${params.difficulty === 'mixed' ? `\nFor mixed difficulty: Generate approximately equal numbers of easy, medium, and hard questions. Mark each question with its actual difficulty in the response.` : ''}
 
 Respond with valid JSON matching this exact schema:
 {
@@ -80,15 +121,26 @@ IMPORTANT:
 export async function generateQuestions(params: GenerateParams): Promise<GeneratedQuestion[]> {
   const config = await getApiConfig();
 
-  if (config.provider === 'anthropic') {
+  // Determine which provider to use: explicit param > settings > default
+  // OpenAI models: gpt-*, o3, o4-mini; Anthropic models: claude-*
+  const useOpenAIProvider = params.model
+    ? isOpenAIModel(params.model)
+    : config.provider === 'openai';
+
+  if (!useOpenAIProvider) {
+    // Anthropic
     if (!config.anthropicApiKey) {
       throw new Error('Anthropic API key not configured. Please set it in Settings.');
     }
 
+    const model = params.model && !isOpenAIModel(params.model)
+      ? (params.model as AnthropicModel)
+      : config.anthropicModel;
+
     const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
     const response = await client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model,
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [
@@ -106,20 +158,25 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
 
     try {
       const parsed = JSON.parse(content.text);
-      return validateQuestions(parsed.questions);
+      return validateQuestions(parsed.questions, params.difficulty);
     } catch (e) {
       console.error('Failed to parse Anthropic response:', content.text);
       throw new Error('Failed to parse generated questions');
     }
   } else {
+    // OpenAI
     if (!config.openaiApiKey) {
       throw new Error('OpenAI API key not configured. Please set it in Settings.');
     }
 
+    const model = params.model && isOpenAIModel(params.model)
+      ? params.model
+      : config.openaiModel;
+
     const client = new OpenAI({ apiKey: config.openaiApiKey });
 
     const response = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model,
       max_tokens: 4096,
       response_format: { type: 'json_object' },
       messages: [
@@ -135,7 +192,7 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
 
     try {
       const parsed = JSON.parse(content);
-      return validateQuestions(parsed.questions);
+      return validateQuestions(parsed.questions, params.difficulty);
     } catch (e) {
       console.error('Failed to parse OpenAI response:', content);
       throw new Error('Failed to parse generated questions');
@@ -143,7 +200,7 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
   }
 }
 
-function validateQuestions(questions: any[]): GeneratedQuestion[] {
+function validateQuestions(questions: any[], requestedDifficulty: DifficultyOption): GeneratedQuestion[] {
   if (!Array.isArray(questions)) {
     throw new Error('Expected questions array');
   }
@@ -165,6 +222,12 @@ function validateQuestions(questions: any[]): GeneratedQuestion[] {
       throw new Error(`Question ${i + 1}: missing explanation`);
     }
 
+    // For non-mixed difficulty, use the requested difficulty
+    // For mixed, trust the LLM's assigned difficulty or default to medium
+    const difficulty: Difficulty = requestedDifficulty === 'mixed'
+      ? (['easy', 'medium', 'hard'].includes(q.difficulty) ? q.difficulty : 'medium')
+      : requestedDifficulty;
+
     return {
       questionText: q.questionText,
       questionType: q.questionType,
@@ -172,7 +235,7 @@ function validateQuestions(questions: any[]): GeneratedQuestion[] {
       correctAnswers: q.correctAnswers,
       explanation: q.explanation,
       gcpServices: q.gcpServices || [],
-      difficulty: q.difficulty || 'medium',
+      difficulty,
     };
   });
 }

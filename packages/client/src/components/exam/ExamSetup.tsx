@@ -2,12 +2,22 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { examApi, questionApi } from '../../api/client';
+import { EXAM_SIZE_OPTIONS as EXAM_SIZES, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 import styles from './ExamSetup.module.css';
+
+// UI-specific metadata for each exam size
+const EXAM_SIZE_UI: Record<ExamSize, { label: string; description: string; duration: string }> = {
+  10: { label: '10', description: 'Quick Practice', duration: '~12 min' },
+  15: { label: '15', description: 'Short', duration: '~18 min' },
+  25: { label: '25', description: 'Medium', duration: '~30 min' },
+  50: { label: '50', description: 'Full Exam', duration: '2 hrs' },
+};
 
 export function ExamSetup() {
   const navigate = useNavigate();
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<ExamSize>(EXAM_SIZE_DEFAULT);
 
   const { data: questions } = useQuery({
     queryKey: ['questions'],
@@ -21,13 +31,15 @@ export function ExamSetup() {
     setError(null);
 
     try {
-      const result = await examApi.create();
+      const result = await examApi.create({ questionCount: selectedSize });
       navigate(`/exam/${result.examId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to start exam');
       setIsStarting(false);
     }
   };
+
+  const selectedOption = EXAM_SIZE_UI[selectedSize];
 
   return (
     <div className={styles.container}>
@@ -38,14 +50,30 @@ export function ExamSetup() {
           Test your knowledge with a full-length ACE certification practice exam.
         </p>
 
+        <div className={styles.sizeSelector}>
+          <label className={styles.sizeLabel}>Exam Size</label>
+          <div className={styles.sizeOptions}>
+            {EXAM_SIZES.map((size) => (
+              <button
+                key={size}
+                className={`${styles.sizeOption} ${selectedSize === size ? styles.sizeOptionActive : ''}`}
+                onClick={() => setSelectedSize(size)}
+              >
+                <span className={styles.sizeValue}>{EXAM_SIZE_UI[size].label}</span>
+                <span className={styles.sizeDesc}>{EXAM_SIZE_UI[size].description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className={styles.info}>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Questions</span>
-            <span className={styles.infoValue}>50</span>
+            <span className={styles.infoValue}>{selectedSize}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Time Limit</span>
-            <span className={styles.infoValue}>2 hours</span>
+            <span className={styles.infoValue}>{selectedOption.duration}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Passing Score</span>

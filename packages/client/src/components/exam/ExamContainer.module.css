@@ -100,6 +100,36 @@
   margin-bottom: 24px;
 }
 
+.questionHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.difficultyBadge {
+  padding: 4px 10px;
+  border-radius: var(--border-radius);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.difficultyEasy {
+  background: rgba(0, 200, 83, 0.15);
+  color: var(--success);
+}
+
+.difficultyMedium {
+  background: rgba(255, 171, 0, 0.15);
+  color: var(--warning);
+}
+
+.difficultyHard {
+  background: rgba(255, 82, 82, 0.15);
+  color: var(--error);
+}
+
 .flagBtn {
   background: none;
   border: 1px solid var(--border-color);

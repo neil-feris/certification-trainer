@@ -9,6 +9,12 @@ import type {
   CompleteStudySessionRequest,
   CompleteStudySessionResponse,
   ActiveStudySessionResponse,
+  CreateExamRequest,
+  DifficultyOption,
+  LLMModel,
+  LLMProvider,
+  AnthropicModel,
+  OpenAIModel,
 } from '@ace-prep/shared';
 
 const API_BASE = '/api';
@@ -42,10 +48,10 @@ async function request<T>(
 export const examApi = {
   list: () => request<any[]>('/exams'),
   get: (id: number) => request<any>(`/exams/${id}`),
-  create: (focusDomains?: number[]) =>
+  create: (options?: CreateExamRequest) =>
     request<{ examId: number; totalQuestions: number }>('/exams', {
       method: 'POST',
-      body: JSON.stringify({ focusDomains }),
+      body: JSON.stringify(options || {}),
     }),
   submitAnswer: (examId: number, data: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number }) =>
     request(`/exams/${examId}/answer`, {
@@ -70,7 +76,7 @@ export const questionApi = {
     return request<any[]>(`/questions?${searchParams}`);
   },
   get: (id: number) => request<any>(`/questions/${id}`),
-  generate: (data: { domainId: number; topicId?: number; difficulty: string; count: number }) =>
+  generate: (data: { domainId: number; topicId?: number; difficulty: DifficultyOption; count: number; model?: LLMModel }) =>
     request<{ success: boolean; generated: number; questions: any[] }>('/questions/generate', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -150,9 +156,11 @@ export const studyApi = {
 export const settingsApi = {
   get: () => request<any>('/settings'),
   update: (data: Partial<{
-    llmProvider: string;
+    llmProvider: LLMProvider;
     openaiApiKey: string;
     anthropicApiKey: string;
+    anthropicModel: AnthropicModel;
+    openaiModel: OpenAIModel;
     examDurationMinutes: number;
     questionsPerExam: number;
   }>) =>
@@ -160,7 +168,7 @@ export const settingsApi = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  testApi: (provider: 'openai' | 'anthropic', apiKey: string) =>
+  testApi: (provider: LLMProvider, apiKey: string) =>
     request<{ success: boolean; message: string }>('/settings/test-api', {
       method: 'POST',
       body: JSON.stringify({ provider, apiKey }),

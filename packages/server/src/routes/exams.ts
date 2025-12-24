@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { exams, examResponses, questions, domains, topics } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
+import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Get all exams
@@ -51,26 +52,44 @@ export async function examRoutes(fastify: FastifyInstance) {
   });
 
   // Create new exam
-  fastify.post<{ Body: { focusDomains?: number[] } }>('/', async (request, reply) => {
-    const { focusDomains } = request.body || {};
+  fastify.post<{ Body: { focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
+    const { focusDomains, questionCount = EXAM_SIZE_DEFAULT } = request.body || {};
 
-    // Get questions for the exam
-    let questionQuery = db.select().from(questions);
-
-    // If focus domains specified, filter by them
-    // Otherwise, get questions distributed by domain weight
-    const allQuestions = await questionQuery;
-
-    if (allQuestions.length < 10) {
+    // Validate question count against allowed sizes
+    const validSizes = EXAM_SIZE_OPTIONS as readonly number[];
+    if (!validSizes.includes(questionCount)) {
       return reply.status(400).send({
-        error: 'Not enough questions in database. Please generate more questions first.',
-        questionCount: allQuestions.length,
+        error: `Invalid question count. Must be one of: ${EXAM_SIZE_OPTIONS.join(', ')}`,
+        received: questionCount,
+        validOptions: [...EXAM_SIZE_OPTIONS],
+      });
+    }
+    const targetCount = questionCount as ExamSize;
+
+    // Build base query - optionally filter by focus domains
+    let baseQuery = db.select().from(questions);
+    if (focusDomains && focusDomains.length > 0) {
+      baseQuery = baseQuery.where(inArray(questions.domainId, focusDomains)) as typeof baseQuery;
+    }
+
+    // Check available question count first (lightweight count query)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(focusDomains?.length ? baseQuery.as('filtered') : questions);
+
+    const availableCount = countResult.count;
+    if (availableCount < targetCount) {
+      return reply.status(400).send({
+        error: `Not enough questions in database. Have ${availableCount}, need ${targetCount}.`,
+        questionCount: availableCount,
+        requested: targetCount,
       });
     }
 
-    // Shuffle and select 50 questions (or fewer if not enough)
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, Math.min(50, shuffled.length));
+    // Use SQLite RANDOM() for efficient random selection - avoids loading all questions into memory
+    const selectedQuestions = await baseQuery
+      .orderBy(sql`RANDOM()`)
+      .limit(targetCount);
 
     // Create exam
     const [newExam] = await db
