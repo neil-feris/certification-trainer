@@ -157,6 +157,8 @@ export const studySessionResponses = sqliteTable('study_session_responses', {
   addedToSR: integer('added_to_sr', { mode: 'boolean' }).default(false),
 }, (table) => [
   index('session_responses_idx').on(table.sessionId),
+  // Prevent duplicate responses for the same question in a session
+  uniqueIndex('session_question_unique_idx').on(table.sessionId, table.questionId),
 ]);
 
 // Learning path completion tracking

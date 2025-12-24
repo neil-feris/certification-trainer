@@ -24,6 +24,18 @@ import {
   completeDrillSchema
 } from '../validation/schemas.js';
 
+/**
+ * SECURITY WARNING: This API is designed for SINGLE-USER local use only.
+ *
+ * There is NO authentication or authorization implemented.
+ * All drill sessions are accessible to anyone with network access.
+ *
+ * Before deploying to multi-user environments:
+ * 1. Implement user authentication (JWT, session cookies, OAuth)
+ * 2. Add user ownership to studySessions table
+ * 3. Verify session ownership on all endpoints
+ * 4. Add user-based rate limiting
+ */
 export async function drillRoutes(fastify: FastifyInstance) {
   // Create a new timed drill
   fastify.post<{ Body: StartDrillRequest }>('/', async (request, reply) => {
@@ -164,77 +176,81 @@ export async function drillRoutes(fastify: FastifyInstance) {
       selectedAnswers.every(a => correctAnswers.includes(a)) &&
       correctAnswers.every(a => selectedAnswers.includes(a));
 
-    // Check if response already exists
-    const [existingResponse] = await db
-      .select()
-      .from(studySessionResponses)
-      .where(and(
-        eq(studySessionResponses.sessionId, drillId),
-        eq(studySessionResponses.questionId, questionId)
-      ));
-
+    // Use transaction to prevent race conditions (TOCTOU)
+    // The unique constraint on (sessionId, questionId) also prevents duplicates
     let addedToSR = false;
 
-    if (existingResponse) {
-      // Update existing response
-      await db.update(studySessionResponses)
-        .set({
+    await db.transaction(async (tx) => {
+      // Check if response already exists
+      const [existingResponse] = await tx
+        .select()
+        .from(studySessionResponses)
+        .where(and(
+          eq(studySessionResponses.sessionId, drillId),
+          eq(studySessionResponses.questionId, questionId)
+        ));
+
+      if (existingResponse) {
+        // Update existing response
+        await tx.update(studySessionResponses)
+          .set({
+            selectedAnswers: JSON.stringify(selectedAnswers),
+            isCorrect,
+            timeSpentSeconds,
+          })
+          .where(eq(studySessionResponses.id, existingResponse.id));
+        addedToSR = existingResponse.addedToSR || false;
+      } else {
+        // Get next order index
+        const existingCount = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(studySessionResponses)
+          .where(eq(studySessionResponses.sessionId, drillId));
+
+        // Create new response
+        await tx.insert(studySessionResponses).values({
+          sessionId: drillId,
+          questionId,
           selectedAnswers: JSON.stringify(selectedAnswers),
           isCorrect,
           timeSpentSeconds,
-        })
-        .where(eq(studySessionResponses.id, existingResponse.id));
-      addedToSR = existingResponse.addedToSR || false;
-    } else {
-      // Get next order index
-      const existingCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(studySessionResponses)
-        .where(eq(studySessionResponses.sessionId, drillId));
+          orderIndex: (existingCount[0]?.count || 0) + 1,
+          addedToSR: false,
+        });
 
-      // Create new response
-      await db.insert(studySessionResponses).values({
-        sessionId: drillId,
-        questionId,
-        selectedAnswers: JSON.stringify(selectedAnswers),
-        isCorrect,
-        timeSpentSeconds,
-        orderIndex: (existingCount[0]?.count || 0) + 1,
-        addedToSR: false,
-      });
+        // If incorrect, add to spaced repetition queue
+        if (!isCorrect) {
+          const [existingSR] = await tx
+            .select()
+            .from(spacedRepetition)
+            .where(eq(spacedRepetition.questionId, questionId));
 
-      // If incorrect, add to spaced repetition queue
-      if (!isCorrect) {
-        const [existingSR] = await db
-          .select()
-          .from(spacedRepetition)
-          .where(eq(spacedRepetition.questionId, questionId));
+          if (!existingSR) {
+            await tx.insert(spacedRepetition).values({
+              questionId,
+              easeFactor: 2.5,
+              interval: 1,
+              repetitions: 0,
+              nextReviewAt: new Date(),
+            });
+            addedToSR = true;
 
-        if (!existingSR) {
-          await db.insert(spacedRepetition).values({
-            questionId,
-            easeFactor: 2.5,
-            interval: 1,
-            repetitions: 0,
-            nextReviewAt: new Date(),
-          });
-          addedToSR = true;
-
-          // Update the response to mark it
-          await db.update(studySessionResponses)
-            .set({ addedToSR: true })
-            .where(and(
-              eq(studySessionResponses.sessionId, drillId),
-              eq(studySessionResponses.questionId, questionId)
-            ));
+            // Update the response to mark it
+            await tx.update(studySessionResponses)
+              .set({ addedToSR: true })
+              .where(and(
+                eq(studySessionResponses.sessionId, drillId),
+                eq(studySessionResponses.questionId, questionId)
+              ));
+          }
         }
       }
-    }
 
-    // Update session sync time
-    await db.update(studySessions)
-      .set({ syncedAt: new Date() })
-      .where(eq(studySessions.id, drillId));
+      // Update session sync time
+      await tx.update(studySessions)
+        .set({ syncedAt: new Date() })
+        .where(eq(studySessions.id, drillId));
+    });
 
     // Return correctAnswers and explanation ONLY after user has submitted
     return {

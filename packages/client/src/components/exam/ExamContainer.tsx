@@ -84,6 +84,12 @@ export function ExamContainer() {
     // After abandoning, the effect will reinitialize with URL exam
   };
 
+  // Memoize handleSubmit to prevent stale closures
+  const handleSubmit = useCallback(async () => {
+    await submitExam();
+    navigate(`/exam/${id}/review`);
+  }, [submitExam, navigate, id]);
+
   // Timer
   useEffect(() => {
     if (!examId || timeRemaining <= 0) return;
@@ -93,14 +99,14 @@ export function ExamContainer() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [examId, timeRemaining]);
+  }, [examId, timeRemaining, updateTimeRemaining]);
 
   // Auto-submit when time runs out
   useEffect(() => {
     if (timeRemaining === 0 && examId) {
       handleSubmit();
     }
-  }, [timeRemaining]);
+  }, [timeRemaining, examId, handleSubmit]);
 
   // Keyboard navigation handler
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -127,12 +133,13 @@ export function ExamContainer() {
         const optionIndex = parseInt(e.key) - 1;
         if (currentQuestion && optionIndex < currentQuestion.options.length) {
           e.preventDefault();
-          const isSelected = currentResponse?.selectedAnswers.includes(optionIndex);
+          const currentAnswers = currentResponse?.selectedAnswers || [];
+          const isSelected = currentAnswers.includes(optionIndex);
           const newAnswers = currentQuestion.questionType === 'single'
             ? [optionIndex]
             : isSelected
-              ? currentResponse!.selectedAnswers.filter((a) => a !== optionIndex)
-              : [...(currentResponse?.selectedAnswers || []), optionIndex];
+              ? currentAnswers.filter((a) => a !== optionIndex)
+              : [...currentAnswers, optionIndex];
           answerQuestion(currentQuestion.id, newAnswers);
         }
         break;
@@ -210,11 +217,6 @@ export function ExamContainer() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
-
-  const handleSubmit = async () => {
-    await submitExam();
-    navigate(`/exam/${id}/review`);
-  };
 
   // Show recovery modal if there's an incomplete exam
   if (showRecoveryModal) {

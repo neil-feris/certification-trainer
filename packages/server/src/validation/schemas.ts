@@ -142,10 +142,43 @@ export const testApiSchema = z.object({
 
 // ============ Progress Schemas ============
 
+// Strict schemas for data import to prevent arbitrary data injection
+const importExamSchema = z.object({
+  id: z.number().int().positive().optional(),
+  startedAt: z.string().datetime().or(z.number()),
+  completedAt: z.string().datetime().or(z.number()).nullable().optional(),
+  timeSpentSeconds: z.number().int().min(0).nullable().optional(),
+  totalQuestions: z.number().int().positive(),
+  correctAnswers: z.number().int().min(0).nullable().optional(),
+  score: z.number().min(0).max(100).nullable().optional(),
+  status: z.enum(['in_progress', 'completed', 'abandoned']),
+});
+
+const importExamResponseSchema = z.object({
+  id: z.number().int().positive().optional(),
+  examId: z.number().int().positive(),
+  questionId: z.number().int().positive(),
+  selectedAnswers: z.string().or(z.array(z.number().int().min(0))),
+  isCorrect: z.boolean().nullable().optional(),
+  timeSpentSeconds: z.number().int().min(0).nullable().optional(),
+  flagged: z.boolean().optional(),
+  orderIndex: z.number().int().min(0),
+});
+
+const importPerformanceStatSchema = z.object({
+  id: z.number().int().positive().optional(),
+  domainId: z.number().int().positive(),
+  topicId: z.number().int().positive().nullable().optional(),
+  totalAttempts: z.number().int().min(0),
+  correctAttempts: z.number().int().min(0),
+  avgTimeSeconds: z.number().min(0).nullable().optional(),
+  lastAttemptedAt: z.string().datetime().or(z.number()).nullable().optional(),
+});
+
 export const importProgressSchema = z.object({
-  exams: z.array(z.any()),
-  responses: z.array(z.any()),
-  performanceStats: z.array(z.any()),
+  exams: z.array(importExamSchema),
+  responses: z.array(importExamResponseSchema),
+  performanceStats: z.array(importPerformanceStatSchema),
 });
 
 // ============ Drill Schemas ============

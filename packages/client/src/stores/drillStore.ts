@@ -6,7 +6,6 @@ import type {
   DrillQuestionCount,
   DrillTimeLimit,
   DrillQuestion,
-  DrillResult,
   CompleteDrillResponse,
 } from '@ace-prep/shared';
 
@@ -206,12 +205,14 @@ export const useDrillStore = create<DrillState>()(
       },
 
       tick: () => {
-        const { timeRemaining, isActive } = get();
-        if (!isActive) return;
+        const { timeRemaining, isActive, showSummary } = get();
+        // Guard against ticking when not active or already completing
+        if (!isActive || showSummary) return;
 
         if (timeRemaining <= 1) {
-          // Time's up - auto submit and complete
+          // Time's up - set state synchronously FIRST to prevent race
           set({ timeRemaining: 0, isActive: false });
+          // Then trigger async completion
           get().completeDrill(true);
         } else {
           set({ timeRemaining: timeRemaining - 1 });
@@ -219,7 +220,13 @@ export const useDrillStore = create<DrillState>()(
       },
 
       completeDrill: async (timedOut = false) => {
-        const { drillId, startedAt, responses } = get();
+        const { drillId, startedAt, showSummary, drillResults, isLoading } = get();
+
+        // Guard: prevent double completion
+        if (showSummary || drillResults || isLoading) {
+          return drillResults as CompleteDrillResponse;
+        }
+
         if (!drillId) {
           throw new Error('No active drill');
         }
@@ -298,10 +305,32 @@ export const useDrillStore = create<DrillState>()(
         isActive: state.isActive,
         showFeedback: state.showFeedback,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (state && Array.isArray(state.responses)) {
-          state.responses = new Map(state.responses as [number, DrillResponse][]);
+      // Use merge to handle Map conversion atomically during hydration
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<DrillState> & { responses?: [number, DrillResponse][] };
+        let responses: Map<number, DrillResponse>;
+
+        try {
+          // Safely convert array back to Map
+          if (Array.isArray(persisted?.responses)) {
+            responses = new Map(persisted.responses);
+          } else {
+            responses = new Map();
+          }
+        } catch {
+          // If conversion fails, start fresh
+          responses = new Map();
         }
+
+        return {
+          ...currentState,
+          ...persisted,
+          responses,
+          // Ensure these are always proper defaults if not persisted
+          showSummary: false,
+          isLoading: false,
+          drillResults: null,
+        };
       },
     }
   )

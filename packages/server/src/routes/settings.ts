@@ -122,21 +122,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get raw API key (for internal use only, not exposed to frontend)
-  fastify.get<{ Params: { provider: string } }>('/api-key/:provider', async (request, reply) => {
-    const parseResult = providerParamSchema.safeParse(request.params);
-    if (!parseResult.success) {
-      return reply.status(400).send(formatZodError(parseResult.error));
-    }
-    const { provider } = parseResult.data;
-    const key = provider === 'openai' ? 'openaiApiKey' : 'anthropicApiKey';
-
-    const [setting] = await db.select().from(settings).where(eq(settings.key, key));
-
-    if (!setting || !setting.value) {
-      return reply.status(404).send({ error: 'API key not configured' });
-    }
-
-    return { apiKey: setting.value };
-  });
+  // SECURITY: API key retrieval endpoint REMOVED
+  // API keys should NEVER be exposed via HTTP endpoints.
+  // Use getApiKey() helper from db/index.js for internal server-side use only.
 }

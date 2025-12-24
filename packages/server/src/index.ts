@@ -1,3 +1,19 @@
+/**
+ * ACE Exam Prep API Server
+ *
+ * SECURITY WARNING: This server is designed for SINGLE-USER LOCAL use only.
+ *
+ * There is NO authentication or authorization implemented on any endpoint.
+ * All data is accessible to anyone with network access to this server.
+ *
+ * DO NOT deploy to production or multi-user environments without:
+ * 1. Implementing user authentication (JWT, OAuth, session cookies)
+ * 2. Adding user ownership to all data tables
+ * 3. Implementing authorization checks on all endpoints
+ * 4. Adding user-based rate limiting
+ * 5. Securing API key storage with proper encryption
+ */
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
