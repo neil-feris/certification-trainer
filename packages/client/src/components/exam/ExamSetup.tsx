@@ -19,12 +19,10 @@ export function ExamSetup() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<ExamSize>(EXAM_SIZE_DEFAULT);
 
-  const { data: questions } = useQuery({
-    queryKey: ['questions'],
-    queryFn: () => questionApi.list(),
+  const { data: questionCount = 0 } = useQuery({
+    queryKey: ['questions', 'count'],
+    queryFn: () => questionApi.getCount(),
   });
-
-  const questionCount = questions?.length || 0;
 
   const startExam = async () => {
     setIsStarting(true);

@@ -5,6 +5,18 @@ import { eq, desc, and, sql, inArray, notInArray, lte } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
 import type { StartStudySessionRequest, SubmitStudyAnswerRequest, CompleteStudySessionRequest } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
+import {
+  idParamSchema,
+  orderParamSchema,
+  topicIdParamSchema,
+  startStudySessionSchema,
+  submitStudyAnswerSchema,
+  completeStudySessionSchema,
+  studySummarySchema,
+  explainSchema,
+  topicQuestionsQuerySchema,
+  formatZodError,
+} from '../validation/schemas.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Get all domains with topics (filtered by certification)
@@ -166,7 +178,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
   // Toggle learning path item completion
   fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>('/learning-path/:order/toggle', async (request, reply) => {
-    const order = parseInt(request.params.order, 10);
+    const parseResult = orderParamSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const order = parseResult.data.order;
+
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
 
@@ -227,13 +244,25 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Generate study summary for a domain/topic
+  // Rate limit: 10 per minute
   fastify.post<{
     Body: {
       domainId: number;
       topicId?: number;
     };
-  }>('/summary', async (request, reply) => {
-    const { domainId, topicId } = request.body;
+  }>('/summary', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const parseResult = studySummarySchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { domainId, topicId } = parseResult.data;
 
     const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
     if (!domain) {
@@ -288,13 +317,25 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Generate explanation for a wrong answer
+  // Rate limit: 20 per minute
   fastify.post<{
     Body: {
       questionId: number;
       userAnswers: number[];
     };
-  }>('/explain', async (request, reply) => {
-    const { questionId, userAnswers } = request.body;
+  }>('/explain', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const parseResult = explainSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { questionId, userAnswers } = parseResult.data;
 
     const [result] = await db
       .select({
@@ -358,7 +399,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
   // Create a new study session
   fastify.post<{ Body: StartStudySessionRequest }>('/sessions', async (request, reply) => {
-    const { certificationId, sessionType, topicId, domainId, questionCount = 10 } = request.body;
+    const parseResult = startStudySessionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { certificationId, sessionType, topicId, domainId, questionCount = 10 } = parseResult.data;
 
     // Get and validate certification ID
     const certId = await resolveCertificationId(certificationId, reply);
@@ -512,8 +557,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
     Params: { id: string };
     Body: SubmitStudyAnswerRequest;
   }>('/sessions/:id/answer', async (request, reply) => {
-    const sessionId = parseInt(request.params.id, 10);
-    const { questionId, selectedAnswers, timeSpentSeconds } = request.body;
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const sessionId = paramResult.data.id;
+
+    const bodyResult = submitStudyAnswerSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+    const { questionId, selectedAnswers, timeSpentSeconds } = bodyResult.data;
 
     // Verify session exists and is active
     const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
@@ -621,8 +675,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
     Params: { id: string };
     Body: CompleteStudySessionRequest;
   }>('/sessions/:id/complete', async (request, reply) => {
-    const sessionId = parseInt(request.params.id, 10);
-    const { responses, totalTimeSeconds } = request.body;
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const sessionId = paramResult.data.id;
+
+    const bodyResult = completeStudySessionSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+    const { responses, totalTimeSeconds } = bodyResult.data;
 
     const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
     if (!session) {
@@ -749,7 +812,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
   // Abandon study session
   fastify.delete<{ Params: { id: string } }>('/sessions/:id', async (request, reply) => {
-    const sessionId = parseInt(request.params.id, 10);
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const sessionId = paramResult.data.id;
 
     const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
     if (!session) {
@@ -767,10 +834,19 @@ export async function studyRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Params: { topicId: string };
     Querystring: { count?: string; difficulty?: string };
-  }>('/topics/:topicId/questions', async (request) => {
-    const topicId = parseInt(request.params.topicId, 10);
-    const count = parseInt(request.query.count || '10', 10);
-    const difficulty = request.query.difficulty;
+  }>('/topics/:topicId/questions', async (request, reply) => {
+    const paramResult = topicIdParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const topicId = paramResult.data.topicId;
+
+    const queryResult = topicQuestionsQuerySchema.safeParse(request.query);
+    if (!queryResult.success) {
+      return reply.status(400).send(formatZodError(queryResult.error));
+    }
+    const count = queryResult.data.count || 10;
+    const difficulty = queryResult.data.difficulty;
 
     // Build where condition
     const whereCondition = difficulty
@@ -804,8 +880,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Get topic practice stats
-  fastify.get<{ Params: { topicId: string } }>('/topics/:topicId/stats', async (request) => {
-    const topicId = parseInt(request.params.topicId, 10);
+  fastify.get<{ Params: { topicId: string } }>('/topics/:topicId/stats', async (request, reply) => {
+    const paramResult = topicIdParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const topicId = paramResult.data.topicId;
 
     // Get all exam responses for this topic
     const responses = await db

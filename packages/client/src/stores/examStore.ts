@@ -38,6 +38,8 @@ interface ExamState {
   updateTimeRemaining: (seconds: number) => void;
   submitExam: () => Promise<void>;
   resetExam: () => void;
+  abandonExam: () => Promise<void>;
+  hasIncompleteExam: () => boolean;
 
   // Getters
   getCurrentQuestion: () => ExamQuestion | null;
@@ -173,6 +175,32 @@ export const useExamStore = create<ExamState>()(
           timeRemaining: EXAM_DURATION,
           isSubmitting: false,
         });
+      },
+
+      abandonExam: async () => {
+        const { examId } = get();
+        if (!examId) return;
+
+        // Mark exam as abandoned in DB
+        await fetch(`/api/exams/${examId}`, {
+          method: 'DELETE',
+        });
+
+        // Clear local state
+        set({
+          examId: null,
+          currentQuestionIndex: 0,
+          questions: [],
+          responses: new Map(),
+          startTime: null,
+          timeRemaining: EXAM_DURATION,
+          isSubmitting: false,
+        });
+      },
+
+      hasIncompleteExam: () => {
+        const { examId, questions, timeRemaining } = get();
+        return examId !== null && questions.length > 0 && timeRemaining > 0;
       },
 
       getCurrentQuestion: () => {

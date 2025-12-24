@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useStudyStore } from '../../stores/studyStore';
+import { useDrillStore } from '../../stores/drillStore';
 import { LearningPathList } from './learning-path/LearningPathList';
 import { DomainList } from './domains/DomainList';
 import { TopicPractice } from './practice/TopicPractice';
 import { SummaryBrowser } from './summaries/SummaryBrowser';
+import { DrillHub } from './drills/DrillHub';
 import { SessionRecoveryModal } from './SessionRecoveryModal';
 import styles from './StudyHub.module.css';
 
-type Tab = 'path' | 'domains' | 'practice' | 'summaries';
+type Tab = 'path' | 'domains' | 'practice' | 'drills' | 'summaries';
 
 export function StudyHub() {
   const [activeTab, setActiveTab] = useState<Tab>('path');
@@ -73,6 +75,12 @@ export function StudyHub() {
     return <TopicPractice onExit={handleExitPractice} />;
   }
 
+  // If in drills mode with active drill, show full-screen
+  const { drillId, isActive: isDrillActive, showSummary: showDrillSummary } = useDrillStore.getState();
+  if (activeTab === 'drills' && drillId && (isDrillActive || showDrillSummary)) {
+    return <DrillHub />;
+  }
+
   return (
     <div className={styles.container}>
       {showRecoveryModal && (
@@ -98,6 +106,12 @@ export function StudyHub() {
             Practice
           </button>
           <button
+            className={`${styles.tab} ${activeTab === 'drills' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('drills')}
+          >
+            Drills
+          </button>
+          <button
             className={`${styles.tab} ${activeTab === 'summaries' ? styles.tabActive : ''}`}
             onClick={() => setActiveTab('summaries')}
           >
@@ -109,6 +123,7 @@ export function StudyHub() {
       <div className={styles.content}>
         {activeTab === 'path' && <LearningPathList />}
         {activeTab === 'domains' && <DomainList onStartPractice={handleStartPractice} />}
+        {activeTab === 'drills' && <DrillHub />}
         {activeTab === 'summaries' && <SummaryBrowser />}
       </div>
     </div>

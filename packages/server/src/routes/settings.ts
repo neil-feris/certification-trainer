@@ -4,6 +4,12 @@ import { settings } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import {
+  providerParamSchema,
+  updateSettingsSchema,
+  testApiSchema,
+  formatZodError,
+} from '../validation/schemas.js';
 
 const DEFAULT_SETTINGS: Record<string, string | number> = {
   llmProvider: 'anthropic',
@@ -20,20 +26,21 @@ export async function settingsRoutes(fastify: FastifyInstance) {
   fastify.get('/', async () => {
     const allSettings = await db.select().from(settings);
 
-    const result: Record<string, string | number> = { ...DEFAULT_SETTINGS };
+    const dbValues: Record<string, string> = {};
     for (const s of allSettings) {
-      result[s.key] = s.value;
+      dbValues[s.key] = s.value;
     }
 
-    // Mask API keys for security
-    if (result.openaiApiKey && typeof result.openaiApiKey === 'string') {
-      result.openaiApiKey = result.openaiApiKey.slice(0, 10) + '...' + result.openaiApiKey.slice(-4);
-    }
-    if (result.anthropicApiKey && typeof result.anthropicApiKey === 'string') {
-      result.anthropicApiKey = result.anthropicApiKey.slice(0, 10) + '...' + result.anthropicApiKey.slice(-4);
-    }
-
-    return result;
+    // Return boolean flags for API keys instead of exposing any key data
+    return {
+      llmProvider: dbValues.llmProvider || DEFAULT_SETTINGS.llmProvider,
+      hasOpenaiKey: Boolean(dbValues.openaiApiKey && dbValues.openaiApiKey.length > 0),
+      hasAnthropicKey: Boolean(dbValues.anthropicApiKey && dbValues.anthropicApiKey.length > 0),
+      anthropicModel: dbValues.anthropicModel || DEFAULT_SETTINGS.anthropicModel,
+      openaiModel: dbValues.openaiModel || DEFAULT_SETTINGS.openaiModel,
+      examDurationMinutes: Number(dbValues.examDurationMinutes) || DEFAULT_SETTINGS.examDurationMinutes,
+      questionsPerExam: Number(dbValues.questionsPerExam) || DEFAULT_SETTINGS.questionsPerExam,
+    };
   });
 
   // Update settings
@@ -47,8 +54,12 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       examDurationMinutes: number;
       questionsPerExam: number;
     }>;
-  }>('/', async (request) => {
-    const updates = request.body;
+  }>('/', async (request, reply) => {
+    const parseResult = updateSettingsSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const updates = parseResult.data;
     const now = new Date();
 
     for (const [key, value] of Object.entries(updates)) {
@@ -78,7 +89,11 @@ export async function settingsRoutes(fastify: FastifyInstance) {
   fastify.post<{
     Body: { provider: 'openai' | 'anthropic'; apiKey: string };
   }>('/test-api', async (request, reply) => {
-    const { provider, apiKey } = request.body;
+    const parseResult = testApiSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { provider, apiKey } = parseResult.data;
 
     try {
       if (provider === 'anthropic') {
@@ -108,8 +123,12 @@ export async function settingsRoutes(fastify: FastifyInstance) {
   });
 
   // Get raw API key (for internal use only, not exposed to frontend)
-  fastify.get('/api-key/:provider', async (request: any, reply) => {
-    const { provider } = request.params;
+  fastify.get<{ Params: { provider: string } }>('/api-key/:provider', async (request, reply) => {
+    const parseResult = providerParamSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { provider } = parseResult.data;
     const key = provider === 'openai' ? 'openaiApiKey' : 'anthropicApiKey';
 
     const [setting] = await db.select().from(settings).where(eq(settings.key, key));
