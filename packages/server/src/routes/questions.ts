@@ -198,9 +198,9 @@ export async function questionRoutes(fastify: FastifyInstance) {
         SIMILARITY_THRESHOLD
       );
 
-      // Insert only non-duplicate questions
-      const inserted = [];
+      // Separate valid questions from duplicates
       const skipped: Array<{ questionText: string; similarTo: number; similarity: number }> = [];
+      const toInsert: Array<typeof generatedQuestions[number]> = [];
 
       for (let i = 0; i < generatedQuestions.length; i++) {
         const q = generatedQuestions[i];
@@ -220,26 +220,33 @@ export async function questionRoutes(fastify: FastifyInstance) {
             similarTo: result.duplicate!.id,
             similarity: result.duplicate!.similarity,
           });
-          continue;
+        } else {
+          toInsert.push(q);
         }
+      }
 
-        const [newQ] = await db
+      // Batch insert all valid questions in a single query
+      let inserted: any[] = [];
+      if (toInsert.length > 0) {
+        const now = new Date();
+        inserted = await db
           .insert(questions)
-          .values({
-            domainId: domain.id,
-            topicId: topic.id,
-            questionText: q.questionText,
-            questionType: q.questionType,
-            options: JSON.stringify(q.options),
-            correctAnswers: JSON.stringify(q.correctAnswers),
-            explanation: q.explanation,
-            difficulty: q.difficulty,
-            gcpServices: JSON.stringify(q.gcpServices),
-            isGenerated: true,
-            createdAt: new Date(),
-          })
+          .values(
+            toInsert.map((q) => ({
+              domainId: domain.id,
+              topicId: topic.id,
+              questionText: q.questionText,
+              questionType: q.questionType,
+              options: JSON.stringify(q.options),
+              correctAnswers: JSON.stringify(q.correctAnswers),
+              explanation: q.explanation,
+              difficulty: q.difficulty,
+              gcpServices: JSON.stringify(q.gcpServices),
+              isGenerated: true,
+              createdAt: now,
+            }))
+          )
           .returning();
-        inserted.push(newQ);
       }
 
       return {
