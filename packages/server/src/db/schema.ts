@@ -86,6 +86,7 @@ export const examResponses = sqliteTable('exam_responses', {
   orderIndex: integer('order_index').notNull(),
 }, (table) => [
   index('responses_exam_idx').on(table.examId),
+  index('responses_question_idx').on(table.questionId),
 ]);
 
 // Spaced repetition tracking (SM-2 algorithm)
