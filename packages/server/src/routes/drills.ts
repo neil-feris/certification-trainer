@@ -90,15 +90,15 @@ export async function drillRoutes(fastify: FastifyInstance) {
       // If no weak areas found, use all questions (fallback)
     }
 
-    const allQuestions = await questionQuery;
+    // Use SQL RANDOM() to select random questions efficiently
+    // This avoids loading all questions into memory and shuffling in JS
+    const selectedQuestions = await questionQuery
+      .orderBy(sql`RANDOM()`)
+      .limit(questionCount);
 
-    if (allQuestions.length === 0) {
+    if (selectedQuestions.length === 0) {
       return reply.status(404).send({ error: 'No questions found for the specified criteria' });
     }
-
-    // Shuffle and limit questions
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, questionCount);
 
     // Create a study session with sessionType='timed_drill'
     const [session] = await db.insert(studySessions).values({
