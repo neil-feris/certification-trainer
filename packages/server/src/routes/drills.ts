@@ -278,19 +278,52 @@ export async function drillRoutes(fastify: FastifyInstance) {
     }
     const { totalTimeSeconds, timedOut } = bodyResult.data;
 
-    const [session] = await db.select().from(studySessions).where(eq(studySessions.id, drillId));
-    if (!session) {
-      return reply.status(404).send({ error: 'Drill not found' });
+    // Use transaction to ensure consistent read and update of session state
+    const txResult = await db.transaction(async (tx) => {
+      const [session] = await tx.select().from(studySessions).where(eq(studySessions.id, drillId));
+      if (!session) {
+        return { error: 'not_found' as const };
+      }
+      if (session.status === 'completed' || session.status === 'abandoned') {
+        return { error: 'already_completed' as const };
+      }
+
+      // Get all responses for this drill
+      const responses = await tx
+        .select()
+        .from(studySessionResponses)
+        .where(eq(studySessionResponses.sessionId, drillId))
+        .orderBy(studySessionResponses.orderIndex);
+
+      // Calculate stats
+      const correctCount = responses.filter(r => r.isCorrect).length;
+      const totalCount = responses.length;
+      const addedToSRCount = responses.filter(r => r.addedToSR).length;
+
+      // Complete the session atomically
+      await tx.update(studySessions)
+        .set({
+          status: timedOut ? 'abandoned' : 'completed',
+          completedAt: new Date(),
+          timeSpentSeconds: totalTimeSeconds,
+          correctAnswers: correctCount,
+          totalQuestions: totalCount,
+        })
+        .where(eq(studySessions.id, drillId));
+
+      return { responses, correctCount, totalCount, addedToSRCount };
+    });
+
+    if ('error' in txResult) {
+      if (txResult.error === 'not_found') {
+        return reply.status(404).send({ error: 'Drill not found' });
+      }
+      return reply.status(400).send({ error: 'Drill already completed' });
     }
 
-    // Get all responses for this drill
-    const responses = await db
-      .select()
-      .from(studySessionResponses)
-      .where(eq(studySessionResponses.sessionId, drillId))
-      .orderBy(studySessionResponses.orderIndex);
+    const { responses, correctCount, totalCount, addedToSRCount } = txResult;
 
-    // Get all questions for the responses to build drill results
+    // Get all questions for the responses to build drill results (outside transaction - read-only)
     const questionIds = responses.map(r => r.questionId);
     const drillQuestions = questionIds.length > 0
       ? await db.select().from(questions).where(inArray(questions.id, questionIds))
@@ -310,24 +343,10 @@ export async function drillRoutes(fastify: FastifyInstance) {
       };
     });
 
-    // Calculate stats
-    const correctCount = responses.filter(r => r.isCorrect).length;
-    const totalCount = responses.length;
+    // Calculate remaining stats
     const totalTimeSpent = responses.reduce((sum, r) => sum + (r.timeSpentSeconds ?? 0), 0);
     const avgTimePerQuestion = totalCount > 0 ? Math.round(totalTimeSpent / totalCount) : 0;
-    const addedToSRCount = responses.filter(r => r.addedToSR).length;
     const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-
-    // Complete the session
-    await db.update(studySessions)
-      .set({
-        status: timedOut ? 'abandoned' : 'completed',
-        completedAt: new Date(),
-        timeSpentSeconds: totalTimeSeconds,
-        correctAnswers: correctCount,
-        totalQuestions: totalCount,
-      })
-      .where(eq(studySessions.id, drillId));
 
     return {
       score,
