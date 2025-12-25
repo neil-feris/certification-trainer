@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { examApi } from '../api/client';
 
 interface ExamQuestion {
   id: number;
@@ -136,33 +137,26 @@ export const useExamStore = create<ExamState>()(
 
         set({ isSubmitting: true });
 
-        const totalTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+        try {
+          const totalTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-        // Submit answers to API
-        const responsesArray = Array.from(responses.values());
-        for (const response of responsesArray) {
-          if (response.selectedAnswers.length > 0) {
-            await fetch(`/api/exams/${examId}/answer`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+          // Submit answers to API using client
+          const responsesArray = Array.from(responses.values());
+          for (const response of responsesArray) {
+            if (response.selectedAnswers.length > 0) {
+              await examApi.submitAnswer(examId, {
                 questionId: response.questionId,
                 selectedAnswers: response.selectedAnswers,
                 timeSpentSeconds: response.timeSpentSeconds,
-                flagged: response.flagged,
-              }),
-            });
+              });
+            }
           }
+
+          // Complete the exam using client
+          await examApi.complete(examId, totalTimeSeconds);
+        } finally {
+          set({ isSubmitting: false });
         }
-
-        // Complete the exam
-        await fetch(`/api/exams/${examId}/complete`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ totalTimeSeconds }),
-        });
-
-        set({ isSubmitting: false });
       },
 
       resetExam: () => {
@@ -181,10 +175,8 @@ export const useExamStore = create<ExamState>()(
         const { examId } = get();
         if (!examId) return;
 
-        // Mark exam as abandoned in DB
-        await fetch(`/api/exams/${examId}`, {
-          method: 'DELETE',
-        });
+        // Mark exam as abandoned in DB using API client
+        await examApi.abandon(examId);
 
         // Clear local state
         set({
