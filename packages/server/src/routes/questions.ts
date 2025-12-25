@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { questions, domains, topics, spacedRepetition } from '../db/schema.js';
-import { eq, sql, lte, and } from 'drizzle-orm';
+import { eq, sql, lte, and, count } from 'drizzle-orm';
 import { generateQuestions } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
@@ -19,6 +19,7 @@ const SIMILARITY_THRESHOLD = 0.7;
 
 export async function questionRoutes(fastify: FastifyInstance) {
   // Get questions with pagination and optional filters
+  // Optimized: filters and pagination pushed to SQL instead of in-memory
   fastify.get<{
     Querystring: {
       domainId?: string;
@@ -40,7 +41,29 @@ export async function questionRoutes(fastify: FastifyInstance) {
       offset = PAGINATION_DEFAULTS.offset,
     } = parseResult.data;
 
-    const allResults = await db
+    // Build WHERE conditions dynamically
+    const conditions = [];
+    if (domainId) {
+      conditions.push(eq(questions.domainId, domainId));
+    }
+    if (topicId) {
+      conditions.push(eq(questions.topicId, topicId));
+    }
+    if (difficulty) {
+      conditions.push(eq(questions.difficulty, difficulty));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count with filters applied (single query)
+    const [countResult] = await db
+      .select({ total: count() })
+      .from(questions)
+      .where(whereClause);
+    const total = countResult?.total ?? 0;
+
+    // Get paginated results with filters applied in SQL
+    const results = await db
       .select({
         question: questions,
         domain: domains,
@@ -48,26 +71,12 @@ export async function questionRoutes(fastify: FastifyInstance) {
       })
       .from(questions)
       .innerJoin(domains, eq(questions.domainId, domains.id))
-      .innerJoin(topics, eq(questions.topicId, topics.id));
+      .innerJoin(topics, eq(questions.topicId, topics.id))
+      .where(whereClause)
+      .limit(limit)
+      .offset(offset);
 
-    // Apply filters in memory (simpler for SQLite)
-    let filtered = allResults;
-    if (domainId) {
-      filtered = filtered.filter((r) => r.domain.id === domainId);
-    }
-    if (topicId) {
-      filtered = filtered.filter((r) => r.topic.id === topicId);
-    }
-    if (difficulty) {
-      filtered = filtered.filter((r) => r.question.difficulty === difficulty);
-    }
-
-    const total = filtered.length;
-
-    // Apply pagination
-    const paginated = filtered.slice(offset, offset + limit);
-
-    const items: QuestionWithDomain[] = paginated.map((r) => ({
+    const items: QuestionWithDomain[] = results.map((r) => ({
       ...r.question,
       questionType: r.question.questionType as 'single' | 'multiple',
       difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
