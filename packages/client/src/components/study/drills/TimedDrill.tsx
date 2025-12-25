@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDrillStore } from '../../../stores/drillStore';
 import { DrillSummary } from './DrillSummary';
 import styles from './Drills.module.css';
@@ -28,6 +28,8 @@ export function TimedDrill({ onExit }: TimedDrillProps) {
   } = useDrillStore();
 
   const timerRef = useRef<number | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const currentQuestion = getCurrentQuestion();
   const progress = getProgress();
   const currentResponse = currentQuestion ? responses.get(currentQuestion.id) : undefined;
@@ -89,10 +91,15 @@ export function TimedDrill({ onExit }: TimedDrillProps) {
   };
 
   const handleSubmit = async () => {
+    setSubmitError(null);
+    setIsSubmitting(true);
     try {
       await submitAnswer();
     } catch (error) {
-      console.error('Failed to submit answer:', error);
+      const message = error instanceof Error ? error.message : 'Failed to submit answer. Please try again.';
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -229,15 +236,30 @@ export function TimedDrill({ onExit }: TimedDrillProps) {
         </div>
       </div>
 
+      {/* Error Display */}
+      {submitError && (
+        <div className={styles.errorBanner}>
+          <span className={styles.errorIcon}>!</span>
+          <span>{submitError}</span>
+          <button
+            className={styles.errorDismiss}
+            onClick={() => setSubmitError(null)}
+            aria-label="Dismiss error"
+          >
+            x
+          </button>
+        </div>
+      )}
+
       {/* Actions */}
       <div className={styles.actions}>
         {!showFeedback ? (
           <button
             className="btn btn-primary"
             onClick={handleSubmit}
-            disabled={!hasAnswered}
+            disabled={!hasAnswered || isSubmitting}
           >
-            Check Answer
+            {isSubmitting ? 'Checking...' : 'Check Answer'}
           </button>
         ) : (
           <button className="btn btn-primary" onClick={handleNext}>
