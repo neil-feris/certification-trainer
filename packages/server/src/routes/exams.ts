@@ -134,16 +134,16 @@ export async function examRoutes(fastify: FastifyInstance) {
       })
       .returning();
 
-    // Create exam responses (initially empty answers)
-    for (let i = 0; i < selectedQuestions.length; i++) {
-      await db.insert(examResponses).values({
+    // Create exam responses (batch insert for performance)
+    await db.insert(examResponses).values(
+      selectedQuestions.map((q, i) => ({
         examId: newExam.id,
-        questionId: selectedQuestions[i].question.id,
+        questionId: q.question.id,
         selectedAnswers: JSON.stringify([]),
         orderIndex: i,
         flagged: false,
-      });
-    }
+      }))
+    );
 
     return { examId: newExam.id, totalQuestions: selectedQuestions.length };
   });
@@ -208,29 +208,50 @@ export async function examRoutes(fastify: FastifyInstance) {
     }
     const { totalTimeSeconds } = bodyResult.data;
 
-    // Calculate score
-    const responses = await db
-      .select()
-      .from(examResponses)
-      .where(eq(examResponses.examId, examId));
+    // Use transaction to ensure consistent read and update of exam state
+    const txResult = await db.transaction(async (tx) => {
+      // Check exam exists and is in_progress
+      const [exam] = await tx.select().from(exams).where(eq(exams.id, examId));
+      if (!exam) {
+        return { error: 'not_found' as const };
+      }
+      if (exam.status === 'completed' || exam.status === 'abandoned') {
+        return { error: 'already_completed' as const };
+      }
 
-    const correctCount = responses.filter((r) => r.isCorrect === true).length;
-    const score = (correctCount / responses.length) * 100;
+      // Calculate score
+      const responses = await tx
+        .select()
+        .from(examResponses)
+        .where(eq(examResponses.examId, examId));
 
-    // Update exam
-    const [updatedExam] = await db
-      .update(exams)
-      .set({
-        completedAt: new Date(),
-        timeSpentSeconds: totalTimeSeconds,
-        correctAnswers: correctCount,
-        score,
-        status: 'completed',
-      })
-      .where(eq(exams.id, examId))
-      .returning();
+      const correctCount = responses.filter((r) => r.isCorrect === true).length;
+      const score = responses.length > 0 ? (correctCount / responses.length) * 100 : 0;
 
-    return updatedExam;
+      // Update exam atomically
+      const [updatedExam] = await tx
+        .update(exams)
+        .set({
+          completedAt: new Date(),
+          timeSpentSeconds: totalTimeSeconds,
+          correctAnswers: correctCount,
+          score,
+          status: 'completed',
+        })
+        .where(eq(exams.id, examId))
+        .returning();
+
+      return { exam: updatedExam };
+    });
+
+    if ('error' in txResult) {
+      if (txResult.error === 'not_found') {
+        return reply.status(404).send({ error: 'Exam not found' });
+      }
+      return reply.status(400).send({ error: 'Exam already completed or abandoned' });
+    }
+
+    return txResult.exam;
   });
 
   // Abandon exam
