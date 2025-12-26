@@ -584,82 +584,94 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Question not found' });
     }
 
-    const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+    let correctAnswers: number[];
+    try {
+      correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+    } catch {
+      return reply.status(500).send({ error: 'Invalid question data' });
+    }
+
     const isCorrect = selectedAnswers.length === correctAnswers.length &&
       selectedAnswers.every(a => correctAnswers.includes(a)) &&
       correctAnswers.every(a => selectedAnswers.includes(a));
 
-    // Check if response already exists
-    const [existingResponse] = await db
-      .select()
-      .from(studySessionResponses)
-      .where(and(
-        eq(studySessionResponses.sessionId, sessionId),
-        eq(studySessionResponses.questionId, questionId)
-      ));
+    // Use transaction to prevent TOCTOU race condition
+    // The unique constraint on (sessionId, questionId) also prevents duplicates
+    const addedToSR = await db.transaction(async (tx) => {
+      // Check if response already exists
+      const [existingResponse] = await tx
+        .select()
+        .from(studySessionResponses)
+        .where(and(
+          eq(studySessionResponses.sessionId, sessionId),
+          eq(studySessionResponses.questionId, questionId)
+        ));
 
-    let addedToSR = false;
+      let wasAddedToSR = false;
 
-    if (existingResponse) {
-      // Update existing response
-      await db.update(studySessionResponses)
-        .set({
+      if (existingResponse) {
+        // Update existing response
+        await tx.update(studySessionResponses)
+          .set({
+            selectedAnswers: JSON.stringify(selectedAnswers),
+            isCorrect,
+            timeSpentSeconds,
+          })
+          .where(eq(studySessionResponses.id, existingResponse.id));
+        wasAddedToSR = existingResponse.addedToSR || false;
+      } else {
+        // Get next order index
+        const existingCount = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(studySessionResponses)
+          .where(eq(studySessionResponses.sessionId, sessionId));
+
+        // Create new response
+        await tx.insert(studySessionResponses).values({
+          sessionId,
+          questionId,
           selectedAnswers: JSON.stringify(selectedAnswers),
           isCorrect,
           timeSpentSeconds,
-        })
-        .where(eq(studySessionResponses.id, existingResponse.id));
-      addedToSR = existingResponse.addedToSR || false;
-    } else {
-      // Get next order index
-      const existingCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(studySessionResponses)
-        .where(eq(studySessionResponses.sessionId, sessionId));
+          orderIndex: (existingCount[0]?.count || 0) + 1,
+          addedToSR: false,
+        });
 
-      // Create new response
-      await db.insert(studySessionResponses).values({
-        sessionId,
-        questionId,
-        selectedAnswers: JSON.stringify(selectedAnswers),
-        isCorrect,
-        timeSpentSeconds,
-        orderIndex: (existingCount[0]?.count || 0) + 1,
-        addedToSR: false,
-      });
+        // If incorrect, add to spaced repetition queue
+        if (!isCorrect) {
+          const [existingSR] = await tx
+            .select()
+            .from(spacedRepetition)
+            .where(eq(spacedRepetition.questionId, questionId));
 
-      // If incorrect, add to spaced repetition queue
-      if (!isCorrect) {
-        const [existingSR] = await db
-          .select()
-          .from(spacedRepetition)
-          .where(eq(spacedRepetition.questionId, questionId));
+          if (!existingSR) {
+            await tx.insert(spacedRepetition).values({
+              questionId,
+              easeFactor: 2.5,
+              interval: 1,
+              repetitions: 0,
+              nextReviewAt: new Date(),
+            });
+            wasAddedToSR = true;
 
-        if (!existingSR) {
-          await db.insert(spacedRepetition).values({
-            questionId,
-            easeFactor: 2.5,
-            interval: 1,
-            repetitions: 0,
-            nextReviewAt: new Date(),
-          });
-          addedToSR = true;
-
-          // Update the response to mark it
-          await db.update(studySessionResponses)
-            .set({ addedToSR: true })
-            .where(and(
-              eq(studySessionResponses.sessionId, sessionId),
-              eq(studySessionResponses.questionId, questionId)
-            ));
+            // Update the response to mark it
+            await tx.update(studySessionResponses)
+              .set({ addedToSR: true })
+              .where(and(
+                eq(studySessionResponses.sessionId, sessionId),
+                eq(studySessionResponses.questionId, questionId)
+              ));
+          }
         }
       }
-    }
 
-    // Update session sync time
-    await db.update(studySessions)
-      .set({ syncedAt: new Date() })
-      .where(eq(studySessions.id, sessionId));
+      // Update session sync time
+      await tx.update(studySessions)
+        .set({ syncedAt: new Date() })
+        .where(eq(studySessions.id, sessionId));
+
+      return wasAddedToSR;
+    });
 
     // Return correctAnswers and explanation ONLY after user has submitted
     return {
