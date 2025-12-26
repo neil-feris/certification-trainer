@@ -35,6 +35,7 @@ interface DrillState {
   // Timer
   timeRemaining: number;
   isActive: boolean;
+  isCompleting: boolean; // Synchronous flag to prevent race conditions
 
   // UI State
   showFeedback: boolean;
@@ -74,6 +75,7 @@ const initialState = {
   responses: new Map<number, DrillResponse>(),
   timeRemaining: 60,
   isActive: false,
+  isCompleting: false,
   showFeedback: false,
   showSummary: false,
   isLoading: false,
@@ -130,19 +132,21 @@ export const useDrillStore = create<DrillState>()(
       },
 
       answerQuestion: (questionId, selectedAnswers) => {
-        const { responses, questions, startedAt, timeLimitSeconds, timeRemaining } = get();
+        const { responses, questions, timeLimitSeconds, timeRemaining } = get();
         const question = questions.find((q) => q.id === questionId);
         if (!question) return;
 
         const newResponses = new Map(responses);
         const existing = newResponses.get(questionId);
 
+        // Guard against undefined response (shouldn't happen, but prevents crash)
+        if (!existing) return;
+
         // Calculate time spent on this question based on remaining time
-        const elapsed = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
         const timeSpent = timeLimitSeconds - timeRemaining;
 
         newResponses.set(questionId, {
-          ...existing!,
+          ...existing,
           selectedAnswers,
           timeSpentSeconds: timeSpent,
         });
@@ -192,46 +196,56 @@ export const useDrillStore = create<DrillState>()(
       },
 
       nextQuestion: () => {
-        const { currentQuestionIndex, questions } = get();
+        const { currentQuestionIndex, questions, isCompleting } = get();
         if (currentQuestionIndex < questions.length - 1) {
           set({
             currentQuestionIndex: currentQuestionIndex + 1,
             showFeedback: false,
           });
-        } else {
-          // Last question - auto complete
-          get().completeDrill(false);
+        } else if (!isCompleting) {
+          // Last question - auto complete with error handling
+          set({ isCompleting: true });
+          get().completeDrill(false).catch((error) => {
+            console.error('Failed to complete drill:', error);
+            set({ isCompleting: false });
+          });
         }
       },
 
       tick: () => {
-        const { timeRemaining, isActive, showSummary } = get();
+        const { timeRemaining, isActive, showSummary, isCompleting } = get();
         // Guard against ticking when not active or already completing
-        if (!isActive || showSummary) return;
+        if (!isActive || showSummary || isCompleting) return;
 
         if (timeRemaining <= 1) {
           // Time's up - set state synchronously FIRST to prevent race
-          set({ timeRemaining: 0, isActive: false });
-          // Then trigger async completion
-          get().completeDrill(true);
+          set({ timeRemaining: 0, isActive: false, isCompleting: true });
+          // Then trigger async completion with error handling
+          get().completeDrill(true).catch((error) => {
+            console.error('Failed to complete drill on timeout:', error);
+            set({ isCompleting: false });
+          });
         } else {
           set({ timeRemaining: timeRemaining - 1 });
         }
       },
 
       completeDrill: async (timedOut = false) => {
-        const { drillId, startedAt, showSummary, drillResults, isLoading } = get();
+        const { drillId, startedAt, showSummary, drillResults, isLoading, isCompleting } = get();
 
         // Guard: prevent double completion
         if (showSummary || drillResults || isLoading) {
-          return drillResults as CompleteDrillResponse;
+          if (!drillResults) {
+            throw new Error('Drill completion already in progress');
+          }
+          return drillResults;
         }
 
         if (!drillId) {
           throw new Error('No active drill');
         }
 
-        set({ isActive: false, isLoading: true });
+        set({ isActive: false, isLoading: true, isCompleting: true });
 
         const totalTimeSeconds = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
 
@@ -245,11 +259,12 @@ export const useDrillStore = create<DrillState>()(
             showSummary: true,
             drillResults: result,
             isLoading: false,
+            isCompleting: false,
           });
 
           return result;
         } catch (error) {
-          set({ isLoading: false });
+          set({ isLoading: false, isCompleting: false });
           throw error;
         }
       },
