@@ -1,0 +1,298 @@
+---
+description: Fastify route handlers, async patterns, error handling, and service layer organization
+globs: ["packages/server/src/**/*.ts"]
+---
+
+# Server Patterns
+
+## Overview
+The server uses Fastify with async/await, Drizzle ORM for database access, Zod for validation, and a service layer for business logic (LLM integration, spaced repetition).
+
+## Fastify Route Structure
+
+### Route Registration
+- ✅ **ALWAYS** register routes as async plugin functions
+- ✅ **ALWAYS** use route prefixes: `/api/{resource}`
+- ✅ **ALWAYS** export route functions for registration in `index.ts`
+
+```typescript
+import { FastifyInstance } from 'fastify';
+
+export async function examRoutes(fastify: FastifyInstance) {
+  fastify.get('/', async (request, reply) => {
+    // Route handler
+  });
+  
+  fastify.post('/', async (request, reply) => {
+    // Route handler
+  });
+}
+```
+
+### Route Handler Pattern
+- ✅ **ALWAYS** use async/await for all route handlers
+- ✅ **ALWAYS** validate request parameters and body with Zod schemas
+- ✅ **ALWAYS** return proper HTTP status codes
+- ✅ **ALWAYS** use `reply.status().send()` for error responses
+
+```typescript
+fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  // 1. Validate params
+  const parseResult = idParamSchema.safeParse(request.params);
+  if (!parseResult.success) {
+    return reply.status(400).send(formatZodError(parseResult.error));
+  }
+  const examId = parseResult.data.id;
+
+  // 2. Query database
+  const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
+  if (!exam) {
+    return reply.status(404).send({ error: 'Exam not found' });
+  }
+
+  // 3. Return response
+  return exam;
+});
+```
+
+## Request Validation
+
+### Zod Schema Validation
+**CRITICAL**: Always validate all inputs with Zod schemas before processing:
+
+```typescript
+// ✅ CORRECT - Validate params
+const paramResult = idParamSchema.safeParse(request.params);
+if (!paramResult.success) {
+  return reply.status(400).send(formatZodError(paramResult.error));
+}
+
+// ✅ CORRECT - Validate body
+const bodyResult = createExamSchema.safeParse(request.body);
+if (!bodyResult.success) {
+  return reply.status(400).send(formatZodError(bodyResult.error));
+}
+```
+
+### Error Response Format
+- ✅ **ALWAYS** use `formatZodError` helper for validation errors
+- ✅ **ALWAYS** return consistent error format: `{ error: string, details?: ... }`
+
+```typescript
+// From validation/schemas.ts
+export function formatZodError(error: z.ZodError): { error: string; details: z.ZodIssue[] } {
+  return {
+    error: 'Validation failed',
+    details: error.issues,
+  };
+}
+```
+
+## Database Access with Drizzle
+
+### Query Patterns
+- ✅ **ALWAYS** use Drizzle query builder, never raw SQL
+- ✅ **ALWAYS** use type-safe operators: `eq`, `and`, `inArray`, `sql`
+- ✅ **ALWAYS** handle JSON fields: parse when reading, stringify when writing
+- ✅ **ALWAYS** use joins for related data
+
+```typescript
+import { db } from '../db/index.js';
+import { exams, examResponses, questions, domains, topics } from '../db/schema.js';
+import { eq, sql, and, inArray } from 'drizzle-orm';
+
+// ✅ CORRECT - Simple select
+const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
+
+// ✅ CORRECT - Join with related tables
+const responses = await db
+  .select({
+    response: examResponses,
+    question: questions,
+    domain: domains,
+    topic: topics,
+  })
+  .from(examResponses)
+  .innerJoin(questions, eq(examResponses.questionId, questions.id))
+  .innerJoin(domains, eq(questions.domainId, domains.id))
+  .innerJoin(topics, eq(questions.topicId, topics.id))
+  .where(eq(examResponses.examId, examId));
+
+// ✅ CORRECT - JSON field handling
+const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+```
+
+### JSON Field Handling
+**CRITICAL**: Database stores arrays as JSON strings - always parse/stringify:
+
+```typescript
+// ✅ CORRECT - Reading JSON fields
+const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+const options = JSON.parse(question.options as string) as string[];
+
+// ✅ CORRECT - Writing JSON fields
+await db.insert(examResponses).values({
+  selectedAnswers: JSON.stringify(selectedAnswers),
+  isCorrect,
+});
+```
+
+### Transaction Patterns
+- ✅ **ALWAYS** use database transactions for multi-step operations
+- ✅ **ALWAYS** handle transaction rollback on errors
+
+```typescript
+// Example transaction pattern (when needed)
+await db.transaction(async (tx) => {
+  const [exam] = await tx.insert(exams).values({ ... }).returning();
+  await tx.insert(examResponses).values({ examId: exam.id, ... });
+});
+```
+
+## Service Layer
+
+### Service Organization
+- ✅ **ALWAYS** put business logic in service files: `services/{name}.ts`
+- ✅ **ALWAYS** keep route handlers thin - delegate to services
+- ✅ **ALWAYS** export service functions for use in routes
+
+```typescript
+// services/questionGenerator.ts
+export async function generateQuestions(params: GenerateParams): Promise<GeneratedQuestion[]> {
+  // Business logic here
+}
+
+// routes/questions.ts
+import { generateQuestions } from '../services/questionGenerator.js';
+
+fastify.post('/generate', async (request, reply) => {
+  const questions = await generateQuestions(params);
+  return { success: true, questions };
+});
+```
+
+### Async Service Functions
+- ✅ **ALWAYS** make service functions async
+- ✅ **ALWAYS** handle errors and throw appropriate exceptions
+- ✅ **ALWAYS** use typed return values
+
+```typescript
+interface GenerateParams {
+  domain: string;
+  topic: string;
+  difficulty: DifficultyOption;
+  count: number;
+}
+
+export async function generateQuestions(
+  params: GenerateParams
+): Promise<GeneratedQuestion[]> {
+  // Implementation
+}
+```
+
+## Error Handling
+
+### HTTP Status Codes
+- ✅ **ALWAYS** use appropriate status codes:
+  - `400` - Bad request (validation errors)
+  - `404` - Not found (resource doesn't exist)
+  - `429` - Too many requests (rate limiting)
+  - `500` - Internal server error (unexpected errors)
+
+```typescript
+// ✅ CORRECT - Validation error
+if (!parseResult.success) {
+  return reply.status(400).send(formatZodError(parseResult.error));
+}
+
+// ✅ CORRECT - Not found
+const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
+if (!exam) {
+  return reply.status(404).send({ error: 'Exam not found' });
+}
+```
+
+### Error Logging
+- ✅ **ALWAYS** log errors using Fastify logger
+- ✅ **ALWAYS** include context in error messages
+
+```typescript
+try {
+  // Operation
+} catch (err) {
+  fastify.log.error(err);
+  return reply.status(500).send({ error: 'Internal server error' });
+}
+```
+
+## Server Configuration
+
+### CORS Setup
+- ✅ **ALWAYS** configure CORS for localhost:5173 (Vite dev server)
+- ✅ **ALWAYS** enable credentials for cookie-based auth (if needed)
+
+```typescript
+await fastify.register(cors, {
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  credentials: true,
+});
+```
+
+### Rate Limiting
+- ✅ **ALWAYS** register rate limiting plugin
+- ✅ **ALWAYS** configure appropriate limits per endpoint type
+
+```typescript
+await fastify.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute',
+  errorResponseBuilder: (request, context) => ({
+    statusCode: 429,
+    error: 'Too Many Requests',
+    message: `Rate limit exceeded. You can make ${context.max} requests per ${context.after}.`,
+  }),
+});
+```
+
+## Type Safety
+
+### Fastify Route Types
+- ✅ **ALWAYS** use Fastify generic types for request/reply
+- ✅ **ALWAYS** type params, query, and body
+
+```typescript
+fastify.patch<{
+  Params: { id: string };
+  Body: { questionId: number; selectedAnswers: number[] };
+}>('/:id/answer', async (request, reply) => {
+  // TypeScript knows request.params.id and request.body.questionId
+});
+```
+
+### Importing Shared Types
+- ✅ **ALWAYS** import types from `@ace-prep/shared`
+- ✅ **ALWAYS** use type imports when possible
+
+```typescript
+import type {
+  CreateExamRequest,
+  DifficultyOption,
+  LLMModel,
+} from '@ace-prep/shared';
+```
+
+## Anti-Patterns
+
+- ❌ **NEVER** use raw SQL queries - always use Drizzle ORM
+- ❌ **NEVER** skip validation - always validate params and body
+- ❌ **NEVER** return different error formats - use consistent format
+- ❌ **NEVER** forget to parse JSON fields from database
+- ❌ **NEVER** forget to stringify arrays/objects before database insert
+- ❌ **NEVER** use synchronous database operations
+- ❌ **NEVER** put business logic directly in route handlers
+
+## Related Patterns
+- See `database-patterns.mdc` for Drizzle schema and query patterns
+- See `validation-patterns.mdc` for Zod schema patterns
+- See `monorepo-patterns.mdc` for package structure

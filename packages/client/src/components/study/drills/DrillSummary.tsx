@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { CompleteDrillResponse } from '@ace-prep/shared';
 import styles from './Drills.module.css';
 
@@ -7,6 +8,7 @@ interface DrillSummaryProps {
 }
 
 export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
+  const navigate = useNavigate();
   const { score, correctCount, totalCount, avgTimePerQuestion, addedToSRCount, results: drillResults } = results;
 
   // Determine score category
@@ -111,7 +113,7 @@ export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
           <button className="btn btn-primary" onClick={onComplete}>
             Start New Drill
           </button>
-          <button className="btn btn-secondary" onClick={() => window.location.href = '/review'}>
+          <button className="btn btn-secondary" onClick={() => navigate('/review')}>
             Go to Review Queue
           </button>
         </div>

@@ -440,6 +440,7 @@ describe('startDrillSchema', () => {
   it('should accept valid drill config', () => {
     const result = startDrillSchema.safeParse({
       mode: 'domain',
+      domainId: 1,
       questionCount: 10,
       timeLimitSeconds: 120,
     });
@@ -467,6 +468,7 @@ describe('startDrillSchema', () => {
   it('should enforce valid time limits', () => {
     const result = startDrillSchema.safeParse({
       mode: 'domain',
+      domainId: 1,
       questionCount: 10,
       timeLimitSeconds: 90, // Not in [60, 120, 300, 600]
     });
@@ -477,6 +479,7 @@ describe('startDrillSchema', () => {
     for (const count of [5, 10, 15, 20]) {
       const result = startDrillSchema.safeParse({
         mode: 'domain',
+        domainId: 1,
         questionCount: count,
         timeLimitSeconds: 60,
       });
@@ -488,11 +491,33 @@ describe('startDrillSchema', () => {
     for (const time of [60, 120, 300, 600]) {
       const result = startDrillSchema.safeParse({
         mode: 'domain',
+        domainId: 1,
         questionCount: 10,
         timeLimitSeconds: time,
       });
       expect(result.success).toBe(true);
     }
+  });
+
+  it('should require domainId when mode is domain', () => {
+    const result = startDrillSchema.safeParse({
+      mode: 'domain',
+      questionCount: 10,
+      timeLimitSeconds: 60,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toContain('domainId');
+    }
+  });
+
+  it('should not require domainId when mode is weak_areas', () => {
+    const result = startDrillSchema.safeParse({
+      mode: 'weak_areas',
+      questionCount: 10,
+      timeLimitSeconds: 60,
+    });
+    expect(result.success).toBe(true);
   });
 });
 

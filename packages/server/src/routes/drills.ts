@@ -23,6 +23,7 @@ import {
   submitDrillAnswerSchema,
   completeDrillSchema
 } from '../validation/schemas.js';
+import { checkAnswerCorrect } from '../utils/scoring.js';
 
 /**
  * SECURITY WARNING: This API is designed for SINGLE-USER local use only.
@@ -171,10 +172,15 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Question not found' });
     }
 
-    const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
-    const isCorrect = selectedAnswers.length === correctAnswers.length &&
-      selectedAnswers.every(a => correctAnswers.includes(a)) &&
-      correctAnswers.every(a => selectedAnswers.includes(a));
+    let correctAnswers: number[];
+    try {
+      correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+    } catch {
+      fastify.log.error({ questionId }, 'Malformed correctAnswers JSON in database');
+      return reply.status(500).send({ error: 'Invalid question data' });
+    }
+
+    const isCorrect = checkAnswerCorrect(selectedAnswers, correctAnswers);
 
     // Use transaction to prevent race conditions (TOCTOU)
     // The unique constraint on (sessionId, questionId) also prevents duplicates

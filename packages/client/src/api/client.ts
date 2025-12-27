@@ -21,6 +21,7 @@ import type {
   SubmitDrillAnswerResponse,
   CompleteDrillRequest,
   CompleteDrillResponse,
+  ActiveDrillResponse,
   PaginatedResponse,
   QuestionWithDomain,
   Difficulty,
@@ -236,7 +237,7 @@ export const drillApi = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  getActive: () => request<any | null>('/drills/active'),
+  getActive: () => request<ActiveDrillResponse | null>('/drills/active'),
   abandon: (drillId: number) =>
     request<{ success: boolean }>(`/drills/${drillId}`, {
       method: 'DELETE',

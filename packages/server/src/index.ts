@@ -48,9 +48,10 @@ await fastify.register(cors, {
   credentials: true,
 });
 
-// Register global rate limiting (100 requests per minute)
+// Register global rate limiting (200 requests per minute)
+// Increased from 100 to accommodate SPA navigation patterns
 await fastify.register(rateLimit, {
-  max: 100,
+  max: 200,
   timeWindow: '1 minute',
   errorResponseBuilder: (request, context) => ({
     statusCode: 429,
@@ -76,7 +77,7 @@ fastify.get('/api/health', async () => {
 // Start server
 const start = async () => {
   try {
-    await fastify.listen({ port: 3001, host: '0.0.0.0' });
+    await fastify.listen({ port: 3001, host: '127.0.0.1' });
     console.log('\n ACE Prep API running at http://localhost:3001');
     console.log(' API endpoints:');
     console.log('   GET  /api/health');

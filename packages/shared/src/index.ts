@@ -495,3 +495,29 @@ export interface CompleteDrillResponse {
   addedToSRCount: number;
   results: DrillResult[];
 }
+
+export interface ActiveDrillResponse {
+  session: {
+    id: number;
+    sessionType: string;
+    topicId: number | null;
+    domainId: number | null;
+    startedAt: Date | string;
+    completedAt: Date | string | null;
+    timeSpentSeconds: number | null;
+    correctAnswers: number | null;
+    totalQuestions: number;
+    status: string;
+    syncedAt: Date | string | null;
+  };
+  responses: Array<{
+    id: number;
+    sessionId: number;
+    questionId: number;
+    selectedAnswers: number[];
+    isCorrect: boolean;
+    timeSpentSeconds: number | null;
+    orderIndex: number;
+    addedToSR: boolean;
+  }>;
+}

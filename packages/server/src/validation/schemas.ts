@@ -194,7 +194,10 @@ export const startDrillSchema = z.object({
     (val) => (DRILL_TIME_LIMITS as readonly number[]).includes(val),
     { message: `Time limit must be one of: ${DRILL_TIME_LIMITS.join(', ')}` }
   ),
-});
+}).refine(
+  (data) => data.mode !== 'domain' || data.domainId !== undefined,
+  { message: 'domainId is required when mode is "domain"', path: ['domainId'] }
+);
 
 export const submitDrillAnswerSchema = z.object({
   questionId: z.number().int().positive('Question ID must be a positive integer'),

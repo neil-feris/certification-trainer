@@ -176,9 +176,15 @@ export const useExamStore = create<ExamState>()(
         if (!examId) return;
 
         // Mark exam as abandoned in DB using API client
-        await examApi.abandon(examId);
+        try {
+          await examApi.abandon(examId);
+        } catch (error) {
+          // Log but continue - still clear local state even if API fails
+          // This prevents orphaned UI state while accepting the server may have stale data
+          console.error('Failed to abandon exam on server:', error);
+        }
 
-        // Clear local state
+        // Clear local state regardless of API success
         set({
           examId: null,
           currentQuestionIndex: 0,

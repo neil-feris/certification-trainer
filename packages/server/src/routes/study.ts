@@ -19,26 +19,37 @@ import {
 } from '../validation/schemas.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
-  // Get all domains with topics (filtered by certification)
+  // Get all domains with topics (single query with JOIN, filtered by certification)
   fastify.get<{ Querystring: { certificationId?: string } }>('/domains', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
 
-    const allDomains = await db
-      .select()
-      .from(domains)
-      .where(eq(domains.certificationId, certId))
-      .orderBy(domains.orderIndex);
-
-    return Promise.all(
-      allDomains.map(async (domain) => {
-        const domainTopics = await db.select().from(topics).where(eq(topics.domainId, domain.id));
-        return {
-          ...domain,
-          topics: domainTopics,
-        };
+    const result = await db
+      .select({
+        domain: domains,
+        topic: topics,
       })
-    );
+      .from(domains)
+      .leftJoin(topics, eq(topics.domainId, domains.id))
+      .where(eq(domains.certificationId, certId))
+      .orderBy(domains.orderIndex, topics.id);
+
+    // Group topics by domain
+    const domainMap = new Map<number, { domain: typeof domains.$inferSelect; topics: (typeof topics.$inferSelect)[] }>();
+
+    for (const row of result) {
+      if (!domainMap.has(row.domain.id)) {
+        domainMap.set(row.domain.id, { domain: row.domain, topics: [] });
+      }
+      if (row.topic) {
+        domainMap.get(row.domain.id)!.topics.push(row.topic);
+      }
+    }
+
+    return Array.from(domainMap.values()).map(({ domain, topics }) => ({
+      ...domain,
+      topics,
+    }));
   });
 
   // Get learning path structure with completion status (filtered by certification)
@@ -417,7 +428,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       whereCondition = and(eq(domains.certificationId, certId), eq(questions.domainId, domainId))!;
     }
 
-    // Get questions for the session (filtered by certification)
+    // Get questions for the session using SQL RANDOM() for efficient random selection
     const questionQuery = db
       .select({
         question: questions,
@@ -429,15 +440,14 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .innerJoin(topics, eq(questions.topicId, topics.id))
       .where(whereCondition);
 
-    const allQuestions = await questionQuery;
+    // Use SQL RANDOM() and LIMIT for efficient random selection
+    const selectedQuestions = await questionQuery
+      .orderBy(sql`RANDOM()`)
+      .limit(questionCount);
 
-    if (allQuestions.length === 0) {
+    if (selectedQuestions.length === 0) {
       return reply.status(404).send({ error: 'No questions found for the specified criteria' });
     }
-
-    // Shuffle and limit questions
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, questionCount);
 
     // Create the session
     const [session] = await db.insert(studySessions).values({
@@ -865,7 +875,8 @@ export async function studyRoutes(fastify: FastifyInstance) {
       ? and(eq(questions.topicId, topicId), eq(questions.difficulty, difficulty))
       : eq(questions.topicId, topicId);
 
-    const allQuestions = await db
+    // Use SQL RANDOM() and LIMIT for efficient random selection
+    const selectedQuestions = await db
       .select({
         question: questions,
         domain: domains,
@@ -874,10 +885,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .from(questions)
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
-      .where(whereCondition);
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5).slice(0, count);
+      .where(whereCondition)
+      .orderBy(sql`RANDOM()`)
+      .limit(count);
 
-    return shuffled.map(q => ({
+    return selectedQuestions.map(q => ({
       id: q.question.id,
       questionText: q.question.questionText,
       questionType: q.question.questionType,
