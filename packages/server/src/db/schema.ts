@@ -1,14 +1,33 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
-// ACE Exam Domains
+// Certifications (supports multiple Google Cloud certifications)
+export const certifications = sqliteTable('certifications', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  code: text('code').notNull().unique(), // 'ACE', 'PCA', 'PDE', etc.
+  name: text('name').notNull(), // 'Associate Cloud Engineer'
+  shortName: text('short_name').notNull(), // 'ACE'
+  description: text('description'),
+  provider: text('provider').notNull().default('gcp'), // 'gcp', 'aws', 'azure'
+  examDurationMinutes: integer('exam_duration_minutes').notNull().default(120),
+  totalQuestions: integer('total_questions').notNull().default(50),
+  passingScorePercent: integer('passing_score_percent').default(70),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+// Exam Domains (linked to certification)
 export const domains = sqliteTable('domains', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  code: text('code').notNull().unique(),
+  certificationId: integer('certification_id').notNull().references(() => certifications.id),
+  code: text('code').notNull(),
   name: text('name').notNull(),
   weight: real('weight').notNull(),
   description: text('description'),
   orderIndex: integer('order_index').notNull(),
-});
+}, (table) => [
+  uniqueIndex('domains_cert_code_idx').on(table.certificationId, table.code),
+  index('domains_cert_idx').on(table.certificationId),
+]);
 
 // Topics within domains
 export const topics = sqliteTable('topics', {
@@ -43,6 +62,7 @@ export const questions = sqliteTable('questions', {
 // Practice exams
 export const exams = sqliteTable('exams', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  certificationId: integer('certification_id').notNull().references(() => certifications.id),
   startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
   timeSpentSeconds: integer('time_spent_seconds'),
@@ -50,7 +70,9 @@ export const exams = sqliteTable('exams', {
   correctAnswers: integer('correct_answers'),
   score: real('score'), // Percentage 0-100
   status: text('status').notNull(), // 'in_progress' | 'completed' | 'abandoned'
-});
+}, (table) => [
+  index('exams_cert_idx').on(table.certificationId),
+]);
 
 // Individual exam responses
 export const examResponses = sqliteTable('exam_responses', {
@@ -106,6 +128,7 @@ export const studySummaries = sqliteTable('study_summaries', {
 // Study sessions (practice sessions)
 export const studySessions = sqliteTable('study_sessions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  certificationId: integer('certification_id').notNull().references(() => certifications.id),
   sessionType: text('session_type').notNull(), // 'topic_practice' | 'learning_path'
   topicId: integer('topic_id').references(() => topics.id),
   domainId: integer('domain_id').references(() => domains.id),
@@ -119,6 +142,7 @@ export const studySessions = sqliteTable('study_sessions', {
 }, (table) => [
   index('sessions_status_idx').on(table.status),
   index('sessions_topic_idx').on(table.topicId),
+  index('sessions_cert_idx').on(table.certificationId),
 ]);
 
 // Responses within study sessions
@@ -138,10 +162,14 @@ export const studySessionResponses = sqliteTable('study_session_responses', {
 // Learning path completion tracking
 export const learningPathProgress = sqliteTable('learning_path_progress', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  pathItemOrder: integer('path_item_order').notNull().unique(),
+  certificationId: integer('certification_id').notNull().references(() => certifications.id),
+  pathItemOrder: integer('path_item_order').notNull(),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
   notes: text('notes'),
-});
+}, (table) => [
+  uniqueIndex('learning_path_cert_order_idx').on(table.certificationId, table.pathItemOrder),
+  index('learning_path_cert_idx').on(table.certificationId),
+]);
 
 // Settings (API keys stored encrypted)
 export const settings = sqliteTable('settings', {
@@ -151,6 +179,8 @@ export const settings = sqliteTable('settings', {
 });
 
 // Type exports for Drizzle
+export type Certification = typeof certifications.$inferSelect;
+export type NewCertification = typeof certifications.$inferInsert;
 export type Domain = typeof domains.$inferSelect;
 export type NewDomain = typeof domains.$inferInsert;
 export type Topic = typeof topics.$inferSelect;

@@ -1,8 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { exams, examResponses, questions, domains, topics } from '../db/schema.js';
+import { certifications, exams, examResponses, questions, domains, topics } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
+
+// Helper to get the default (first active) certification
+async function getDefaultCertificationId(): Promise<number> {
+  const [cert] = await db.select().from(certifications).where(eq(certifications.isActive, true)).limit(1);
+  if (!cert) {
+    throw new Error('No active certification found. Please seed the database first.');
+  }
+  return cert.id;
+}
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Get all exams
@@ -52,8 +61,11 @@ export async function examRoutes(fastify: FastifyInstance) {
   });
 
   // Create new exam
-  fastify.post<{ Body: { focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
-    const { focusDomains, questionCount = EXAM_SIZE_DEFAULT } = request.body || {};
+  fastify.post<{ Body: { certificationId?: number; focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
+    const { certificationId, focusDomains, questionCount = EXAM_SIZE_DEFAULT } = request.body || {};
+
+    // Get certification ID (use provided or default)
+    const certId = certificationId ?? await getDefaultCertificationId();
 
     // Validate question count against allowed sizes
     const validSizes = EXAM_SIZE_OPTIONS as readonly number[];
@@ -66,16 +78,21 @@ export async function examRoutes(fastify: FastifyInstance) {
     }
     const targetCount = questionCount as ExamSize;
 
-    // Build base query - optionally filter by focus domains
-    let baseQuery = db.select().from(questions);
-    if (focusDomains && focusDomains.length > 0) {
-      baseQuery = baseQuery.where(inArray(questions.domainId, focusDomains)) as typeof baseQuery;
-    }
+    // Build base query - filter by certification's domains and optionally focus domains
+    const whereCondition = focusDomains && focusDomains.length > 0
+      ? and(eq(domains.certificationId, certId), inArray(questions.domainId, focusDomains))
+      : eq(domains.certificationId, certId);
+
+    const baseQuery = db
+      .select({ question: questions })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .where(whereCondition);
 
     // Check available question count first (lightweight count query)
     const [countResult] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(focusDomains?.length ? baseQuery.as('filtered') : questions);
+      .from(baseQuery.as('filtered'));
 
     const availableCount = countResult.count;
     if (availableCount < targetCount) {
@@ -95,6 +112,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     const [newExam] = await db
       .insert(exams)
       .values({
+        certificationId: certId,
         startedAt: new Date(),
         totalQuestions: selectedQuestions.length,
         status: 'in_progress',
@@ -105,7 +123,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     for (let i = 0; i < selectedQuestions.length; i++) {
       await db.insert(examResponses).values({
         examId: newExam.id,
-        questionId: selectedQuestions[i].id,
+        questionId: selectedQuestions[i].question.id,
         selectedAnswers: JSON.stringify([]),
         orderIndex: i,
         flagged: false,

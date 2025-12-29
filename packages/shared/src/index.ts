@@ -1,4 +1,21 @@
-// ACE Prep Shared Types
+// Certification Trainer Shared Types
+
+// Certification types
+export type CertificationProvider = 'gcp' | 'aws' | 'azure';
+
+export interface Certification {
+  id: number;
+  code: string; // 'ACE', 'PCA', 'PDE', etc.
+  name: string; // 'Associate Cloud Engineer'
+  shortName: string; // 'ACE'
+  description: string | null;
+  provider: CertificationProvider;
+  examDurationMinutes: number;
+  totalQuestions: number;
+  passingScorePercent: number | null;
+  isActive: boolean;
+  createdAt: Date;
+}
 
 // LLM Provider and Model types
 export type LLMProvider = 'openai' | 'anthropic';
@@ -78,6 +95,7 @@ export const EXAM_SIZE_DEFAULT = 50;
 // Domain types
 export interface Domain {
   id: number;
+  certificationId: number;
   code: string;
   name: string;
   weight: number;
@@ -122,6 +140,7 @@ export type ExamStatus = 'in_progress' | 'completed' | 'abandoned';
 
 export interface Exam {
   id: number;
+  certificationId: number;
   startedAt: Date;
   completedAt: Date | null;
   timeSpentSeconds: number | null;
@@ -197,6 +216,7 @@ export type StudySessionStatus = 'in_progress' | 'completed' | 'abandoned';
 
 export interface StudySession {
   id: number;
+  certificationId: number;
   sessionType: StudySessionType;
   topicId: number | null;
   domainId: number | null;
@@ -249,6 +269,7 @@ export interface TopicPracticeStats {
 
 // API request/response types
 export interface CreateExamRequest {
+  certificationId?: number; // Optional: uses default (first active) certification if not provided
   focusDomains?: number[];
   questionCount?: ExamSize; // Valid sizes: 10, 15, 25, 50 (defaults to 50)
 }
@@ -289,6 +310,7 @@ export interface ReviewQuestionRequest {
 
 // Study Session API Request/Response Types
 export interface StartStudySessionRequest {
+  certificationId?: number; // Optional: uses default (first active) certification if not provided
   sessionType: StudySessionType;
   topicId?: number;
   domainId?: number;
@@ -372,6 +394,8 @@ export interface GeneratedQuestion {
 }
 
 // ACE Exam Domain Codes
+// @deprecated - Domain codes are now certification-specific and loaded from the database.
+// This constant is kept for backward compatibility but will be removed in a future version.
 export const DOMAIN_CODES = {
   SETUP_CLOUD_ENV: 'SETUP_CLOUD_ENV',
   PLAN_CONFIG: 'PLAN_CONFIG',
@@ -380,4 +404,5 @@ export const DOMAIN_CODES = {
   ACCESS_SECURITY: 'ACCESS_SECURITY',
 } as const;
 
+/** @deprecated Use certification-specific domain codes from the API instead */
 export type DomainCode = typeof DOMAIN_CODES[keyof typeof DOMAIN_CODES];

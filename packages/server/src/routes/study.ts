@@ -1,9 +1,18 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { domains, topics, studySummaries, examResponses, questions, studySessions, studySessionResponses, learningPathProgress, spacedRepetition } from '../db/schema.js';
+import { certifications, domains, topics, studySummaries, examResponses, questions, studySessions, studySessionResponses, learningPathProgress, spacedRepetition } from '../db/schema.js';
 import { eq, desc, and, sql, inArray, notInArray, lte } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
 import type { StartStudySessionRequest, SubmitStudyAnswerRequest, CompleteStudySessionRequest } from '@ace-prep/shared';
+
+// Helper to get the default (first active) certification
+async function getDefaultCertificationId(): Promise<number> {
+  const [cert] = await db.select().from(certifications).where(eq(certifications.isActive, true)).limit(1);
+  if (!cert) {
+    throw new Error('No active certification found. Please seed the database first.');
+  }
+  return cert.id;
+}
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Get all domains with topics
@@ -151,20 +160,31 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Toggle learning path item completion
-  fastify.patch<{ Params: { order: string } }>('/learning-path/:order/toggle', async (request) => {
+  fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>('/learning-path/:order/toggle', async (request) => {
     const order = parseInt(request.params.order, 10);
+    const certId = request.query.certificationId
+      ? parseInt(request.query.certificationId, 10)
+      : await getDefaultCertificationId();
 
-    // Check if already completed
-    const [existing] = await db.select().from(learningPathProgress).where(eq(learningPathProgress.pathItemOrder, order));
+    // Check if already completed (for this certification)
+    const [existing] = await db.select().from(learningPathProgress)
+      .where(and(
+        eq(learningPathProgress.certificationId, certId),
+        eq(learningPathProgress.pathItemOrder, order)
+      ));
 
     if (existing) {
       // Remove completion
-      await db.delete(learningPathProgress).where(eq(learningPathProgress.pathItemOrder, order));
+      await db.delete(learningPathProgress).where(and(
+        eq(learningPathProgress.certificationId, certId),
+        eq(learningPathProgress.pathItemOrder, order)
+      ));
       return { isCompleted: false, completedAt: null };
     } else {
       // Mark as completed
       const now = new Date();
       await db.insert(learningPathProgress).values({
+        certificationId: certId,
         pathItemOrder: order,
         completedAt: now,
       });
@@ -328,10 +348,21 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
   // Create a new study session
   fastify.post<{ Body: StartStudySessionRequest }>('/sessions', async (request, reply) => {
-    const { sessionType, topicId, domainId, questionCount = 10 } = request.body;
+    const { certificationId, sessionType, topicId, domainId, questionCount = 10 } = request.body;
 
-    // Get questions for the session
-    let questionQuery = db
+    // Get certification ID (use provided or default)
+    const certId = certificationId ?? await getDefaultCertificationId();
+
+    // Build where condition based on filters
+    let whereCondition = eq(domains.certificationId, certId);
+    if (topicId) {
+      whereCondition = and(eq(domains.certificationId, certId), eq(questions.topicId, topicId))!;
+    } else if (domainId) {
+      whereCondition = and(eq(domains.certificationId, certId), eq(questions.domainId, domainId))!;
+    }
+
+    // Get questions for the session (filtered by certification)
+    const questionQuery = db
       .select({
         question: questions,
         domain: domains,
@@ -339,13 +370,8 @@ export async function studyRoutes(fastify: FastifyInstance) {
       })
       .from(questions)
       .innerJoin(domains, eq(questions.domainId, domains.id))
-      .innerJoin(topics, eq(questions.topicId, topics.id));
-
-    if (topicId) {
-      questionQuery = questionQuery.where(eq(questions.topicId, topicId)) as typeof questionQuery;
-    } else if (domainId) {
-      questionQuery = questionQuery.where(eq(questions.domainId, domainId)) as typeof questionQuery;
-    }
+      .innerJoin(topics, eq(questions.topicId, topics.id))
+      .where(whereCondition);
 
     const allQuestions = await questionQuery;
 
@@ -359,6 +385,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
     // Create the session
     const [session] = await db.insert(studySessions).values({
+      certificationId: certId,
       sessionType,
       topicId: topicId || null,
       domainId: domainId || selectedQuestions[0]?.question.domainId || null,

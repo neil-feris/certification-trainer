@@ -1,13 +1,32 @@
--- ACE Prep Database Schema
+-- Certification Trainer Database Schema
+-- Supports multiple Google Cloud certifications (ACE, PCA, PDE, etc.)
+
+-- Certifications table (parent table for all certification-specific data)
+CREATE TABLE IF NOT EXISTS certifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  short_name TEXT NOT NULL,
+  description TEXT,
+  provider TEXT NOT NULL DEFAULT 'gcp',
+  exam_duration_minutes INTEGER NOT NULL DEFAULT 120,
+  total_questions INTEGER NOT NULL DEFAULT 50,
+  passing_score_percent INTEGER DEFAULT 70,
+  is_active INTEGER DEFAULT 1,
+  created_at INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS domains (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  code TEXT NOT NULL UNIQUE,
+  certification_id INTEGER NOT NULL REFERENCES certifications(id),
+  code TEXT NOT NULL,
   name TEXT NOT NULL,
   weight REAL NOT NULL,
   description TEXT,
   order_index INTEGER NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS domains_cert_code_idx ON domains(certification_id, code);
+CREATE INDEX IF NOT EXISTS domains_cert_idx ON domains(certification_id);
 
 CREATE TABLE IF NOT EXISTS topics (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,6 +56,7 @@ CREATE INDEX IF NOT EXISTS questions_domain_idx ON questions(domain_id);
 
 CREATE TABLE IF NOT EXISTS exams (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  certification_id INTEGER NOT NULL REFERENCES certifications(id),
   started_at INTEGER NOT NULL,
   completed_at INTEGER,
   time_spent_seconds INTEGER,
@@ -45,6 +65,7 @@ CREATE TABLE IF NOT EXISTS exams (
   score REAL,
   status TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS exams_cert_idx ON exams(certification_id);
 
 CREATE TABLE IF NOT EXISTS exam_responses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,6 +113,7 @@ CREATE TABLE IF NOT EXISTS study_summaries (
 
 CREATE TABLE IF NOT EXISTS study_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  certification_id INTEGER NOT NULL REFERENCES certifications(id),
   session_type TEXT NOT NULL,
   topic_id INTEGER REFERENCES topics(id),
   domain_id INTEGER REFERENCES domains(id),
@@ -105,6 +127,7 @@ CREATE TABLE IF NOT EXISTS study_sessions (
 );
 CREATE INDEX IF NOT EXISTS sessions_status_idx ON study_sessions(status);
 CREATE INDEX IF NOT EXISTS sessions_topic_idx ON study_sessions(topic_id);
+CREATE INDEX IF NOT EXISTS sessions_cert_idx ON study_sessions(certification_id);
 
 CREATE TABLE IF NOT EXISTS study_session_responses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,10 +143,13 @@ CREATE INDEX IF NOT EXISTS session_responses_idx ON study_session_responses(sess
 
 CREATE TABLE IF NOT EXISTS learning_path_progress (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  path_item_order INTEGER NOT NULL UNIQUE,
+  certification_id INTEGER NOT NULL REFERENCES certifications(id),
+  path_item_order INTEGER NOT NULL,
   completed_at INTEGER,
   notes TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS learning_path_cert_order_idx ON learning_path_progress(certification_id, path_item_order);
+CREATE INDEX IF NOT EXISTS learning_path_cert_idx ON learning_path_progress(certification_id);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
