@@ -4,6 +4,13 @@ import { exams, examResponses, questions, domains, topics } from '../db/schema.j
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
+import {
+  idParamSchema,
+  createExamSchema,
+  submitAnswerSchema,
+  completeExamSchema,
+  formatZodError,
+} from '../validation/schemas.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Get all exams (filtered by certification)
@@ -21,7 +28,11 @@ export async function examRoutes(fastify: FastifyInstance) {
 
   // Get single exam with responses
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const examId = parseInt(request.params.id);
+    const parseResult = idParamSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const examId = parseResult.data.id;
 
     const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
     if (!exam) {
@@ -61,7 +72,11 @@ export async function examRoutes(fastify: FastifyInstance) {
 
   // Create new exam
   fastify.post<{ Body: { certificationId?: number; focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
-    const { certificationId, focusDomains, questionCount = EXAM_SIZE_DEFAULT } = request.body || {};
+    const parseResult = createExamSchema.safeParse(request.body || {});
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { certificationId, focusDomains, questionCount = EXAM_SIZE_DEFAULT } = parseResult.data;
 
     // Get and validate certification ID
     const certId = await resolveCertificationId(certificationId, reply);
@@ -119,16 +134,16 @@ export async function examRoutes(fastify: FastifyInstance) {
       })
       .returning();
 
-    // Create exam responses (initially empty answers)
-    for (let i = 0; i < selectedQuestions.length; i++) {
-      await db.insert(examResponses).values({
+    // Create exam responses (batch insert for performance)
+    await db.insert(examResponses).values(
+      selectedQuestions.map((q, i) => ({
         examId: newExam.id,
-        questionId: selectedQuestions[i].question.id,
+        questionId: q.question.id,
         selectedAnswers: JSON.stringify([]),
         orderIndex: i,
         flagged: false,
-      });
-    }
+      }))
+    );
 
     return { examId: newExam.id, totalQuestions: selectedQuestions.length };
   });
@@ -138,8 +153,17 @@ export async function examRoutes(fastify: FastifyInstance) {
     Params: { id: string };
     Body: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number; flagged?: boolean };
   }>('/:id/answer', async (request, reply) => {
-    const examId = parseInt(request.params.id);
-    const { questionId, selectedAnswers, timeSpentSeconds, flagged } = request.body;
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
+
+    const bodyResult = submitAnswerSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+    const { questionId, selectedAnswers, timeSpentSeconds, flagged } = bodyResult.data;
 
     // Get the question to check correct answers
     const [question] = await db.select().from(questions).where(eq(questions.id, questionId));
@@ -172,37 +196,71 @@ export async function examRoutes(fastify: FastifyInstance) {
     Params: { id: string };
     Body: { totalTimeSeconds: number };
   }>('/:id/complete', async (request, reply) => {
-    const examId = parseInt(request.params.id);
-    const { totalTimeSeconds } = request.body;
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
 
-    // Calculate score
-    const responses = await db
-      .select()
-      .from(examResponses)
-      .where(eq(examResponses.examId, examId));
+    const bodyResult = completeExamSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+    const { totalTimeSeconds } = bodyResult.data;
 
-    const correctCount = responses.filter((r) => r.isCorrect === true).length;
-    const score = (correctCount / responses.length) * 100;
+    // Use transaction to ensure consistent read and update of exam state
+    const txResult = await db.transaction(async (tx) => {
+      // Check exam exists and is in_progress
+      const [exam] = await tx.select().from(exams).where(eq(exams.id, examId));
+      if (!exam) {
+        return { error: 'not_found' as const };
+      }
+      if (exam.status === 'completed' || exam.status === 'abandoned') {
+        return { error: 'already_completed' as const };
+      }
 
-    // Update exam
-    const [updatedExam] = await db
-      .update(exams)
-      .set({
-        completedAt: new Date(),
-        timeSpentSeconds: totalTimeSeconds,
-        correctAnswers: correctCount,
-        score,
-        status: 'completed',
-      })
-      .where(eq(exams.id, examId))
-      .returning();
+      // Calculate score
+      const responses = await tx
+        .select()
+        .from(examResponses)
+        .where(eq(examResponses.examId, examId));
 
-    return updatedExam;
+      const correctCount = responses.filter((r) => r.isCorrect === true).length;
+      const score = responses.length > 0 ? (correctCount / responses.length) * 100 : 0;
+
+      // Update exam atomically
+      const [updatedExam] = await tx
+        .update(exams)
+        .set({
+          completedAt: new Date(),
+          timeSpentSeconds: totalTimeSeconds,
+          correctAnswers: correctCount,
+          score,
+          status: 'completed',
+        })
+        .where(eq(exams.id, examId))
+        .returning();
+
+      return { exam: updatedExam };
+    });
+
+    if ('error' in txResult) {
+      if (txResult.error === 'not_found') {
+        return reply.status(404).send({ error: 'Exam not found' });
+      }
+      return reply.status(400).send({ error: 'Exam already completed or abandoned' });
+    }
+
+    return txResult.exam;
   });
 
   // Abandon exam
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const examId = parseInt(request.params.id);
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
 
     await db.update(exams).set({ status: 'abandoned' }).where(eq(exams.id, examId));
 
@@ -211,7 +269,11 @@ export async function examRoutes(fastify: FastifyInstance) {
 
   // Get exam review (with explanations)
   fastify.get<{ Params: { id: string } }>('/:id/review', async (request, reply) => {
-    const examId = parseInt(request.params.id);
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
 
     const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
     if (!exam) {

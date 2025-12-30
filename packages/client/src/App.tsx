@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { RouteErrorBoundary } from './components/common/RouteErrorBoundary';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { ExamSetup } from './components/exam/ExamSetup';
 import { ExamContainer } from './components/exam/ExamContainer';
@@ -10,18 +12,69 @@ import { Settings } from './components/settings/Settings';
 
 function App() {
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/exam" element={<ExamSetup />} />
-        <Route path="/exam/:id" element={<ExamContainer />} />
-        <Route path="/exam/:id/review" element={<ExamReview />} />
-        <Route path="/study" element={<StudyHub />} />
-        <Route path="/review" element={<Review />} />
-        <Route path="/settings" element={<Settings />} />
-      </Routes>
-    </AppShell>
+    <ErrorBoundary>
+      <AppShell>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/dashboard"
+            element={
+              <RouteErrorBoundary>
+                <Dashboard />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/exam"
+            element={
+              <RouteErrorBoundary>
+                <ExamSetup />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/exam/:id"
+            element={
+              <RouteErrorBoundary>
+                <ExamContainer />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/exam/:id/review"
+            element={
+              <RouteErrorBoundary>
+                <ExamReview />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/study"
+            element={
+              <RouteErrorBoundary>
+                <StudyHub />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/review"
+            element={
+              <RouteErrorBoundary>
+                <Review />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RouteErrorBoundary>
+                <Settings />
+              </RouteErrorBoundary>
+            }
+          />
+        </Routes>
+      </AppShell>
+    </ErrorBoundary>
   );
 }
 

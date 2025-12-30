@@ -1,0 +1,259 @@
+---
+description: Zod schema definitions, validation patterns, and error formatting
+globs: ["packages/server/src/validation/**/*.ts"]
+---
+
+# Validation Patterns
+
+## Overview
+All request validation uses Zod schemas. Schemas are organized by domain (exams, questions, study, etc.) and include helper functions for error formatting.
+
+## Schema Organization
+
+### File Structure
+- ✅ **ALWAYS** organize schemas by domain in `validation/schemas.ts`
+- ✅ **ALWAYS** group related schemas with comments
+- ✅ **ALWAYS** export schemas for use in route handlers
+
+```typescript
+// ============ Common Schemas ============
+export const idParamSchema = z.object({ ... });
+
+// ============ Exam Schemas ============
+export const createExamSchema = z.object({ ... });
+
+// ============ Question Schemas ============
+export const questionQuerySchema = z.object({ ... });
+```
+
+## Common Patterns
+
+### ID Parameter Validation
+- ✅ **ALWAYS** validate route parameters as strings first, then transform to numbers
+- ✅ **ALWAYS** use regex to ensure numeric strings
+- ✅ **ALWAYS** transform to number type after validation
+
+```typescript
+export const idParamSchema = z.object({
+  id: z.string().regex(/^\d+$/, 'ID must be a positive integer').transform(Number),
+});
+
+// Usage in route
+const parseResult = idParamSchema.safeParse(request.params);
+if (!parseResult.success) {
+  return reply.status(400).send(formatZodError(parseResult.error));
+}
+const examId = parseResult.data.id; // Type: number
+```
+
+### Query Parameter Validation
+- ✅ **ALWAYS** validate query params as strings, then transform
+- ✅ **ALWAYS** provide defaults for optional parameters
+- ✅ **ALWAYS** validate ranges (min/max) for numeric params
+
+```typescript
+export const questionQuerySchema = z.object({
+  domainId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  topicId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  limit: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .refine((val) => val >= 1 && val <= PAGINATION_DEFAULTS.maxLimit, {
+      message: `Limit must be between 1 and ${PAGINATION_DEFAULTS.maxLimit}`,
+    })
+    .optional()
+    .default(String(PAGINATION_DEFAULTS.limit)),
+  offset: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .refine((val) => val >= 0, { message: 'Offset must be non-negative' })
+    .optional()
+    .default(String(PAGINATION_DEFAULTS.offset)),
+});
+```
+
+### Body Validation
+- ✅ **ALWAYS** validate request body with Zod schemas
+- ✅ **ALWAYS** use `.strict()` to reject unknown fields
+- ✅ **ALWAYS** provide clear error messages
+
+```typescript
+export const createExamSchema = z.object({
+  focusDomains: z.array(z.number().int().positive()).optional(),
+  questionCount: z.number().int().refine(
+    (val) => (EXAM_SIZE_OPTIONS as readonly number[]).includes(val),
+    { message: `Question count must be one of: ${EXAM_SIZE_OPTIONS.join(', ')}` }
+  ).optional(),
+});
+
+export const updateSettingsSchema = z.object({
+  llmProvider: z.enum(['openai', 'anthropic']).optional(),
+  openaiApiKey: z.string().optional(),
+  anthropicApiKey: z.string().optional(),
+}).strict(); // Reject unknown fields
+```
+
+## Validation with Shared Constants
+
+### Using Shared Type Constants
+- ✅ **ALWAYS** import constants from `@ace-prep/shared` for validation
+- ✅ **ALWAYS** use `as readonly number[]` assertion for type checking
+
+```typescript
+import { EXAM_SIZE_OPTIONS, DRILL_QUESTION_COUNTS, DRILL_TIME_LIMITS } from '@ace-prep/shared';
+
+export const createExamSchema = z.object({
+  questionCount: z.number().int().refine(
+    (val) => (EXAM_SIZE_OPTIONS as readonly number[]).includes(val),
+    { message: `Question count must be one of: ${EXAM_SIZE_OPTIONS.join(', ')}` }
+  ).optional(),
+});
+
+export const startDrillSchema = z.object({
+  questionCount: z.number().int().refine(
+    (val) => (DRILL_QUESTION_COUNTS as readonly number[]).includes(val),
+    { message: `Question count must be one of: ${DRILL_QUESTION_COUNTS.join(', ')}` }
+  ),
+  timeLimitSeconds: z.number().int().refine(
+    (val) => (DRILL_TIME_LIMITS as readonly number[]).includes(val),
+    { message: `Time limit must be one of: ${DRILL_TIME_LIMITS.join(', ')}` }
+  ),
+});
+```
+
+## Error Handling
+
+### Error Formatting
+- ✅ **ALWAYS** use `formatZodError` helper for consistent error responses
+- ✅ **ALWAYS** return both error message and details
+
+```typescript
+export function formatZodError(error: z.ZodError): { error: string; details: z.ZodIssue[] } {
+  return {
+    error: 'Validation failed',
+    details: error.issues,
+  };
+}
+
+// Usage in route
+const parseResult = idParamSchema.safeParse(request.params);
+if (!parseResult.success) {
+  return reply.status(400).send(formatZodError(parseResult.error));
+}
+```
+
+### Validation in Route Handlers
+- ✅ **ALWAYS** validate params and body separately
+- ✅ **ALWAYS** use `safeParse` for validation
+- ✅ **ALWAYS** return 400 status for validation errors
+
+```typescript
+fastify.patch<{ Params: { id: string }; Body: SubmitAnswerRequest }>('/:id/answer', async (request, reply) => {
+  // 1. Validate params
+  const paramResult = idParamSchema.safeParse(request.params);
+  if (!paramResult.success) {
+    return reply.status(400).send(formatZodError(paramResult.error));
+  }
+  const examId = paramResult.data.id;
+
+  // 2. Validate body
+  const bodyResult = submitAnswerSchema.safeParse(request.body);
+  if (!bodyResult.success) {
+    return reply.status(400).send(formatZodError(bodyResult.error));
+  }
+  const { questionId, selectedAnswers } = bodyResult.data;
+
+  // 3. Process request
+  // ...
+});
+```
+
+## Schema Patterns
+
+### Enum Validation
+- ✅ **ALWAYS** use `z.enum()` for fixed string values
+- ✅ **ALWAYS** import enum values from shared types when possible
+
+```typescript
+export const updateSettingsSchema = z.object({
+  llmProvider: z.enum(['openai', 'anthropic']).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+});
+```
+
+### Array Validation
+- ✅ **ALWAYS** validate array elements with `.array(z.type())`
+- ✅ **ALWAYS** add constraints like `.min()`, `.max()` when appropriate
+
+```typescript
+export const submitAnswerSchema = z.object({
+  selectedAnswers: z.array(z.number().int().min(0)).min(0),
+  // Array of non-negative integers, at least 0 elements (can be empty)
+});
+```
+
+### Optional Fields
+- ✅ **ALWAYS** use `.optional()` for optional fields
+- ✅ **ALWAYS** provide defaults when field is commonly used
+
+```typescript
+export const startStudySessionSchema = z.object({
+  sessionType: z.enum(['practice', 'review', 'weak_areas']),
+  topicId: z.number().int().positive().optional(),
+  domainId: z.number().int().positive().optional(),
+  questionCount: z.number().int().positive().max(50).optional().default(10),
+});
+```
+
+### Nested Object Validation
+- ✅ **ALWAYS** use `z.object()` for nested structures
+- ✅ **ALWAYS** validate nested arrays of objects
+
+```typescript
+export const completeStudySessionSchema = z.object({
+  responses: z.array(z.object({
+    questionId: z.number().int().positive(),
+    selectedAnswers: z.array(z.number().int().min(0)),
+    timeSpentSeconds: z.number().int().min(0),
+  })),
+  totalTimeSeconds: z.number().int().min(0),
+});
+```
+
+## Type Safety
+
+### Type Inference from Schemas
+- ✅ **ALWAYS** use Zod's type inference for request types
+- ✅ **ALWAYS** export inferred types when needed
+
+```typescript
+export type CreateExamRequest = z.infer<typeof createExamSchema>;
+export type SubmitAnswerRequest = z.infer<typeof submitAnswerSchema>;
+```
+
+### Using Inferred Types
+- ✅ **ALWAYS** use inferred types in route handler generics
+- ✅ **ALWAYS** ensure types match between client and server
+
+```typescript
+fastify.post<{ Body: CreateExamRequest }>('/', async (request, reply) => {
+  const { focusDomains, questionCount } = request.body; // Typed correctly
+});
+```
+
+## Anti-Patterns
+
+- ❌ **NEVER** skip validation - always validate all inputs
+- ❌ **NEVER** use `any` type in schemas
+- ❌ **NEVER** forget to transform string params to numbers
+- ❌ **NEVER** return different error formats - use `formatZodError`
+- ❌ **NEVER** validate in service layer - validate in route handlers
+- ❌ **NEVER** use `.parse()` - always use `.safeParse()` for error handling
+- ❌ **NEVER** forget to add `.strict()` for settings/configuration schemas
+
+## Related Patterns
+- See `server-patterns.mdc` for route handler validation usage
+- See `monorepo-patterns.mdc` for shared type constants

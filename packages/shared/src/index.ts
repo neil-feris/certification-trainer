@@ -267,6 +267,20 @@ export interface TopicPracticeStats {
   recommendedAction: 'practice' | 'review' | 'mastered';
 }
 
+// Pagination types
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface PaginationParams {
+  limit?: number;
+  offset?: number;
+}
+
 // API request/response types
 export interface CreateExamRequest {
   certificationId?: number; // Optional: uses default (first active) certification if not provided
@@ -373,8 +387,8 @@ export interface ActiveStudySessionResponse {
 // Settings
 export interface Settings {
   llmProvider: LLMProvider;
-  openaiApiKey: string | null;
-  anthropicApiKey: string | null;
+  hasOpenaiKey: boolean;
+  hasAnthropicKey: boolean;
   anthropicModel: AnthropicModel;
   openaiModel: OpenAIModel;
   examDurationMinutes: number;
@@ -406,3 +420,104 @@ export const DOMAIN_CODES = {
 
 /** @deprecated Use certification-specific domain codes from the API instead */
 export type DomainCode = typeof DOMAIN_CODES[keyof typeof DOMAIN_CODES];
+
+// ============ TIMED DRILL TYPES ============
+
+export type DrillMode = 'domain' | 'weak_areas';
+export const DRILL_QUESTION_COUNTS = [5, 10, 15, 20] as const;
+export const DRILL_TIME_LIMITS = [60, 120, 300, 600] as const; // seconds (1, 2, 5, 10 min)
+export type DrillQuestionCount = typeof DRILL_QUESTION_COUNTS[number];
+export type DrillTimeLimit = typeof DRILL_TIME_LIMITS[number];
+
+export interface DrillConfig {
+  mode: DrillMode;
+  domainId?: number;
+  questionCount: DrillQuestionCount;
+  timeLimitSeconds: DrillTimeLimit;
+}
+
+export interface DrillQuestion {
+  id: number;
+  questionText: string;
+  questionType: QuestionType;
+  options: string[];
+  difficulty: Difficulty;
+  domain: { id: number; name: string; code: string };
+  topic: { id: number; name: string };
+}
+
+export interface DrillResult {
+  questionId: number;
+  selectedAnswers: number[];
+  isCorrect: boolean;
+  correctAnswers: number[];
+  explanation: string;
+  timeSpentSeconds: number;
+}
+
+export interface StartDrillRequest {
+  mode: DrillMode;
+  domainId?: number;
+  questionCount: DrillQuestionCount;
+  timeLimitSeconds: DrillTimeLimit;
+}
+
+export interface StartDrillResponse {
+  drillId: number;
+  questions: DrillQuestion[];
+  startedAt: string;
+  timeLimitSeconds: number;
+}
+
+export interface SubmitDrillAnswerRequest {
+  questionId: number;
+  selectedAnswers: number[];
+  timeSpentSeconds: number;
+}
+
+export interface SubmitDrillAnswerResponse {
+  isCorrect: boolean;
+  correctAnswers: number[];
+  explanation: string;
+  addedToSR: boolean;
+}
+
+export interface CompleteDrillRequest {
+  totalTimeSeconds: number;
+  timedOut?: boolean;
+}
+
+export interface CompleteDrillResponse {
+  score: number;
+  correctCount: number;
+  totalCount: number;
+  avgTimePerQuestion: number;
+  addedToSRCount: number;
+  results: DrillResult[];
+}
+
+export interface ActiveDrillResponse {
+  session: {
+    id: number;
+    sessionType: string;
+    topicId: number | null;
+    domainId: number | null;
+    startedAt: Date | string;
+    completedAt: Date | string | null;
+    timeSpentSeconds: number | null;
+    correctAnswers: number | null;
+    totalQuestions: number;
+    status: string;
+    syncedAt: Date | string | null;
+  };
+  responses: Array<{
+    id: number;
+    sessionId: number;
+    questionId: number;
+    selectedAnswers: number[];
+    isCorrect: boolean;
+    timeSpentSeconds: number | null;
+    orderIndex: number;
+    addedToSR: boolean;
+  }>;
+}

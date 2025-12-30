@@ -5,28 +5,51 @@ import { eq, desc, and, sql, inArray, notInArray, lte } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
 import type { StartStudySessionRequest, SubmitStudyAnswerRequest, CompleteStudySessionRequest } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
+import {
+  idParamSchema,
+  orderParamSchema,
+  topicIdParamSchema,
+  startStudySessionSchema,
+  submitStudyAnswerSchema,
+  completeStudySessionSchema,
+  studySummarySchema,
+  explainSchema,
+  topicQuestionsQuerySchema,
+  formatZodError,
+} from '../validation/schemas.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
-  // Get all domains with topics (filtered by certification)
+  // Get all domains with topics (single query with JOIN, filtered by certification)
   fastify.get<{ Querystring: { certificationId?: string } }>('/domains', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
 
-    const allDomains = await db
-      .select()
-      .from(domains)
-      .where(eq(domains.certificationId, certId))
-      .orderBy(domains.orderIndex);
-
-    return Promise.all(
-      allDomains.map(async (domain) => {
-        const domainTopics = await db.select().from(topics).where(eq(topics.domainId, domain.id));
-        return {
-          ...domain,
-          topics: domainTopics,
-        };
+    const result = await db
+      .select({
+        domain: domains,
+        topic: topics,
       })
-    );
+      .from(domains)
+      .leftJoin(topics, eq(topics.domainId, domains.id))
+      .where(eq(domains.certificationId, certId))
+      .orderBy(domains.orderIndex, topics.id);
+
+    // Group topics by domain
+    const domainMap = new Map<number, { domain: typeof domains.$inferSelect; topics: (typeof topics.$inferSelect)[] }>();
+
+    for (const row of result) {
+      if (!domainMap.has(row.domain.id)) {
+        domainMap.set(row.domain.id, { domain: row.domain, topics: [] });
+      }
+      if (row.topic) {
+        domainMap.get(row.domain.id)!.topics.push(row.topic);
+      }
+    }
+
+    return Array.from(domainMap.values()).map(({ domain, topics }) => ({
+      ...domain,
+      topics,
+    }));
   });
 
   // Get learning path structure with completion status (filtered by certification)
@@ -166,7 +189,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
   // Toggle learning path item completion
   fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>('/learning-path/:order/toggle', async (request, reply) => {
-    const order = parseInt(request.params.order, 10);
+    const parseResult = orderParamSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const order = parseResult.data.order;
+
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
 
@@ -227,13 +255,25 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Generate study summary for a domain/topic
+  // Rate limit: 10 per minute
   fastify.post<{
     Body: {
       domainId: number;
       topicId?: number;
     };
-  }>('/summary', async (request, reply) => {
-    const { domainId, topicId } = request.body;
+  }>('/summary', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const parseResult = studySummarySchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { domainId, topicId } = parseResult.data;
 
     const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
     if (!domain) {
@@ -288,13 +328,25 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Generate explanation for a wrong answer
+  // Rate limit: 20 per minute
   fastify.post<{
     Body: {
       questionId: number;
       userAnswers: number[];
     };
-  }>('/explain', async (request, reply) => {
-    const { questionId, userAnswers } = request.body;
+  }>('/explain', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const parseResult = explainSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { questionId, userAnswers } = parseResult.data;
 
     const [result] = await db
       .select({
@@ -358,7 +410,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
   // Create a new study session
   fastify.post<{ Body: StartStudySessionRequest }>('/sessions', async (request, reply) => {
-    const { certificationId, sessionType, topicId, domainId, questionCount = 10 } = request.body;
+    const parseResult = startStudySessionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const { certificationId, sessionType, topicId, domainId, questionCount = 10 } = parseResult.data;
 
     // Get and validate certification ID
     const certId = await resolveCertificationId(certificationId, reply);
@@ -372,7 +428,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       whereCondition = and(eq(domains.certificationId, certId), eq(questions.domainId, domainId))!;
     }
 
-    // Get questions for the session (filtered by certification)
+    // Get questions for the session using SQL RANDOM() for efficient random selection
     const questionQuery = db
       .select({
         question: questions,
@@ -384,15 +440,14 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .innerJoin(topics, eq(questions.topicId, topics.id))
       .where(whereCondition);
 
-    const allQuestions = await questionQuery;
+    // Use SQL RANDOM() and LIMIT for efficient random selection
+    const selectedQuestions = await questionQuery
+      .orderBy(sql`RANDOM()`)
+      .limit(questionCount);
 
-    if (allQuestions.length === 0) {
+    if (selectedQuestions.length === 0) {
       return reply.status(404).send({ error: 'No questions found for the specified criteria' });
     }
-
-    // Shuffle and limit questions
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, questionCount);
 
     // Create the session
     const [session] = await db.insert(studySessions).values({
@@ -512,8 +567,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
     Params: { id: string };
     Body: SubmitStudyAnswerRequest;
   }>('/sessions/:id/answer', async (request, reply) => {
-    const sessionId = parseInt(request.params.id, 10);
-    const { questionId, selectedAnswers, timeSpentSeconds } = request.body;
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const sessionId = paramResult.data.id;
+
+    const bodyResult = submitStudyAnswerSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+    const { questionId, selectedAnswers, timeSpentSeconds } = bodyResult.data;
 
     // Verify session exists and is active
     const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
@@ -530,82 +594,94 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Question not found' });
     }
 
-    const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+    let correctAnswers: number[];
+    try {
+      correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+    } catch {
+      return reply.status(500).send({ error: 'Invalid question data' });
+    }
+
     const isCorrect = selectedAnswers.length === correctAnswers.length &&
       selectedAnswers.every(a => correctAnswers.includes(a)) &&
       correctAnswers.every(a => selectedAnswers.includes(a));
 
-    // Check if response already exists
-    const [existingResponse] = await db
-      .select()
-      .from(studySessionResponses)
-      .where(and(
-        eq(studySessionResponses.sessionId, sessionId),
-        eq(studySessionResponses.questionId, questionId)
-      ));
+    // Use transaction to prevent TOCTOU race condition
+    // The unique constraint on (sessionId, questionId) also prevents duplicates
+    const addedToSR = await db.transaction(async (tx) => {
+      // Check if response already exists
+      const [existingResponse] = await tx
+        .select()
+        .from(studySessionResponses)
+        .where(and(
+          eq(studySessionResponses.sessionId, sessionId),
+          eq(studySessionResponses.questionId, questionId)
+        ));
 
-    let addedToSR = false;
+      let wasAddedToSR = false;
 
-    if (existingResponse) {
-      // Update existing response
-      await db.update(studySessionResponses)
-        .set({
+      if (existingResponse) {
+        // Update existing response
+        await tx.update(studySessionResponses)
+          .set({
+            selectedAnswers: JSON.stringify(selectedAnswers),
+            isCorrect,
+            timeSpentSeconds,
+          })
+          .where(eq(studySessionResponses.id, existingResponse.id));
+        wasAddedToSR = existingResponse.addedToSR || false;
+      } else {
+        // Get next order index
+        const existingCount = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(studySessionResponses)
+          .where(eq(studySessionResponses.sessionId, sessionId));
+
+        // Create new response
+        await tx.insert(studySessionResponses).values({
+          sessionId,
+          questionId,
           selectedAnswers: JSON.stringify(selectedAnswers),
           isCorrect,
           timeSpentSeconds,
-        })
-        .where(eq(studySessionResponses.id, existingResponse.id));
-      addedToSR = existingResponse.addedToSR || false;
-    } else {
-      // Get next order index
-      const existingCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(studySessionResponses)
-        .where(eq(studySessionResponses.sessionId, sessionId));
+          orderIndex: (existingCount[0]?.count || 0) + 1,
+          addedToSR: false,
+        });
 
-      // Create new response
-      await db.insert(studySessionResponses).values({
-        sessionId,
-        questionId,
-        selectedAnswers: JSON.stringify(selectedAnswers),
-        isCorrect,
-        timeSpentSeconds,
-        orderIndex: (existingCount[0]?.count || 0) + 1,
-        addedToSR: false,
-      });
+        // If incorrect, add to spaced repetition queue
+        if (!isCorrect) {
+          const [existingSR] = await tx
+            .select()
+            .from(spacedRepetition)
+            .where(eq(spacedRepetition.questionId, questionId));
 
-      // If incorrect, add to spaced repetition queue
-      if (!isCorrect) {
-        const [existingSR] = await db
-          .select()
-          .from(spacedRepetition)
-          .where(eq(spacedRepetition.questionId, questionId));
+          if (!existingSR) {
+            await tx.insert(spacedRepetition).values({
+              questionId,
+              easeFactor: 2.5,
+              interval: 1,
+              repetitions: 0,
+              nextReviewAt: new Date(),
+            });
+            wasAddedToSR = true;
 
-        if (!existingSR) {
-          await db.insert(spacedRepetition).values({
-            questionId,
-            easeFactor: 2.5,
-            interval: 1,
-            repetitions: 0,
-            nextReviewAt: new Date(),
-          });
-          addedToSR = true;
-
-          // Update the response to mark it
-          await db.update(studySessionResponses)
-            .set({ addedToSR: true })
-            .where(and(
-              eq(studySessionResponses.sessionId, sessionId),
-              eq(studySessionResponses.questionId, questionId)
-            ));
+            // Update the response to mark it
+            await tx.update(studySessionResponses)
+              .set({ addedToSR: true })
+              .where(and(
+                eq(studySessionResponses.sessionId, sessionId),
+                eq(studySessionResponses.questionId, questionId)
+              ));
+          }
         }
       }
-    }
 
-    // Update session sync time
-    await db.update(studySessions)
-      .set({ syncedAt: new Date() })
-      .where(eq(studySessions.id, sessionId));
+      // Update session sync time
+      await tx.update(studySessions)
+        .set({ syncedAt: new Date() })
+        .where(eq(studySessions.id, sessionId));
+
+      return wasAddedToSR;
+    });
 
     // Return correctAnswers and explanation ONLY after user has submitted
     return {
@@ -621,8 +697,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
     Params: { id: string };
     Body: CompleteStudySessionRequest;
   }>('/sessions/:id/complete', async (request, reply) => {
-    const sessionId = parseInt(request.params.id, 10);
-    const { responses, totalTimeSeconds } = request.body;
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const sessionId = paramResult.data.id;
+
+    const bodyResult = completeStudySessionSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+    const { responses, totalTimeSeconds } = bodyResult.data;
 
     const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
     if (!session) {
@@ -749,7 +834,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
   // Abandon study session
   fastify.delete<{ Params: { id: string } }>('/sessions/:id', async (request, reply) => {
-    const sessionId = parseInt(request.params.id, 10);
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const sessionId = paramResult.data.id;
 
     const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
     if (!session) {
@@ -767,17 +856,27 @@ export async function studyRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Params: { topicId: string };
     Querystring: { count?: string; difficulty?: string };
-  }>('/topics/:topicId/questions', async (request) => {
-    const topicId = parseInt(request.params.topicId, 10);
-    const count = parseInt(request.query.count || '10', 10);
-    const difficulty = request.query.difficulty;
+  }>('/topics/:topicId/questions', async (request, reply) => {
+    const paramResult = topicIdParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const topicId = paramResult.data.topicId;
+
+    const queryResult = topicQuestionsQuerySchema.safeParse(request.query);
+    if (!queryResult.success) {
+      return reply.status(400).send(formatZodError(queryResult.error));
+    }
+    const count = queryResult.data.count || 10;
+    const difficulty = queryResult.data.difficulty;
 
     // Build where condition
     const whereCondition = difficulty
       ? and(eq(questions.topicId, topicId), eq(questions.difficulty, difficulty))
       : eq(questions.topicId, topicId);
 
-    const allQuestions = await db
+    // Use SQL RANDOM() and LIMIT for efficient random selection
+    const selectedQuestions = await db
       .select({
         question: questions,
         domain: domains,
@@ -786,10 +885,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .from(questions)
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
-      .where(whereCondition);
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5).slice(0, count);
+      .where(whereCondition)
+      .orderBy(sql`RANDOM()`)
+      .limit(count);
 
-    return shuffled.map(q => ({
+    return selectedQuestions.map(q => ({
       id: q.question.id,
       questionText: q.question.questionText,
       questionType: q.question.questionType,
@@ -804,8 +904,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Get topic practice stats
-  fastify.get<{ Params: { topicId: string } }>('/topics/:topicId/stats', async (request) => {
-    const topicId = parseInt(request.params.topicId, 10);
+  fastify.get<{ Params: { topicId: string } }>('/topics/:topicId/stats', async (request, reply) => {
+    const paramResult = topicIdParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const topicId = paramResult.data.topicId;
 
     // Get all exam responses for this topic
     const responses = await db

@@ -67,9 +67,9 @@ export function Settings() {
     }
   }, [settings]);
 
-  const { data: questions } = useQuery({
-    queryKey: ['questions'],
-    queryFn: () => questionApi.list(),
+  const { data: questionCount = 0 } = useQuery({
+    queryKey: ['questions', 'count'],
+    queryFn: () => questionApi.getCount(),
   });
 
   const updateSettings = useMutation({
@@ -223,8 +223,8 @@ export function Settings() {
             placeholder={`Enter your ${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key`}
           />
           <span className={styles.hint}>
-            {settings?.[provider === 'anthropic' ? 'anthropicApiKey' : 'openaiApiKey']
-              ? `Current key: ${settings[provider === 'anthropic' ? 'anthropicApiKey' : 'openaiApiKey']}`
+            {(provider === 'anthropic' ? settings?.hasAnthropicKey : settings?.hasOpenaiKey)
+              ? 'API key configured'
               : 'No API key configured'}
           </span>
         </div>
@@ -244,7 +244,7 @@ export function Settings() {
       <section className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>Question Bank</h2>
         <p className={styles.sectionDescription}>
-          Generate practice questions using AI. You currently have <strong>{questions?.length || 0}</strong> questions.
+          Generate practice questions using AI. You currently have <strong>{questionCount}</strong> questions.
         </p>
 
         <div className={styles.formGroup}>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { examApi } from '../api/client';
 
 interface ExamQuestion {
   id: number;
@@ -38,6 +39,8 @@ interface ExamState {
   updateTimeRemaining: (seconds: number) => void;
   submitExam: () => Promise<void>;
   resetExam: () => void;
+  abandonExam: () => Promise<void>;
+  hasIncompleteExam: () => boolean;
 
   // Getters
   getCurrentQuestion: () => ExamQuestion | null;
@@ -134,33 +137,26 @@ export const useExamStore = create<ExamState>()(
 
         set({ isSubmitting: true });
 
-        const totalTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+        try {
+          const totalTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-        // Submit answers to API
-        const responsesArray = Array.from(responses.values());
-        for (const response of responsesArray) {
-          if (response.selectedAnswers.length > 0) {
-            await fetch(`/api/exams/${examId}/answer`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+          // Submit answers to API using client
+          const responsesArray = Array.from(responses.values());
+          for (const response of responsesArray) {
+            if (response.selectedAnswers.length > 0) {
+              await examApi.submitAnswer(examId, {
                 questionId: response.questionId,
                 selectedAnswers: response.selectedAnswers,
                 timeSpentSeconds: response.timeSpentSeconds,
-                flagged: response.flagged,
-              }),
-            });
+              });
+            }
           }
+
+          // Complete the exam using client
+          await examApi.complete(examId, totalTimeSeconds);
+        } finally {
+          set({ isSubmitting: false });
         }
-
-        // Complete the exam
-        await fetch(`/api/exams/${examId}/complete`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ totalTimeSeconds }),
-        });
-
-        set({ isSubmitting: false });
       },
 
       resetExam: () => {
@@ -173,6 +169,36 @@ export const useExamStore = create<ExamState>()(
           timeRemaining: EXAM_DURATION,
           isSubmitting: false,
         });
+      },
+
+      abandonExam: async () => {
+        const { examId } = get();
+        if (!examId) return;
+
+        // Mark exam as abandoned in DB using API client
+        try {
+          await examApi.abandon(examId);
+        } catch (error) {
+          // Log but continue - still clear local state even if API fails
+          // This prevents orphaned UI state while accepting the server may have stale data
+          console.error('Failed to abandon exam on server:', error);
+        }
+
+        // Clear local state regardless of API success
+        set({
+          examId: null,
+          currentQuestionIndex: 0,
+          questions: [],
+          responses: new Map(),
+          startTime: null,
+          timeRemaining: EXAM_DURATION,
+          isSubmitting: false,
+        });
+      },
+
+      hasIncompleteExam: () => {
+        const { examId, questions, timeRemaining } = get();
+        return examId !== null && questions.length > 0 && timeRemaining > 0;
       },
 
       getCurrentQuestion: () => {

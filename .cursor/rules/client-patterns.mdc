@@ -1,0 +1,298 @@
+---
+description: React component patterns, Zustand state management, TanStack Query usage, and CSS Modules conventions
+globs: ["packages/client/**/*.tsx", "packages/client/**/*.ts", "packages/client/**/*.css"]
+---
+
+# Client Patterns
+
+## Overview
+The client uses React 18 with functional components, Zustand for state management, TanStack Query for data fetching, CSS Modules for styling, and TypeScript for type safety.
+
+## Component Structure
+
+### Functional Components
+- ✅ **ALWAYS** use functional components with hooks
+- ✅ **ALWAYS** use TypeScript interfaces for props
+- ✅ **ALWAYS** export components as named exports
+- ✅ **ALWAYS** use PascalCase for component names
+
+```typescript
+interface ExamContainerProps {
+  examId: number;
+  onComplete?: () => void;
+}
+
+export function ExamContainer({ examId, onComplete }: ExamContainerProps) {
+  // Component implementation
+}
+```
+
+### Component File Organization
+- ✅ **ALWAYS** co-locate component files with their CSS modules
+- ✅ **ALWAYS** name component files: `ComponentName.tsx`
+- ✅ **ALWAYS** name CSS module files: `ComponentName.module.css`
+- ✅ **ALWAYS** import CSS modules as `styles`
+
+```typescript
+// ExamContainer.tsx
+import styles from './ExamContainer.module.css';
+
+export function ExamContainer() {
+  return <div className={styles.container}>...</div>;
+}
+```
+
+### Error Boundaries
+- ✅ **ALWAYS** use class components for error boundaries (React requirement)
+- ✅ **ALWAYS** implement `getDerivedStateFromError` and `componentDidCatch`
+- ✅ **ALWAYS** provide user-friendly error UI with retry option
+
+```typescript
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    console.error('[ErrorBoundary] Caught error:', error);
+    this.props.onError?.(error, errorInfo);
+  }
+}
+```
+
+## State Management with Zustand
+
+### Store Structure
+- ✅ **ALWAYS** use Zustand's `create` function with TypeScript interfaces
+- ✅ **ALWAYS** define state interface with actions and getters
+- ✅ **ALWAYS** use `persist` middleware for exam/study session state
+- ✅ **ALWAYS** use `Map` for key-value state (e.g., responses by questionId)
+
+```typescript
+interface ExamState {
+  examId: number | null;
+  questions: ExamQuestion[];
+  responses: Map<number, ExamResponse>;
+  
+  // Actions
+  startExam: (examId: number, questions: ExamQuestion[]) => void;
+  answerQuestion: (questionId: number, selectedAnswers: number[]) => void;
+  
+  // Getters
+  getCurrentQuestion: () => ExamQuestion | null;
+  getProgress: () => { answered: number; total: number };
+}
+
+export const useExamStore = create<ExamState>()(
+  persist(
+    (set, get) => ({
+      // State and implementation
+    }),
+    {
+      name: 'ace-exam-store',
+      partialize: (state) => ({
+        examId: state.examId,
+        questions: state.questions,
+        responses: Array.from(state.responses.entries()),
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.responses)) {
+          state.responses = new Map(state.responses);
+        }
+      },
+    }
+  )
+);
+```
+
+### Store Usage in Components
+- ✅ **ALWAYS** destructure only needed state/actions from store
+- ✅ **ALWAYS** use store hooks at component top level
+- ✅ **NEVER** call store actions conditionally in render
+
+```typescript
+// ✅ CORRECT
+const { examId, questions, startExam, answerQuestion } = useExamStore();
+
+// ❌ WRONG - Don't call actions in render
+{ examId && startExam(examId) }  // This will cause infinite loops
+```
+
+### Map Serialization
+**CRITICAL**: When using `Map` in persisted Zustand stores, always handle serialization:
+
+```typescript
+// ✅ CORRECT - Convert Map to array for persistence
+partialize: (state) => ({
+  responses: Array.from(state.responses.entries()),
+}),
+
+// ✅ CORRECT - Convert array back to Map on rehydration
+onRehydrateStorage: () => (state) => {
+  if (state && Array.isArray(state.responses)) {
+    state.responses = new Map(state.responses);
+  }
+},
+```
+
+## Data Fetching with TanStack Query
+
+### Query Setup
+- ✅ **ALWAYS** use `useQuery` for data fetching
+- ✅ **ALWAYS** define query keys as arrays: `['exam', id]`
+- ✅ **ALWAYS** use `enabled` option to conditionally fetch
+- ✅ **ALWAYS** import query functions from API client module
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { examApi } from '../../api/client';
+
+const { data: examData, isLoading } = useQuery({
+  queryKey: ['exam', id],
+  queryFn: () => examApi.get(parseInt(id!)),
+  enabled: !!id,
+});
+```
+
+### API Client Pattern
+- ✅ **ALWAYS** organize API functions by domain (examApi, questionApi, etc.)
+- ✅ **ALWAYS** use typed request/response functions
+- ✅ **ALWAYS** handle errors in the request helper
+- ✅ **ALWAYS** set Content-Type only when body exists
+
+```typescript
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
+  
+  // Only set Content-Type for requests with a body
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new Error(error.message || error.error || 'Request failed');
+  }
+
+  return response.json();
+}
+
+export const examApi = {
+  get: (id: number) => request<ExamWithResponses>(`/exams/${id}`),
+  create: (options?: CreateExamRequest) => request('/exams', {
+    method: 'POST',
+    body: JSON.stringify(options || {}),
+  }),
+};
+```
+
+## React Hooks Patterns
+
+### useEffect Dependencies
+- ✅ **ALWAYS** include all dependencies in dependency arrays
+- ✅ **ALWAYS** use `useCallback` for event handlers passed to effects
+- ✅ **ALWAYS** clean up intervals/timeouts in useEffect return
+
+```typescript
+// ✅ CORRECT
+useEffect(() => {
+  if (!examId || timeRemaining <= 0) return;
+
+  const interval = setInterval(() => {
+    updateTimeRemaining(timeRemaining - 1);
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [examId, timeRemaining, updateTimeRemaining]);
+```
+
+### useCallback for Event Handlers
+- ✅ **ALWAYS** use `useCallback` for keyboard event handlers
+- ✅ **ALWAYS** include all dependencies in useCallback dependency array
+
+```typescript
+const handleKeyDown = useCallback((e: KeyboardEvent) => {
+  // Handler logic
+}, [currentQuestionIndex, questions, responses, setCurrentQuestion]);
+```
+
+## CSS Modules
+
+### Naming Conventions
+- ✅ **ALWAYS** use camelCase for CSS class names
+- ✅ **ALWAYS** use descriptive class names: `container`, `questionCard`, `optionSelected`
+- ✅ **ALWAYS** use CSS variables for theme values (defined in `globals.css`)
+
+```css
+/* ExamContainer.module.css */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.questionCard {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+}
+```
+
+### CSS Variable Usage
+- ✅ **ALWAYS** use CSS variables from `globals.css` for spacing, colors, radii
+- ✅ **NEVER** hardcode color values or spacing values
+- ✅ **ALWAYS** import globals.css in main.tsx (not in component CSS)
+
+## Routing
+
+### React Router Usage
+- ✅ **ALWAYS** use `useParams` for route parameters
+- ✅ **ALWAYS** use `useNavigate` for programmatic navigation
+- ✅ **ALWAYS** validate route parameters before use
+
+```typescript
+import { useParams, useNavigate } from 'react-router-dom';
+
+export function ExamContainer() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  
+  // Validate id before use
+  if (!id) {
+    navigate('/dashboard');
+    return null;
+  }
+}
+```
+
+## Type Safety
+
+### Importing Shared Types
+- ✅ **ALWAYS** import types from `@ace-prep/shared`
+- ✅ **ALWAYS** use type imports: `import type { ... }`
+- ✅ **NEVER** duplicate types that exist in shared package
+
+```typescript
+import type {
+  Question,
+  Exam,
+  Domain,
+  CreateExamRequest,
+} from '@ace-prep/shared';
+```
+
+## Anti-Patterns
+
+- ❌ **NEVER** use class components (except for error boundaries)
+- ❌ **NEVER** call store actions or API functions in render
+- ❌ **NEVER** forget to clean up intervals/timeouts in useEffect
+- ❌ **NEVER** use inline styles when CSS modules are available
+- ❌ **NEVER** duplicate types from `@ace-prep/shared`
+- ❌ **NEVER** use `any` type - always use proper TypeScript types
+- ❌ **NEVER** forget to handle loading/error states in queries
+
+## Related Patterns
+- See `monorepo-patterns.mdc` for package structure
+- See `server-patterns.mdc` for API contract patterns

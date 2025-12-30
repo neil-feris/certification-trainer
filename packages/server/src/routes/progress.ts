@@ -1,138 +1,215 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { exams, examResponses, questions, domains, topics, performanceStats } from '../db/schema.js';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql, desc, and, lt, gte } from 'drizzle-orm';
+import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 
 export async function progressRoutes(fastify: FastifyInstance) {
-  // Get dashboard stats
+  // Get dashboard stats - optimized with aggregated queries
   fastify.get('/dashboard', async () => {
-    // Get all completed exams
-    const completedExams = await db
-      .select()
+    // Single aggregated query for exam stats
+    const [examStats] = await db
+      .select({
+        totalExams: sql<number>`count(*)`.as('total_exams'),
+        averageScore: sql<number>`coalesce(avg(${exams.score}), 0)`.as('avg_score'),
+        bestScore: sql<number>`coalesce(max(${exams.score}), 0)`.as('best_score'),
+        totalQuestionsAnswered: sql<number>`coalesce(sum(${exams.totalQuestions}), 0)`.as('total_questions'),
+        correctAnswers: sql<number>`coalesce(sum(${exams.correctAnswers}), 0)`.as('correct_answers'),
+      })
       .from(exams)
-      .where(eq(exams.status, 'completed'))
-      .orderBy(desc(exams.completedAt));
+      .where(eq(exams.status, 'completed'));
 
-    const totalExams = completedExams.length;
-    const averageScore = totalExams > 0
-      ? completedExams.reduce((sum, e) => sum + (e.score || 0), 0) / totalExams
-      : 0;
-    const bestScore = totalExams > 0
-      ? Math.max(...completedExams.map((e) => e.score || 0))
-      : 0;
-    const totalQuestionsAnswered = completedExams.reduce((sum, e) => sum + e.totalQuestions, 0);
-    const correctAnswers = completedExams.reduce((sum, e) => sum + (e.correctAnswers || 0), 0);
+    const totalExams = examStats.totalExams;
+    const totalQuestionsAnswered = examStats.totalQuestionsAnswered;
+    const correctAnswers = examStats.correctAnswers;
     const overallAccuracy = totalQuestionsAnswered > 0
       ? (correctAnswers / totalQuestionsAnswered) * 100
       : 0;
 
-    // Get domain performance
-    const allDomains = await db.select().from(domains).orderBy(domains.orderIndex);
-
-    const domainStats = await Promise.all(
-      allDomains.map(async (domain) => {
-        const responses = await db
-          .select({
-            isCorrect: examResponses.isCorrect,
-          })
-          .from(examResponses)
-          .innerJoin(questions, eq(examResponses.questionId, questions.id))
-          .innerJoin(exams, eq(examResponses.examId, exams.id))
-          .where(eq(questions.domainId, domain.id));
-
-        const total = responses.length;
-        const correct = responses.filter((r) => r.isCorrect === true).length;
-
-        return {
-          domain,
-          totalAttempts: total,
-          correctAttempts: correct,
-          accuracy: total > 0 ? (correct / total) * 100 : 0,
-        };
+    // Batch query: domains with aggregated response stats (single query with GROUP BY)
+    const domainStatsRaw = await db
+      .select({
+        domainId: domains.id,
+        domainCode: domains.code,
+        domainName: domains.name,
+        domainWeight: domains.weight,
+        domainDescription: domains.description,
+        domainOrderIndex: domains.orderIndex,
+        totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
+        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
       })
-    );
+      .from(domains)
+      .leftJoin(questions, eq(questions.domainId, domains.id))
+      .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+      .groupBy(domains.id)
+      .orderBy(domains.orderIndex);
 
-    // Identify weak areas (topics with <70% accuracy)
-    const allTopics = await db.select().from(topics);
-    const weakAreas = await Promise.all(
-      allTopics.map(async (topic) => {
-        const [domain] = await db.select().from(domains).where(eq(domains.id, topic.domainId));
+    const domainStats = domainStatsRaw.map((row) => ({
+      domain: {
+        id: row.domainId,
+        code: row.domainCode,
+        name: row.domainName,
+        weight: row.domainWeight,
+        description: row.domainDescription,
+        orderIndex: row.domainOrderIndex,
+      },
+      totalAttempts: row.totalAttempts || 0,
+      correctAttempts: row.correctAttempts || 0,
+      accuracy: row.totalAttempts > 0 ? ((row.correctAttempts || 0) / row.totalAttempts) * 100 : 0,
+    }));
 
-        const responses = await db
-          .select({
-            isCorrect: examResponses.isCorrect,
-          })
-          .from(examResponses)
-          .innerJoin(questions, eq(examResponses.questionId, questions.id))
-          .where(eq(questions.topicId, topic.id));
+    // Batch query: topics with domain info and aggregated stats (single query with JOINs + GROUP BY)
+    const topicStatsRaw = await db
+      .select({
+        topicId: topics.id,
+        topicCode: topics.code,
+        topicName: topics.name,
+        topicDescription: topics.description,
+        topicDomainId: topics.domainId,
+        domainId: domains.id,
+        domainCode: domains.code,
+        domainName: domains.name,
+        domainWeight: domains.weight,
+        domainDescription: domains.description,
+        domainOrderIndex: domains.orderIndex,
+        totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
+        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
+      })
+      .from(topics)
+      .innerJoin(domains, eq(domains.id, topics.domainId))
+      .leftJoin(questions, eq(questions.topicId, topics.id))
+      .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+      .groupBy(topics.id, domains.id);
 
-        const total = responses.length;
-        const correct = responses.filter((r) => r.isCorrect === true).length;
-        const accuracy = total > 0 ? (correct / total) * 100 : 100; // Default to 100 if no attempts
-
+    // Filter to weak areas: >= 3 attempts and < 70% accuracy
+    const weakAreas = topicStatsRaw
+      .map((row) => {
+        const total = row.totalAttempts || 0;
+        const correct = row.correctAttempts || 0;
+        const accuracy = total > 0 ? (correct / total) * 100 : 100;
         return {
-          topic,
-          domain,
+          topic: {
+            id: row.topicId,
+            domainId: row.topicDomainId,
+            code: row.topicCode,
+            name: row.topicName,
+            description: row.topicDescription,
+          },
+          domain: {
+            id: row.domainId,
+            code: row.domainCode,
+            name: row.domainName,
+            weight: row.domainWeight,
+            description: row.domainDescription,
+            orderIndex: row.domainOrderIndex,
+          },
           accuracy,
           totalAttempts: total,
         };
       })
-    );
-
-    // Filter to topics with attempts and <70% accuracy, sorted by accuracy
-    const filteredWeakAreas = weakAreas
       .filter((w) => w.totalAttempts >= 3 && w.accuracy < 70)
       .sort((a, b) => a.accuracy - b.accuracy)
       .slice(0, 5);
 
+    // Recent exams (limit 5, already efficient)
+    const recentExams = await db
+      .select()
+      .from(exams)
+      .where(eq(exams.status, 'completed'))
+      .orderBy(desc(exams.completedAt))
+      .limit(5);
+
     return {
       totalExams,
-      averageScore: Math.round(averageScore * 10) / 10,
-      bestScore: Math.round(bestScore * 10) / 10,
+      averageScore: Math.round(examStats.averageScore * 10) / 10,
+      bestScore: Math.round(examStats.bestScore * 10) / 10,
       totalQuestionsAnswered,
       correctAnswers,
       overallAccuracy: Math.round(overallAccuracy * 10) / 10,
       domainStats,
-      weakAreas: filteredWeakAreas,
-      recentExams: completedExams.slice(0, 5),
+      weakAreas,
+      recentExams,
     };
   });
 
-  // Get detailed domain performance
+  // Get detailed domain performance - optimized with aggregated query
   fastify.get('/domains', async () => {
-    const allDomains = await db.select().from(domains).orderBy(domains.orderIndex);
+    // Single query: topics with domain info and aggregated response stats
+    const topicStatsRaw = await db
+      .select({
+        topicId: topics.id,
+        topicCode: topics.code,
+        topicName: topics.name,
+        topicDescription: topics.description,
+        topicDomainId: topics.domainId,
+        domainId: domains.id,
+        domainCode: domains.code,
+        domainName: domains.name,
+        domainWeight: domains.weight,
+        domainDescription: domains.description,
+        domainOrderIndex: domains.orderIndex,
+        domainCertificationId: domains.certificationId,
+        totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
+        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
+        avgTimeSeconds: sql<number>`avg(${examResponses.timeSpentSeconds})`.as('avg_time'),
+      })
+      .from(topics)
+      .innerJoin(domains, eq(domains.id, topics.domainId))
+      .leftJoin(questions, eq(questions.topicId, topics.id))
+      .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+      .groupBy(topics.id, domains.id)
+      .orderBy(domains.orderIndex, topics.id);
 
-    return Promise.all(
-      allDomains.map(async (domain) => {
-        const domainTopics = await db.select().from(topics).where(eq(topics.domainId, domain.id));
+    // Group by domain in memory (single pass)
+    const domainMap = new Map<number, {
+      domain: typeof domains.$inferSelect;
+      topics: Array<{
+        topic: typeof topics.$inferSelect;
+        totalAttempts: number;
+        correctAttempts: number;
+        accuracy: number;
+        avgTimeSeconds: number | null;
+      }>;
+    }>();
 
-        const topicStats = await Promise.all(
-          domainTopics.map(async (topic) => {
-            const responses = await db
-              .select({
-                isCorrect: examResponses.isCorrect,
-                timeSpentSeconds: examResponses.timeSpentSeconds,
-              })
-              .from(examResponses)
-              .innerJoin(questions, eq(examResponses.questionId, questions.id))
-              .where(eq(questions.topicId, topic.id));
+    for (const row of topicStatsRaw) {
+      const total = row.totalAttempts || 0;
+      const correct = row.correctAttempts || 0;
 
-            const total = responses.length;
-            const correct = responses.filter((r) => r.isCorrect === true).length;
-            const avgTime = responses.length > 0
-              ? responses.reduce((sum, r) => sum + (r.timeSpentSeconds || 0), 0) / responses.length
-              : null;
+      if (!domainMap.has(row.domainId)) {
+        domainMap.set(row.domainId, {
+          domain: {
+            id: row.domainId,
+            code: row.domainCode,
+            name: row.domainName,
+            weight: row.domainWeight,
+            description: row.domainDescription,
+            orderIndex: row.domainOrderIndex,
+            certificationId: row.domainCertificationId,
+          },
+          topics: [],
+        });
+      }
 
-            return {
-              topic,
-              totalAttempts: total,
-              correctAttempts: correct,
-              accuracy: total > 0 ? (correct / total) * 100 : 0,
-              avgTimeSeconds: avgTime,
-            };
-          })
-        );
+      domainMap.get(row.domainId)!.topics.push({
+        topic: {
+          id: row.topicId,
+          domainId: row.topicDomainId,
+          code: row.topicCode,
+          name: row.topicName,
+          description: row.topicDescription,
+        },
+        totalAttempts: total,
+        correctAttempts: correct,
+        accuracy: total > 0 ? (correct / total) * 100 : 0,
+        avgTimeSeconds: row.avgTimeSeconds,
+      });
+    }
 
+    // Build final response sorted by domain orderIndex
+    return Array.from(domainMap.values())
+      .sort((a, b) => a.domain.orderIndex - b.domain.orderIndex)
+      .map(({ domain, topics: topicStats }) => {
         const domainTotal = topicStats.reduce((sum, t) => sum + t.totalAttempts, 0);
         const domainCorrect = topicStats.reduce((sum, t) => sum + t.correctAttempts, 0);
 
@@ -143,56 +220,65 @@ export async function progressRoutes(fastify: FastifyInstance) {
           accuracy: domainTotal > 0 ? (domainCorrect / domainTotal) * 100 : 0,
           topics: topicStats,
         };
-      })
-    );
+      });
   });
 
-  // Get weak areas with study recommendations
+  // Get weak areas with study recommendations - optimized with aggregated query
   fastify.get('/weak-areas', async () => {
-    const allTopics = await db.select().from(topics);
+    // Single query: topics with domain info and aggregated stats
+    const topicStatsRaw = await db
+      .select({
+        topicId: topics.id,
+        topicCode: topics.code,
+        topicName: topics.name,
+        topicDescription: topics.description,
+        topicDomainId: topics.domainId,
+        domainId: domains.id,
+        domainCode: domains.code,
+        domainName: domains.name,
+        domainWeight: domains.weight,
+        domainDescription: domains.description,
+        domainOrderIndex: domains.orderIndex,
+        totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
+        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
+        incorrectCount: sql<number>`sum(case when ${examResponses.isCorrect} = 0 then 1 else 0 end)`.as('incorrect_count'),
+      })
+      .from(topics)
+      .innerJoin(domains, eq(domains.id, topics.domainId))
+      .leftJoin(questions, eq(questions.topicId, topics.id))
+      .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+      .groupBy(topics.id, domains.id);
 
-    const topicStats = await Promise.all(
-      allTopics.map(async (topic) => {
-        const [domain] = await db.select().from(domains).where(eq(domains.id, topic.domainId));
-
-        const responses = await db
-          .select({
-            isCorrect: examResponses.isCorrect,
-            questionId: examResponses.questionId,
-          })
-          .from(examResponses)
-          .innerJoin(questions, eq(examResponses.questionId, questions.id))
-          .where(eq(questions.topicId, topic.id));
-
-        const total = responses.length;
-        const correct = responses.filter((r) => r.isCorrect === true).length;
-        const incorrectQuestionIds = responses
-          .filter((r) => r.isCorrect === false)
-          .map((r) => r.questionId);
-
+    // Filter, sort, and map in memory
+    return topicStatsRaw
+      .map((row) => {
+        const total = row.totalAttempts || 0;
+        const correct = row.correctAttempts || 0;
+        const accuracy = total > 0 ? (correct / total) * 100 : 100;
         return {
-          topic,
-          domain,
+          topic: {
+            id: row.topicId,
+            domainId: row.topicDomainId,
+            code: row.topicCode,
+            name: row.topicName,
+            description: row.topicDescription,
+          },
+          domain: {
+            id: row.domainId,
+            code: row.domainCode,
+            name: row.domainName,
+            weight: row.domainWeight,
+            description: row.domainDescription,
+            orderIndex: row.domainOrderIndex,
+          },
+          accuracy: Math.round(accuracy * 10) / 10,
           totalAttempts: total,
-          correctAttempts: correct,
-          accuracy: total > 0 ? (correct / total) * 100 : 100,
-          incorrectQuestionIds,
+          incorrectCount: row.incorrectCount || 0,
+          priority: accuracy < 50 ? 'high' : accuracy < 70 ? 'medium' : 'low' as const,
         };
       })
-    );
-
-    // Get weak areas with at least 2 attempts and <80% accuracy
-    return topicStats
       .filter((t) => t.totalAttempts >= 2 && t.accuracy < 80)
-      .sort((a, b) => a.accuracy - b.accuracy)
-      .map((t) => ({
-        topic: t.topic,
-        domain: t.domain,
-        accuracy: Math.round(t.accuracy * 10) / 10,
-        totalAttempts: t.totalAttempts,
-        incorrectCount: t.totalAttempts - t.correctAttempts,
-        priority: t.accuracy < 50 ? 'high' : t.accuracy < 70 ? 'medium' : 'low',
-      }));
+      .sort((a, b) => a.accuracy - b.accuracy);
   });
 
   // Get exam history
@@ -228,6 +314,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
       performanceStats: any[];
     };
   }>('/import', async (request, reply) => {
+    const parseResult = importProgressSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
     // TODO: Implement import logic with validation
     return reply.status(501).send({ error: 'Import not yet implemented' });
   });

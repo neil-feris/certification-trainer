@@ -1,0 +1,282 @@
+---
+description: Drizzle ORM schema definitions, migrations, and query patterns
+globs: ["packages/server/src/db/**/*.ts", "packages/server/drizzle.config.ts"]
+---
+
+# Database Patterns
+
+## Overview
+The project uses Drizzle ORM with SQLite (better-sqlite3). All schemas are defined in `packages/server/src/db/schema.ts` using Drizzle's SQLite table builder.
+
+## Schema Definition
+
+### Table Creation
+- ✅ **ALWAYS** use `sqliteTable` from `drizzle-orm/sqlite-core`
+- ✅ **ALWAYS** define primary keys with `autoIncrement: true` for integer IDs
+- ✅ **ALWAYS** use appropriate column types: `text`, `integer`, `real`
+- ✅ **ALWAYS** add indexes for foreign keys and frequently queried columns
+
+```typescript
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
+
+export const exams = sqliteTable('exams', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+  totalQuestions: integer('total_questions').notNull().default(50),
+  score: real('score'),
+  status: text('status').notNull(),
+}, (table) => [
+  index('exams_status_idx').on(table.status),
+]);
+```
+
+### Column Types and Modes
+- ✅ **ALWAYS** use `integer` with `{ mode: 'timestamp' }` for dates
+- ✅ **ALWAYS** use `integer` with `{ mode: 'boolean' }` for booleans
+- ✅ **ALWAYS** use `text` for JSON strings (arrays/objects stored as JSON)
+- ✅ **ALWAYS** use `real` for decimal numbers (scores, percentages)
+
+```typescript
+// ✅ CORRECT - Timestamp
+startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
+
+// ✅ CORRECT - Boolean
+isCorrect: integer('is_correct', { mode: 'boolean' }),
+
+// ✅ CORRECT - JSON stored as text
+options: text('options').notNull(), // JSON array
+correctAnswers: text('correct_answers').notNull(), // JSON array
+
+// ✅ CORRECT - Decimal
+score: real('score'), // Percentage 0-100
+weight: real('weight').notNull(),
+```
+
+### Foreign Keys
+- ✅ **ALWAYS** use `.references()` for foreign key relationships
+- ✅ **ALWAYS** add indexes on foreign key columns
+
+```typescript
+export const examResponses = sqliteTable('exam_responses', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  examId: integer('exam_id').notNull().references(() => exams.id),
+  questionId: integer('question_id').notNull().references(() => questions.id),
+}, (table) => [
+  index('responses_exam_idx').on(table.examId),
+]);
+```
+
+### Unique Constraints
+- ✅ **ALWAYS** use `uniqueIndex` for unique constraints
+- ✅ **ALWAYS** add unique indexes for one-to-one relationships
+
+```typescript
+export const spacedRepetition = sqliteTable('spaced_repetition', {
+  questionId: integer('question_id').notNull().references(() => questions.id),
+  // ... other fields
+}, (table) => [
+  uniqueIndex('sr_question_idx').on(table.questionId),
+]);
+```
+
+## Type Inference
+
+### Exporting Types
+- ✅ **ALWAYS** export inferred types for each table
+- ✅ **ALWAYS** export both Select and Insert types
+
+```typescript
+export type Exam = typeof exams.$inferSelect;
+export type NewExam = typeof exams.$inferInsert;
+export type Question = typeof questions.$inferSelect;
+export type NewQuestion = typeof questions.$inferInsert;
+```
+
+### Using Inferred Types
+- ✅ **ALWAYS** use inferred types instead of manually defining interfaces
+- ✅ **ALWAYS** use Select types for reading, Insert types for creating
+
+```typescript
+// ✅ CORRECT - Use inferred types
+const [exam]: Exam[] = await db.select().from(exams).where(eq(exams.id, examId));
+
+// ✅ CORRECT - Use Insert type for new records
+const newExam: NewExam = {
+  startedAt: new Date(),
+  totalQuestions: 50,
+  status: 'in_progress',
+};
+```
+
+## JSON Field Handling
+
+### Storing JSON Data
+**CRITICAL**: SQLite doesn't have native JSON type - always store as text and parse/stringify:
+
+```typescript
+// ✅ CORRECT - Storing arrays/objects
+await db.insert(examResponses).values({
+  selectedAnswers: JSON.stringify(selectedAnswers), // Array → JSON string
+  isCorrect,
+});
+
+await db.insert(questions).values({
+  options: JSON.stringify(options), // Array → JSON string
+  correctAnswers: JSON.stringify(correctAnswers), // Array → JSON string
+  gcpServices: JSON.stringify(gcpServices), // Array → JSON string
+});
+```
+
+### Reading JSON Data
+- ✅ **ALWAYS** parse JSON fields when reading from database
+- ✅ **ALWAYS** cast to appropriate TypeScript types after parsing
+
+```typescript
+// ✅ CORRECT - Parsing JSON fields
+const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+const options = JSON.parse(question.options as string) as string[];
+const gcpServices = question.gcpServices 
+  ? JSON.parse(question.gcpServices as string) as string[]
+  : [];
+```
+
+### Updating JSON Fields
+- ✅ **ALWAYS** stringify arrays/objects before updating
+
+```typescript
+await db
+  .update(examResponses)
+  .set({
+    selectedAnswers: JSON.stringify(selectedAnswers),
+    isCorrect,
+  })
+  .where(and(eq(examResponses.examId, examId), eq(examResponses.questionId, questionId)));
+```
+
+## Query Patterns
+
+### Simple Selects
+- ✅ **ALWAYS** use Drizzle query builder
+- ✅ **ALWAYS** use type-safe operators: `eq`, `and`, `inArray`
+
+```typescript
+import { eq, and, inArray } from 'drizzle-orm';
+
+// ✅ CORRECT - Single record
+const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
+
+// ✅ CORRECT - Multiple conditions
+await db
+  .update(examResponses)
+  .set({ selectedAnswers: JSON.stringify(selectedAnswers) })
+  .where(and(
+    eq(examResponses.examId, examId),
+    eq(examResponses.questionId, questionId)
+  ));
+
+// ✅ CORRECT - IN clause
+const questions = await db
+  .select()
+  .from(questions)
+  .where(inArray(questions.domainId, focusDomains));
+```
+
+### Joins
+- ✅ **ALWAYS** use explicit joins for related data
+- ✅ **ALWAYS** select specific fields in join queries
+- ✅ **ALWAYS** use aliases for clarity
+
+```typescript
+const responses = await db
+  .select({
+    response: examResponses,
+    question: questions,
+    domain: domains,
+    topic: topics,
+  })
+  .from(examResponses)
+  .innerJoin(questions, eq(examResponses.questionId, questions.id))
+  .innerJoin(domains, eq(questions.domainId, domains.id))
+  .innerJoin(topics, eq(questions.topicId, topics.id))
+  .where(eq(examResponses.examId, examId))
+  .orderBy(examResponses.orderIndex);
+```
+
+### Aggregations
+- ✅ **ALWAYS** use `sql` template for aggregations
+- ✅ **ALWAYS** type the SQL result
+
+```typescript
+import { sql } from 'drizzle-orm';
+
+const [countResult] = await db
+  .select({ count: sql<number>`count(*)` })
+  .from(questions);
+
+const availableCount = countResult.count;
+```
+
+### Random Selection
+- ✅ **ALWAYS** use SQLite's `RANDOM()` for efficient random selection
+- ✅ **ALWAYS** use `.orderBy(sql\`RANDOM()\`)` instead of loading all records
+
+```typescript
+// ✅ CORRECT - Efficient random selection
+const selectedQuestions = await db
+  .select()
+  .from(questions)
+  .orderBy(sql`RANDOM()`)
+  .limit(targetCount);
+
+// ❌ WRONG - Loading all questions into memory
+const allQuestions = await db.select().from(questions);
+const selected = allQuestions.sort(() => Math.random() - 0.5).slice(0, targetCount);
+```
+
+## Migrations
+
+### Migration Generation
+- ✅ **ALWAYS** use `drizzle-kit generate` to create migrations
+- ✅ **ALWAYS** review generated migration SQL before applying
+- ✅ **ALWAYS** run migrations in order
+
+```bash
+npm run db:generate  # Generates migration files
+npm run db:migrate   # Applies migrations
+```
+
+### Migration Files
+- ✅ **ALWAYS** keep migration files in `src/db/migrations/`
+- ✅ **NEVER** edit migration files after they've been applied
+- ✅ **ALWAYS** test migrations on a copy of production data first
+
+## Database Initialization
+
+### Setup Script
+- ✅ **ALWAYS** use `db:setup` script for initial database creation
+- ✅ **ALWAYS** run migrations before seeding
+- ✅ **ALWAYS** seed with initial data (domains, topics, sample questions)
+
+```typescript
+// db/setup.ts pattern
+import { migrate } from './migrate.js';
+import { seed } from './seed.js';
+
+await migrate();
+await seed();
+```
+
+## Anti-Patterns
+
+- ❌ **NEVER** use raw SQL queries - always use Drizzle ORM
+- ❌ **NEVER** forget to parse JSON fields when reading
+- ❌ **NEVER** forget to stringify arrays/objects when writing
+- ❌ **NEVER** use `any` type for database results
+- ❌ **NEVER** load all records for random selection - use `RANDOM()`
+- ❌ **NEVER** skip indexes on foreign keys
+- ❌ **NEVER** manually edit migration files after applying
+
+## Related Patterns
+- See `server-patterns.mdc` for query usage in routes
+- See `validation-patterns.mdc` for data validation

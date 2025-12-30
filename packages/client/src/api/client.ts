@@ -15,6 +15,16 @@ import type {
   LLMProvider,
   AnthropicModel,
   OpenAIModel,
+  StartDrillRequest,
+  StartDrillResponse,
+  SubmitDrillAnswerRequest,
+  SubmitDrillAnswerResponse,
+  CompleteDrillRequest,
+  CompleteDrillResponse,
+  ActiveDrillResponse,
+  PaginatedResponse,
+  QuestionWithDomain,
+  Difficulty,
 } from '@ace-prep/shared';
 
 const API_BASE = '/api';
@@ -64,24 +74,59 @@ export const examApi = {
       body: JSON.stringify({ totalTimeSeconds }),
     }),
   getReview: (id: number) => request<any>(`/exams/${id}/review`),
+  abandon: (id: number) =>
+    request<{ success: boolean }>(`/exams/${id}`, {
+      method: 'DELETE',
+    }),
 };
+
+// Question list params
+export interface QuestionListParams {
+  domainId?: number;
+  topicId?: number;
+  difficulty?: Difficulty;
+  limit?: number;
+  offset?: number;
+}
 
 // Questions
 export const questionApi = {
-  list: (params?: { domainId?: number; topicId?: number; difficulty?: string }) => {
+  /**
+   * Get paginated list of questions with optional filters.
+   * Returns a PaginatedResponse with items, total, limit, offset, hasMore.
+   */
+  list: (params?: QuestionListParams) => {
     const searchParams = new URLSearchParams();
     if (params?.domainId) searchParams.set('domainId', String(params.domainId));
     if (params?.topicId) searchParams.set('topicId', String(params.topicId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
-    return request<any[]>(`/questions?${searchParams}`);
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.offset) searchParams.set('offset', String(params.offset));
+    return request<PaginatedResponse<QuestionWithDomain>>(`/questions?${searchParams}`);
   },
-  get: (id: number) => request<any>(`/questions/${id}`),
+
+  /**
+   * Get total count of questions (fetches first page with limit=1 for efficiency).
+   * Useful when you only need the count, not the full list.
+   */
+  getCount: async (params?: Omit<QuestionListParams, 'limit' | 'offset'>): Promise<number> => {
+    const searchParams = new URLSearchParams();
+    if (params?.domainId) searchParams.set('domainId', String(params.domainId));
+    if (params?.topicId) searchParams.set('topicId', String(params.topicId));
+    if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
+    searchParams.set('limit', '1');
+    searchParams.set('offset', '0');
+    const result = await request<PaginatedResponse<QuestionWithDomain>>(`/questions?${searchParams}`);
+    return result.total;
+  },
+
+  get: (id: number) => request<QuestionWithDomain>(`/questions/${id}`),
   generate: (data: { domainId: number; topicId?: number; difficulty: DifficultyOption; count: number; model?: LLMModel }) =>
     request<{ success: boolean; generated: number; questions: any[] }>('/questions/generate', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  getReviewQueue: () => request<any[]>('/questions/review'),
+  getReviewQueue: () => request<QuestionWithDomain[]>('/questions/review'),
   submitReview: (questionId: number, quality: string) =>
     request('/questions/review', {
       method: 'POST',
@@ -172,5 +217,29 @@ export const settingsApi = {
     request<{ success: boolean; message: string }>('/settings/test-api', {
       method: 'POST',
       body: JSON.stringify({ provider, apiKey }),
+    }),
+};
+
+// Drills
+export const drillApi = {
+  start: (data: StartDrillRequest) =>
+    request<StartDrillResponse>('/drills', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  submitAnswer: (drillId: number, data: SubmitDrillAnswerRequest) =>
+    request<SubmitDrillAnswerResponse>(`/drills/${drillId}/answer`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  complete: (drillId: number, data: CompleteDrillRequest) =>
+    request<CompleteDrillResponse>(`/drills/${drillId}/complete`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  getActive: () => request<ActiveDrillResponse | null>('/drills/active'),
+  abandon: (drillId: number) =>
+    request<{ success: boolean }>(`/drills/${drillId}`, {
+      method: 'DELETE',
     }),
 };

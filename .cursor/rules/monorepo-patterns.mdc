@@ -1,0 +1,130 @@
+---
+description: Monorepo structure, workspace organization, and build order patterns
+globs: ["**/package.json", "**/tsconfig.json", "**/*.config.ts", "**/*.config.js"]
+---
+
+# Monorepo Patterns
+
+## Overview
+This project uses npm workspaces with three packages: `@ace-prep/client`, `@ace-prep/server`, and `@ace-prep/shared`. The shared package must be built first before other packages can use its types.
+
+## Package Structure
+
+### Workspace Organization
+```
+packages/
+├── client/     # React frontend (Vite + TypeScript)
+├── server/      # Fastify backend (Drizzle ORM + SQLite)
+└── shared/     # Shared TypeScript types (must build first)
+```
+
+**CRITICAL**: Always build `@ace-prep/shared` before building `@ace-prep/server` or `@ace-prep/client`.
+
+### Package Naming
+- ✅ **ALWAYS** use scoped package names: `@ace-prep/{client,server,shared}`
+- ✅ **ALWAYS** set `"type": "module"` in all package.json files
+- ✅ **ALWAYS** use workspace protocol for internal dependencies: `"@ace-prep/shared": "*"`
+
+```json
+{
+  "name": "@ace-prep/client",
+  "type": "module",
+  "dependencies": {
+    "@ace-prep/shared": "*"
+  }
+}
+```
+
+## Build Order
+
+**CRITICAL**: The build order is enforced and must be followed:
+
+1. `@ace-prep/shared` - TypeScript types
+2. `@ace-prep/server` - Depends on shared types
+3. `@ace-prep/client` - Depends on shared types
+
+```bash
+# Root build script enforces this order
+npm run build  # Runs: shared → server → client
+```
+
+### Individual Package Builds
+When building individual packages, always build shared first:
+
+```bash
+npm run build -w @ace-prep/shared   # Must build first
+npm run build -w @ace-prep/server
+npm run build -w @ace-prep/client
+```
+
+## TypeScript Configuration
+
+### Shared Package
+- ✅ **ALWAYS** export types from `src/index.ts`
+- ✅ **ALWAYS** configure `tsconfig.json` to output to `dist/` with declaration files
+- ✅ **ALWAYS** set `"declaration": true` and `"declarationMap": true`
+
+```json
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": true,
+    "declarationMap": true
+  }
+}
+```
+
+### Client and Server Packages
+- ✅ **ALWAYS** reference shared types via `@ace-prep/shared` import
+- ✅ **NEVER** duplicate types that exist in shared package
+- ✅ **ALWAYS** use TypeScript path resolution if needed
+
+```typescript
+// ✅ CORRECT - Import from shared
+import type { Question, Exam, Domain } from '@ace-prep/shared';
+
+// ❌ WRONG - Don't duplicate types
+interface Question { ... }  // If it exists in shared
+```
+
+## Development Scripts
+
+### Concurrent Development
+- ✅ **ALWAYS** use `npm run dev` at root to start both client and server
+- ✅ **ALWAYS** use `npm run dev:server` for server-only development
+- ✅ **ALWAYS** use `npm run dev:client` for client-only development
+
+### Database Scripts
+- ✅ **ALWAYS** run database scripts from root: `npm run db:setup`, `npm run db:migrate`, etc.
+- ✅ **ALWAYS** use workspace flag: `npm run db:setup -w @ace-prep/server`
+
+## File Organization
+
+### Import Paths
+- ✅ **ALWAYS** use relative imports within the same package
+- ✅ **ALWAYS** use package name imports for cross-package dependencies
+- ✅ **NEVER** use relative paths across package boundaries
+
+```typescript
+// ✅ CORRECT - Within same package
+import { examStore } from '../stores/examStore';
+
+// ✅ CORRECT - Cross-package
+import type { Question } from '@ace-prep/shared';
+
+// ❌ WRONG - Cross-package relative path
+import type { Question } from '../../shared/src/index';
+```
+
+## Anti-Patterns
+
+- ❌ **NEVER** build server or client before shared package
+- ❌ **NEVER** duplicate types that exist in `@ace-prep/shared`
+- ❌ **NEVER** use relative paths to access other packages
+- ❌ **NEVER** add dependencies that should be in shared to individual packages
+- ❌ **NEVER** use `"type": "commonjs"` - always use `"type": "module"`
+
+## Related Patterns
+- See `client-patterns.mdc` for React/TypeScript patterns
+- See `server-patterns.mdc` for Fastify/backend patterns
+- See `database-patterns.mdc` for Drizzle ORM patterns
