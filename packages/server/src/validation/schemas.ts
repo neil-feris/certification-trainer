@@ -22,6 +22,7 @@ export const providerParamSchema = z.object({
 // ============ Exam Schemas ============
 
 export const createExamSchema = z.object({
+  certificationId: z.number().int().positive().optional(),
   focusDomains: z.array(z.number().int().positive()).optional(),
   questionCount: z.number().int().refine(
     (val) => (EXAM_SIZE_OPTIONS as readonly number[]).includes(val),
@@ -87,6 +88,7 @@ export const reviewRatingSchema = z.object({
 // ============ Study Schemas ============
 
 export const startStudySessionSchema = z.object({
+  certificationId: z.number().int().positive().optional(),
   sessionType: z.enum(['practice', 'review', 'weak_areas']),
   topicId: z.number().int().positive().optional(),
   domainId: z.number().int().positive().optional(),
@@ -184,6 +186,7 @@ export const importProgressSchema = z.object({
 // ============ Drill Schemas ============
 
 export const startDrillSchema = z.object({
+  certificationId: z.number().int().positive().optional(),
   mode: z.enum(['domain', 'weak_areas']),
   domainId: z.number().int().positive().optional(),
   questionCount: z.number().int().refine(

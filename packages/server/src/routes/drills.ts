@@ -24,6 +24,7 @@ import {
   completeDrillSchema
 } from '../validation/schemas.js';
 import { checkAnswerCorrect } from '../utils/scoring.js';
+import { resolveCertificationId } from '../db/certificationUtils.js';
 
 /**
  * SECURITY WARNING: This API is designed for SINGLE-USER local use only.
@@ -44,21 +45,18 @@ export async function drillRoutes(fastify: FastifyInstance) {
     if (!parseResult.success) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
-    const { mode, domainId, questionCount, timeLimitSeconds } = parseResult.data;
+    const { certificationId, mode, domainId, questionCount, timeLimitSeconds } = parseResult.data;
 
-    let questionQuery = db
-      .select({
-        question: questions,
-        domain: domains,
-        topic: topics,
-      })
-      .from(questions)
-      .innerJoin(domains, eq(questions.domainId, domains.id))
-      .innerJoin(topics, eq(questions.topicId, topics.id));
+    // Get and validate certification ID
+    const certId = await resolveCertificationId(certificationId, reply);
+    if (certId === null) return; // Error already sent
+
+    // Build where condition based on mode
+    let whereCondition = eq(domains.certificationId, certId);
 
     if (mode === 'domain' && domainId) {
-      // Filter by specific domain
-      questionQuery = questionQuery.where(eq(questions.domainId, domainId)) as typeof questionQuery;
+      // Filter by specific domain (within certification)
+      whereCondition = and(eq(domains.certificationId, certId), eq(questions.domainId, domainId))!;
     } else if (mode === 'weak_areas') {
       // Get weak areas from performance stats (accuracy < 70%)
       const weakStats = await db
@@ -83,13 +81,25 @@ export async function drillRoutes(fastify: FastifyInstance) {
           .map(s => s.domainId);
 
         if (weakTopicIds.length > 0) {
-          questionQuery = questionQuery.where(inArray(questions.topicId, weakTopicIds)) as typeof questionQuery;
+          whereCondition = and(eq(domains.certificationId, certId), inArray(questions.topicId, weakTopicIds))!;
         } else if (weakDomainIds.length > 0) {
-          questionQuery = questionQuery.where(inArray(questions.domainId, weakDomainIds)) as typeof questionQuery;
+          whereCondition = and(eq(domains.certificationId, certId), inArray(questions.domainId, weakDomainIds))!;
         }
       }
-      // If no weak areas found, use all questions (fallback)
+      // If no weak areas found, use certification filter only (fallback)
     }
+
+    // Build query with where condition
+    const questionQuery = db
+      .select({
+        question: questions,
+        domain: domains,
+        topic: topics,
+      })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .innerJoin(topics, eq(questions.topicId, topics.id))
+      .where(whereCondition);
 
     // Use SQL RANDOM() to select random questions efficiently
     // This avoids loading all questions into memory and shuffling in JS
@@ -103,6 +113,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
     // Create a study session with sessionType='timed_drill'
     const [session] = await db.insert(studySessions).values({
+      certificationId: certId,
       sessionType: 'timed_drill',
       topicId: null,
       domainId: domainId || null,

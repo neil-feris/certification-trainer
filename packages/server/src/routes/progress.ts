@@ -148,6 +148,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
         domainWeight: domains.weight,
         domainDescription: domains.description,
         domainOrderIndex: domains.orderIndex,
+        domainCertificationId: domains.certificationId,
         totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
         correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
         avgTimeSeconds: sql<number>`avg(${examResponses.timeSpentSeconds})`.as('avg_time'),
@@ -184,6 +185,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
             weight: row.domainWeight,
             description: row.domainDescription,
             orderIndex: row.domainOrderIndex,
+            certificationId: row.domainCertificationId,
           },
           topics: [],
         });
