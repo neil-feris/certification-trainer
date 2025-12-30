@@ -3,12 +3,19 @@ import { db } from '../db/index.js';
 import { exams, examResponses, questions, domains, topics } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
-import { resolveCertificationId } from '../db/certificationUtils.js';
+import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
-  // Get all exams
-  fastify.get('/', async (request, reply) => {
-    const allExams = await db.select().from(exams).orderBy(sql`${exams.startedAt} DESC`);
+  // Get all exams (filtered by certification)
+  fastify.get<{ Querystring: { certificationId?: string } }>('/', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return; // Error already sent
+
+    const allExams = await db
+      .select()
+      .from(exams)
+      .where(eq(exams.certificationId, certId))
+      .orderBy(sql`${exams.startedAt} DESC`);
     return allExams;
   });
 

@@ -7,9 +7,16 @@ import type { StartStudySessionRequest, SubmitStudyAnswerRequest, CompleteStudyS
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
-  // Get all domains with topics
-  fastify.get('/domains', async () => {
-    const allDomains = await db.select().from(domains).orderBy(domains.orderIndex);
+  // Get all domains with topics (filtered by certification)
+  fastify.get<{ Querystring: { certificationId?: string } }>('/domains', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return; // Error already sent
+
+    const allDomains = await db
+      .select()
+      .from(domains)
+      .where(eq(domains.certificationId, certId))
+      .orderBy(domains.orderIndex);
 
     return Promise.all(
       allDomains.map(async (domain) => {
@@ -22,10 +29,16 @@ export async function studyRoutes(fastify: FastifyInstance) {
     );
   });
 
-  // Get learning path structure with completion status
-  fastify.get('/learning-path', async () => {
-    // Get completion status for all items
-    const progress = await db.select().from(learningPathProgress);
+  // Get learning path structure with completion status (filtered by certification)
+  fastify.get<{ Querystring: { certificationId?: string } }>('/learning-path', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return; // Error already sent
+
+    // Get completion status for this certification
+    const progress = await db
+      .select()
+      .from(learningPathProgress)
+      .where(eq(learningPathProgress.certificationId, certId));
     const completedMap = new Map(progress.map(p => [p.pathItemOrder, p.completedAt]));
 
     // Google Cloud Skills path structure
@@ -183,9 +196,15 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get learning path stats
-  fastify.get('/learning-path/stats', async () => {
-    const progress = await db.select().from(learningPathProgress);
+  // Get learning path stats (filtered by certification)
+  fastify.get<{ Querystring: { certificationId?: string } }>('/learning-path/stats', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return; // Error already sent
+
+    const progress = await db
+      .select()
+      .from(learningPathProgress)
+      .where(eq(learningPathProgress.certificationId, certId));
     const total = 14; // Total learning path items
     const completed = progress.length;
 
@@ -412,12 +431,18 @@ export async function studyRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // Get active study session for recovery
-  fastify.get('/sessions/active', async () => {
+  // Get active study session for recovery (filtered by certification)
+  fastify.get<{ Querystring: { certificationId?: string } }>('/sessions/active', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return; // Error already sent
+
     const [session] = await db
       .select()
       .from(studySessions)
-      .where(eq(studySessions.status, 'in_progress'))
+      .where(and(
+        eq(studySessions.status, 'in_progress'),
+        eq(studySessions.certificationId, certId)
+      ))
       .orderBy(desc(studySessions.startedAt))
       .limit(1);
 
