@@ -1,5 +1,6 @@
 /**
  * Database setup script - creates tables and seeds initial data
+ * Handles both fresh installations and upgrades from older schemas
  */
 import Database from 'better-sqlite3';
 import { readFileSync } from 'fs';
@@ -16,6 +17,7 @@ if (!existsSync(dataDir)) {
 }
 
 const dbPath = join(dataDir, 'ace-prep.db');
+const isNewDatabase = !existsSync(dbPath);
 const db = new Database(dbPath);
 
 console.log('Setting up database at:', dbPath);
@@ -23,7 +25,57 @@ console.log('Setting up database at:', dbPath);
 // Enable WAL mode
 db.pragma('journal_mode = WAL');
 
-// Run migration SQL
+// Check if this is an existing database that needs migration
+const needsMigration = !isNewDatabase && (() => {
+  try {
+    // Check if certifications table exists
+    const tableCheck = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='certifications'"
+    ).get();
+    return !tableCheck;
+  } catch {
+    return false;
+  }
+})();
+
+if (needsMigration) {
+  console.log('Existing database detected. Running migration to add multi-certification support...');
+  const migrationPath = join(__dirname, 'migrations/0001_add_certifications.sql');
+  const migrationSql = readFileSync(migrationPath, 'utf-8');
+
+  // Run migration in a transaction for safety
+  db.exec('BEGIN TRANSACTION');
+  try {
+    // Split and run statements one by one (SQLite doesn't support multi-statement ALTER)
+    const statements = migrationSql
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+
+    for (const stmt of statements) {
+      try {
+        db.exec(stmt);
+      } catch (err: any) {
+        // Ignore "duplicate column" errors for idempotent migration
+        if (!err.message.includes('duplicate column')) {
+          throw err;
+        }
+      }
+    }
+    db.exec('COMMIT');
+    console.log('Migration completed successfully!');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    console.error('Migration failed:', err);
+    db.close();
+    process.exit(1);
+  }
+
+  db.close();
+  process.exit(0);
+}
+
+// Run init migration SQL for fresh databases
 const migrationPath = join(__dirname, 'migrations/0000_init.sql');
 const migrationSql = readFileSync(migrationPath, 'utf-8');
 db.exec(migrationSql);
