@@ -14,6 +14,12 @@
     "test": "npm run test -w @ace-prep/server",
     "test:watch": "npm run test:watch -w @ace-prep/server",
     "test:coverage": "npm run test:coverage -w @ace-prep/server",
+    "lint": "eslint packages/*/src --max-warnings 0",
+    "lint:fix": "eslint packages/*/src --fix",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,css,json}\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,css,json}\"",
+    "typecheck": "npm run typecheck -w @ace-prep/server && npm run typecheck -w @ace-prep/client",
+    "prepare": "husky",
     "db:setup": "npm run db:setup -w @ace-prep/server",
     "db:generate": "npm run db:generate -w @ace-prep/server",
     "db:migrate": "npm run db:migrate -w @ace-prep/server",
@@ -23,8 +29,17 @@
     "node": "22.2.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "concurrently": "^8.2.2",
-    "typescript": "^5.6.3"
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "prettier": "^3.4.2",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.19.1"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

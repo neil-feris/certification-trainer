@@ -1,0 +1,9 @@
+{
+  "packages/*/src/**/*.{ts,tsx}": [
+    "eslint --fix",
+    "prettier --write"
+  ],
+  "packages/*/src/**/*.{css,json}": [
+    "prettier --write"
+  ]
+}

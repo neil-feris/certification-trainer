@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+coverage/
+
+# Data
+data/
+
+# Generated files
+*.d.ts
+package-lock.json
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
