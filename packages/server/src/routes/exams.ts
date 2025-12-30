@@ -1,17 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { certifications, exams, examResponses, questions, domains, topics } from '../db/schema.js';
+import { exams, examResponses, questions, domains, topics } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
-
-// Helper to get the default (first active) certification
-async function getDefaultCertificationId(): Promise<number> {
-  const [cert] = await db.select().from(certifications).where(eq(certifications.isActive, true)).limit(1);
-  if (!cert) {
-    throw new Error('No active certification found. Please seed the database first.');
-  }
-  return cert.id;
-}
+import { resolveCertificationId } from '../db/certificationUtils.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Get all exams
@@ -64,8 +56,9 @@ export async function examRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { certificationId?: number; focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
     const { certificationId, focusDomains, questionCount = EXAM_SIZE_DEFAULT } = request.body || {};
 
-    // Get certification ID (use provided or default)
-    const certId = certificationId ?? await getDefaultCertificationId();
+    // Get and validate certification ID
+    const certId = await resolveCertificationId(certificationId, reply);
+    if (certId === null) return; // Error already sent
 
     // Validate question count against allowed sizes
     const validSizes = EXAM_SIZE_OPTIONS as readonly number[];

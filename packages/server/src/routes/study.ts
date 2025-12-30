@@ -1,18 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { certifications, domains, topics, studySummaries, examResponses, questions, studySessions, studySessionResponses, learningPathProgress, spacedRepetition } from '../db/schema.js';
+import { domains, topics, studySummaries, examResponses, questions, studySessions, studySessionResponses, learningPathProgress, spacedRepetition } from '../db/schema.js';
 import { eq, desc, and, sql, inArray, notInArray, lte } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
 import type { StartStudySessionRequest, SubmitStudyAnswerRequest, CompleteStudySessionRequest } from '@ace-prep/shared';
-
-// Helper to get the default (first active) certification
-async function getDefaultCertificationId(): Promise<number> {
-  const [cert] = await db.select().from(certifications).where(eq(certifications.isActive, true)).limit(1);
-  if (!cert) {
-    throw new Error('No active certification found. Please seed the database first.');
-  }
-  return cert.id;
-}
+import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Get all domains with topics
@@ -160,11 +152,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Toggle learning path item completion
-  fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>('/learning-path/:order/toggle', async (request) => {
+  fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>('/learning-path/:order/toggle', async (request, reply) => {
     const order = parseInt(request.params.order, 10);
-    const certId = request.query.certificationId
-      ? parseInt(request.query.certificationId, 10)
-      : await getDefaultCertificationId();
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return; // Error already sent
 
     // Check if already completed (for this certification)
     const [existing] = await db.select().from(learningPathProgress)
@@ -350,8 +341,9 @@ export async function studyRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: StartStudySessionRequest }>('/sessions', async (request, reply) => {
     const { certificationId, sessionType, topicId, domainId, questionCount = 10 } = request.body;
 
-    // Get certification ID (use provided or default)
-    const certId = certificationId ?? await getDefaultCertificationId();
+    // Get and validate certification ID
+    const certId = await resolveCertificationId(certificationId, reply);
+    if (certId === null) return; // Error already sent
 
     // Build where condition based on filters
     let whereCondition = eq(domains.certificationId, certId);
