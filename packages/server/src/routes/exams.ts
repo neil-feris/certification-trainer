@@ -71,7 +71,9 @@ export async function examRoutes(fastify: FastifyInstance) {
   });
 
   // Create new exam
-  fastify.post<{ Body: { certificationId?: number; focusDomains?: number[]; questionCount?: number } }>('/', async (request, reply) => {
+  fastify.post<{
+    Body: { certificationId?: number; focusDomains?: number[]; questionCount?: number };
+  }>('/', async (request, reply) => {
     const parseResult = createExamSchema.safeParse(request.body || {});
     if (!parseResult.success) {
       return reply.status(400).send(formatZodError(parseResult.error));
@@ -94,9 +96,10 @@ export async function examRoutes(fastify: FastifyInstance) {
     const targetCount = questionCount as ExamSize;
 
     // Build base query - filter by certification's domains and optionally focus domains
-    const whereCondition = focusDomains && focusDomains.length > 0
-      ? and(eq(domains.certificationId, certId), inArray(questions.domainId, focusDomains))
-      : eq(domains.certificationId, certId);
+    const whereCondition =
+      focusDomains && focusDomains.length > 0
+        ? and(eq(domains.certificationId, certId), inArray(questions.domainId, focusDomains))
+        : eq(domains.certificationId, certId);
 
     const baseQuery = db
       .select({ question: questions })
@@ -119,9 +122,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     }
 
     // Use SQLite RANDOM() for efficient random selection - avoids loading all questions into memory
-    const selectedQuestions = await baseQuery
-      .orderBy(sql`RANDOM()`)
-      .limit(targetCount);
+    const selectedQuestions = await baseQuery.orderBy(sql`RANDOM()`).limit(targetCount);
 
     // Create exam
     const [newExam] = await db
@@ -151,7 +152,12 @@ export async function examRoutes(fastify: FastifyInstance) {
   // Submit answer for a question
   fastify.patch<{
     Params: { id: string };
-    Body: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number; flagged?: boolean };
+    Body: {
+      questionId: number;
+      selectedAnswers: number[];
+      timeSpentSeconds?: number;
+      flagged?: boolean;
+    };
   }>('/:id/answer', async (request, reply) => {
     const paramResult = idParamSchema.safeParse(request.params);
     if (!paramResult.success) {
@@ -209,9 +215,10 @@ export async function examRoutes(fastify: FastifyInstance) {
     const { totalTimeSeconds } = bodyResult.data;
 
     // Use transaction to ensure consistent read and update of exam state
-    const txResult = await db.transaction(async (tx) => {
+    // Note: better-sqlite3 is synchronous, so no async/await inside transaction
+    const txResult = db.transaction((tx) => {
       // Check exam exists and is in_progress
-      const [exam] = await tx.select().from(exams).where(eq(exams.id, examId));
+      const [exam] = tx.select().from(exams).where(eq(exams.id, examId)).all();
       if (!exam) {
         return { error: 'not_found' as const };
       }
@@ -220,16 +227,17 @@ export async function examRoutes(fastify: FastifyInstance) {
       }
 
       // Calculate score
-      const responses = await tx
+      const responses = tx
         .select()
         .from(examResponses)
-        .where(eq(examResponses.examId, examId));
+        .where(eq(examResponses.examId, examId))
+        .all();
 
       const correctCount = responses.filter((r) => r.isCorrect === true).length;
       const score = responses.length > 0 ? (correctCount / responses.length) * 100 : 0;
 
       // Update exam atomically
-      const [updatedExam] = await tx
+      const [updatedExam] = tx
         .update(exams)
         .set({
           completedAt: new Date(),
@@ -239,7 +247,8 @@ export async function examRoutes(fastify: FastifyInstance) {
           status: 'completed',
         })
         .where(eq(exams.id, examId))
-        .returning();
+        .returning()
+        .all();
 
       return { exam: updatedExam };
     });
@@ -299,7 +308,10 @@ export async function examRoutes(fastify: FastifyInstance) {
       .orderBy(examResponses.orderIndex);
 
     // Calculate domain-wise performance
-    const domainStats: Record<number, { correct: number; total: number; domain: typeof domains.$inferSelect }> = {};
+    const domainStats: Record<
+      number,
+      { correct: number; total: number; domain: typeof domains.$inferSelect }
+    > = {};
 
     responses.forEach((r) => {
       if (!domainStats[r.domain.id]) {
