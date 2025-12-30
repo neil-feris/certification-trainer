@@ -1,8 +1,8 @@
 import { db, sqlite } from './index.js';
-import { domains, topics, questions } from './schema.js';
+import { certifications, domains, topics, questions } from './schema.js';
 import { eq } from 'drizzle-orm';
 
-// ACE Exam Domain Data
+// ACE Certification Domain Data (default certification)
 const ACE_DOMAINS = [
   {
     code: 'SETUP_CLOUD_ENV',
@@ -242,19 +242,37 @@ const SAMPLE_QUESTIONS = [
 async function seed() {
   console.log('Seeding database...');
 
-  // Check if domains already exist
-  const existingDomains = await db.select().from(domains);
-  if (existingDomains.length > 0) {
+  // Check if certifications already exist
+  const existingCerts = await db.select().from(certifications);
+  if (existingCerts.length > 0) {
     console.log('Database already seeded. Skipping...');
     sqlite.close();
     return;
   }
 
-  // Insert domains
+  // Insert ACE certification first
+  const [aceCert] = await db.insert(certifications).values({
+    code: 'ACE',
+    name: 'Associate Cloud Engineer',
+    shortName: 'ACE',
+    description: 'An Associate Cloud Engineer deploys and secures applications and infrastructure, monitors operations, and manages enterprise solutions.',
+    provider: 'gcp',
+    examDurationMinutes: 120,
+    totalQuestions: 50,
+    passingScorePercent: 70,
+    isActive: true,
+    createdAt: new Date(),
+  }).returning();
+  console.log(`Inserted certification: ${aceCert.name}`);
+
+  // Insert domains for ACE
   for (const domainData of ACE_DOMAINS) {
     const { topics: topicList, ...domainFields } = domainData;
 
-    const [insertedDomain] = await db.insert(domains).values(domainFields).returning();
+    const [insertedDomain] = await db.insert(domains).values({
+      certificationId: aceCert.id,
+      ...domainFields,
+    }).returning();
     console.log(`Inserted domain: ${insertedDomain.name}`);
 
     // Insert topics for this domain

@@ -1,5 +1,6 @@
 /**
  * Database setup script - creates tables and seeds initial data
+ * Handles both fresh installations and upgrades from older schemas
  */
 import Database from 'better-sqlite3';
 import { readFileSync } from 'fs';
@@ -16,6 +17,7 @@ if (!existsSync(dataDir)) {
 }
 
 const dbPath = join(dataDir, 'ace-prep.db');
+const isNewDatabase = !existsSync(dbPath);
 const db = new Database(dbPath);
 
 console.log('Setting up database at:', dbPath);
@@ -23,21 +25,92 @@ console.log('Setting up database at:', dbPath);
 // Enable WAL mode
 db.pragma('journal_mode = WAL');
 
-// Run migration SQL
+// Check if this is an existing database that needs migration
+const needsMigration = !isNewDatabase && (() => {
+  try {
+    // Check if certifications table exists
+    const tableCheck = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='certifications'"
+    ).get();
+    return !tableCheck;
+  } catch {
+    return false;
+  }
+})();
+
+if (needsMigration) {
+  console.log('Existing database detected. Running migration to add multi-certification support...');
+  const migrationPath = join(__dirname, 'migrations/0001_add_certifications.sql');
+  const migrationSql = readFileSync(migrationPath, 'utf-8');
+
+  // Run migration in a transaction for safety
+  db.exec('BEGIN TRANSACTION');
+  try {
+    // Split and run statements one by one (SQLite doesn't support multi-statement ALTER)
+    const statements = migrationSql
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+
+    for (const stmt of statements) {
+      try {
+        db.exec(stmt);
+      } catch (err: any) {
+        // Ignore "duplicate column" errors for idempotent migration
+        if (!err.message.includes('duplicate column')) {
+          throw err;
+        }
+      }
+    }
+    db.exec('COMMIT');
+    console.log('Migration completed successfully!');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    console.error('Migration failed:', err);
+    db.close();
+    process.exit(1);
+  }
+
+  db.close();
+  process.exit(0);
+}
+
+// Run init migration SQL for fresh databases
 const migrationPath = join(__dirname, 'migrations/0000_init.sql');
 const migrationSql = readFileSync(migrationPath, 'utf-8');
 db.exec(migrationSql);
 console.log('Tables created');
 
 // Check if already seeded
-const domainCount = db.prepare('SELECT COUNT(*) as count FROM domains').get() as { count: number };
-if (domainCount.count > 0) {
+const certCount = db.prepare('SELECT COUNT(*) as count FROM certifications').get() as { count: number };
+if (certCount.count > 0) {
   console.log('Database already seeded. Skipping seed data.');
   db.close();
   process.exit(0);
 }
 
-// Seed domains
+// Seed ACE certification first
+const insertCertification = db.prepare(`
+  INSERT INTO certifications (code, name, short_name, description, provider, exam_duration_minutes, total_questions, passing_score_percent, is_active, created_at)
+  VALUES (@code, @name, @shortName, @description, @provider, @examDurationMinutes, @totalQuestions, @passingScorePercent, @isActive, @createdAt)
+`);
+
+const aceCertResult = insertCertification.run({
+  code: 'ACE',
+  name: 'Associate Cloud Engineer',
+  shortName: 'ACE',
+  description: 'An Associate Cloud Engineer deploys and secures applications and infrastructure, monitors operations, and manages enterprise solutions.',
+  provider: 'gcp',
+  examDurationMinutes: 120,
+  totalQuestions: 50,
+  passingScorePercent: 70,
+  isActive: 1,
+  createdAt: Date.now(),
+});
+const aceCertId = aceCertResult.lastInsertRowid;
+console.log('Inserted ACE certification');
+
+// Seed domains for ACE
 const ACE_DOMAINS = [
   { code: 'SETUP_CLOUD_ENV', name: 'Setting Up a Cloud Solution Environment', weight: 0.175, orderIndex: 1, description: 'Create and manage GCP projects, manage billing, install Cloud SDK' },
   { code: 'PLAN_CONFIG', name: 'Planning and Configuring a Cloud Solution', weight: 0.175, orderIndex: 2, description: 'Plan compute, storage, and network resources for cloud solutions' },
@@ -47,8 +120,8 @@ const ACE_DOMAINS = [
 ];
 
 const insertDomain = db.prepare(`
-  INSERT INTO domains (code, name, weight, description, order_index)
-  VALUES (@code, @name, @weight, @description, @orderIndex)
+  INSERT INTO domains (certification_id, code, name, weight, description, order_index)
+  VALUES (@certificationId, @code, @name, @weight, @description, @orderIndex)
 `);
 
 const insertTopic = db.prepare(`
@@ -94,7 +167,7 @@ const TOPICS: Record<string, { code: string; name: string; description: string }
 
 // Insert domains and topics
 for (const domain of ACE_DOMAINS) {
-  const result = insertDomain.run(domain);
+  const result = insertDomain.run({ certificationId: aceCertId, ...domain });
   const domainId = result.lastInsertRowid;
   console.log(`Inserted domain: ${domain.name}`);
 
