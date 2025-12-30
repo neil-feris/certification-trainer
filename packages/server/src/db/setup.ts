@@ -46,11 +46,18 @@ if (needsMigration) {
   // Run migration in a transaction for safety
   db.exec('BEGIN TRANSACTION');
   try {
-    // Split and run statements one by one (SQLite doesn't support multi-statement ALTER)
+    // Split by semicolon, strip comments, filter empty statements
     const statements = migrationSql
       .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+      .map(s => {
+        // Remove SQL comments (lines starting with --)
+        return s
+          .split('\n')
+          .filter(line => !line.trim().startsWith('--'))
+          .join('\n')
+          .trim();
+      })
+      .filter(s => s.length > 0);
 
     for (const stmt of statements) {
       try {
