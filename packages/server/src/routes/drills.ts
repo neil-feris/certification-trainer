@@ -336,14 +336,32 @@ export async function drillRoutes(fastify: FastifyInstance) {
       : [];
     const questionsMap = new Map(drillQuestions.map(q => [q.id, q]));
 
-    // Build drill results
+    // Build drill results with safe JSON parsing
     const results: DrillResult[] = responses.map(r => {
       const q = questionsMap.get(r.questionId);
+
+      let selectedAnswers: number[] = [];
+      try {
+        selectedAnswers = JSON.parse(r.selectedAnswers as string) as number[];
+      } catch {
+        // Malformed data - use empty array
+        selectedAnswers = [];
+      }
+
+      let correctAnswers: number[] = [];
+      if (q) {
+        try {
+          correctAnswers = JSON.parse(q.correctAnswers as string) as number[];
+        } catch {
+          correctAnswers = [];
+        }
+      }
+
       return {
         questionId: r.questionId,
-        selectedAnswers: JSON.parse(r.selectedAnswers as string) as number[],
+        selectedAnswers,
         isCorrect: r.isCorrect ?? false,
-        correctAnswers: q ? JSON.parse(q.correctAnswers as string) as number[] : [],
+        correctAnswers,
         explanation: q?.explanation ?? '',
         timeSpentSeconds: r.timeSpentSeconds ?? 0,
       };
@@ -386,12 +404,74 @@ export async function drillRoutes(fastify: FastifyInstance) {
       .from(studySessionResponses)
       .where(eq(studySessionResponses.sessionId, session.id));
 
+    // Get questions for recovery - fetch all questions that have responses
+    const questionIds = responses.map(r => r.questionId);
+
+    // Format questions for recovery (without answers - same as start endpoint)
+    let formattedQuestions: Array<{
+      id: number;
+      questionText: string;
+      questionType: 'single' | 'multiple';
+      options: string[];
+      difficulty: 'easy' | 'medium' | 'hard';
+      domain: { id: number; name: string; code: string };
+      topic: { id: number; name: string };
+    }> = [];
+
+    if (questionIds.length > 0) {
+      const questionsWithDetails = await db
+        .select({
+          question: questions,
+          domain: domains,
+          topic: topics,
+        })
+        .from(questions)
+        .innerJoin(domains, eq(questions.domainId, domains.id))
+        .innerJoin(topics, eq(questions.topicId, topics.id))
+        .where(inArray(questions.id, questionIds));
+
+      formattedQuestions = questionsWithDetails.map((row) => {
+        let options: string[] = [];
+        try {
+          options = JSON.parse(row.question.options as string);
+        } catch {
+          options = [];
+        }
+
+        return {
+          id: row.question.id,
+          questionText: row.question.questionText,
+          questionType: row.question.questionType as 'single' | 'multiple',
+          options,
+          difficulty: row.question.difficulty as 'easy' | 'medium' | 'hard',
+          domain: {
+            id: row.domain.id,
+            name: row.domain.name,
+            code: row.domain.code,
+          },
+          topic: {
+            id: row.topic.id,
+            name: row.topic.name,
+          },
+        };
+      });
+    }
+
     return {
       session,
-      responses: responses.map(r => ({
-        ...r,
-        selectedAnswers: JSON.parse(r.selectedAnswers as string),
-      })),
+      questions: formattedQuestions.filter(q => q !== null),
+      responses: responses.map(r => {
+        let selectedAnswers: number[] = [];
+        try {
+          selectedAnswers = JSON.parse(r.selectedAnswers as string);
+        } catch {
+          selectedAnswers = [];
+        }
+        return {
+          ...r,
+          selectedAnswers,
+        };
+      }),
     };
   });
 

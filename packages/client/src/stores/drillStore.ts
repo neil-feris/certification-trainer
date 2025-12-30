@@ -337,13 +337,34 @@ export const useDrillStore = create<DrillState>()(
           responses = new Map();
         }
 
+        // Recalculate timeRemaining based on actual elapsed time since startedAt
+        // This fixes the stale timer issue when browser is closed and reopened
+        let timeRemaining = persisted?.timeRemaining ?? currentState.timeRemaining;
+        let isActive = persisted?.isActive ?? false;
+
+        if (persisted?.startedAt && persisted?.timeLimitSeconds && isActive) {
+          const elapsedSeconds = Math.floor((Date.now() - persisted.startedAt) / 1000);
+          const calculatedRemaining = persisted.timeLimitSeconds - elapsedSeconds;
+
+          if (calculatedRemaining <= 0) {
+            // Timer has expired - mark as inactive, will need to complete/abandon
+            timeRemaining = 0;
+            isActive = false;
+          } else {
+            timeRemaining = calculatedRemaining;
+          }
+        }
+
         return {
           ...currentState,
           ...persisted,
           responses,
+          timeRemaining,
+          isActive,
           // Ensure these are always proper defaults if not persisted
           showSummary: false,
           isLoading: false,
+          isCompleting: false,
           drillResults: null,
         };
       },
