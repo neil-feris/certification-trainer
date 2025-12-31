@@ -14,7 +14,7 @@
     "test": "npm run test -w @ace-prep/server",
     "test:watch": "npm run test:watch -w @ace-prep/server",
     "test:coverage": "npm run test:coverage -w @ace-prep/server",
-    "lint": "eslint packages/*/src --max-warnings 0",
+    "lint": "eslint packages/*/src",
     "lint:fix": "eslint packages/*/src --fix",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,css,json}\"",

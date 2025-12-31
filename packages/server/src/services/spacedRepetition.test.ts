@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  calculateNextReview,
-  getDailyReviewCount,
-  calculateStreak,
-  type ReviewQuality,
-} from './spacedRepetition.js';
+import { calculateNextReview, getDailyReviewCount, calculateStreak } from './spacedRepetition.js';
 
 describe('calculateNextReview', () => {
   beforeEach(() => {

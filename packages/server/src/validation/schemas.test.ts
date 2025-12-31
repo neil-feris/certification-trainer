@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   idParamSchema,
-  orderParamSchema,
-  topicIdParamSchema,
   providerParamSchema,
   createExamSchema,
   submitAnswerSchema,
@@ -11,8 +9,6 @@ import {
   generateQuestionsSchema,
   reviewRatingSchema,
   startStudySessionSchema,
-  submitStudyAnswerSchema,
-  completeStudySessionSchema,
   updateSettingsSchema,
   testApiSchema,
   startDrillSchema,
@@ -578,8 +574,8 @@ describe('formatZodError', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const formatted = formatZodError(result.error);
-      expect(formatted.details.some(d => d.path.includes('questionId'))).toBe(true);
-      expect(formatted.details.some(d => d.path.includes('selectedAnswers'))).toBe(true);
+      expect(formatted.details.some((d) => d.path.includes('questionId'))).toBe(true);
+      expect(formatted.details.some((d) => d.path.includes('selectedAnswers'))).toBe(true);
     }
   });
 });

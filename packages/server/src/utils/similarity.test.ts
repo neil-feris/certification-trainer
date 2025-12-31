@@ -104,8 +104,10 @@ describe('questionSimilarity', () => {
   });
 
   it('should return high similarity for similar questions', () => {
-    const q1 = 'You need to create a Cloud Storage bucket with versioning enabled in the us-central1 region.';
-    const q2 = 'You need to create a Cloud Storage bucket with versioning enabled in the europe-west1 region.';
+    const q1 =
+      'You need to create a Cloud Storage bucket with versioning enabled in the us-central1 region.';
+    const q2 =
+      'You need to create a Cloud Storage bucket with versioning enabled in the europe-west1 region.';
     const similarity = questionSimilarity(q1, q2);
     expect(similarity).toBeGreaterThan(0.6);
   });
@@ -145,13 +147,11 @@ describe('findDuplicate', () => {
   });
 
   it('should use custom threshold', () => {
-    const existing = [
-      { id: 1, questionText: 'Create Cloud Storage bucket' },
-    ];
+    const existing = [{ id: 1, questionText: 'Create Cloud Storage bucket' }];
     const newQ = 'Create Cloud Storage bucket with lifecycle';
 
     // High threshold might not match
-    const strictResult = findDuplicate(newQ, existing, 0.95);
+    findDuplicate(newQ, existing, 0.95);
 
     // Lower threshold should match
     const lenientResult = findDuplicate(newQ, existing, 0.5);
@@ -223,6 +223,6 @@ describe('deduplicateQuestions', () => {
     const results = deduplicateQuestions(newQuestions, [], 0.7);
 
     expect(results).toHaveLength(3);
-    expect(results.every(r => r.accepted)).toBe(true);
+    expect(results.every((r) => r.accepted)).toBe(true);
   });
 });

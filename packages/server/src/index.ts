@@ -16,10 +16,7 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import fastifyStatic from '@fastify/static';
 import rateLimit from '@fastify/rate-limit';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 
 import { examRoutes } from './routes/exams.js';
 import { questionRoutes } from './routes/questions.js';
@@ -27,8 +24,6 @@ import { progressRoutes } from './routes/progress.js';
 import { studyRoutes } from './routes/study.js';
 import { settingsRoutes } from './routes/settings.js';
 import { drillRoutes } from './routes/drills.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const fastify = Fastify({
   logger: {

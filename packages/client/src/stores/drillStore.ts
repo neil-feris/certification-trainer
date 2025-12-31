@@ -155,7 +155,14 @@ export const useDrillStore = create<DrillState>()(
       },
 
       submitAnswer: async () => {
-        const { drillId, questions, currentQuestionIndex, responses, startedAt, timeLimitSeconds, timeRemaining } = get();
+        const {
+          drillId,
+          questions,
+          currentQuestionIndex,
+          responses,
+          timeLimitSeconds,
+          timeRemaining,
+        } = get();
         const question = questions[currentQuestionIndex];
         if (!question || !drillId) {
           throw new Error('No active question or drill');
@@ -205,10 +212,12 @@ export const useDrillStore = create<DrillState>()(
         } else if (!isCompleting) {
           // Last question - auto complete with error handling
           set({ isCompleting: true });
-          get().completeDrill(false).catch((error) => {
-            console.error('Failed to complete drill:', error);
-            set({ isCompleting: false });
-          });
+          get()
+            .completeDrill(false)
+            .catch((error) => {
+              console.error('Failed to complete drill:', error);
+              set({ isCompleting: false });
+            });
         }
       },
 
@@ -221,17 +230,19 @@ export const useDrillStore = create<DrillState>()(
           // Time's up - set state synchronously FIRST to prevent race
           set({ timeRemaining: 0, isActive: false, isCompleting: true });
           // Then trigger async completion with error handling
-          get().completeDrill(true).catch((error) => {
-            console.error('Failed to complete drill on timeout:', error);
-            set({ isCompleting: false });
-          });
+          get()
+            .completeDrill(true)
+            .catch((error) => {
+              console.error('Failed to complete drill on timeout:', error);
+              set({ isCompleting: false });
+            });
         } else {
           set({ timeRemaining: timeRemaining - 1 });
         }
       },
 
       completeDrill: async (timedOut = false) => {
-        const { drillId, startedAt, showSummary, drillResults, isLoading, isCompleting } = get();
+        const { drillId, startedAt, showSummary, drillResults, isLoading } = get();
 
         // Guard: prevent double completion
         if (showSummary || drillResults || isLoading) {
@@ -322,7 +333,9 @@ export const useDrillStore = create<DrillState>()(
       }),
       // Use merge to handle Map conversion atomically during hydration
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as Partial<DrillState> & { responses?: [number, DrillResponse][] };
+        const persisted = persistedState as Partial<DrillState> & {
+          responses?: [number, DrillResponse][];
+        };
         let responses: Map<number, DrillResponse>;
 
         try {

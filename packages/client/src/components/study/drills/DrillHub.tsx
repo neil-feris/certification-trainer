@@ -5,7 +5,7 @@ import { TimedDrill } from './TimedDrill';
 
 export function DrillHub() {
   const { drillId, isActive, showSummary } = useDrillStore();
-  const [showSetup, setShowSetup] = useState(true);
+  const [, setShowSetup] = useState(true);
 
   // If drill is active or showing summary, show the drill view
   if (drillId && (isActive || showSummary)) {

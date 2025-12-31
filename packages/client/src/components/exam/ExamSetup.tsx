@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { examApi, questionApi } from '../../api/client';
-import { EXAM_SIZE_OPTIONS as EXAM_SIZES, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
+import {
+  EXAM_SIZE_OPTIONS as EXAM_SIZES,
+  EXAM_SIZE_DEFAULT,
+  type ExamSize,
+} from '@ace-prep/shared';
 import styles from './ExamSetup.module.css';
 
 // UI-specific metadata for each exam size
@@ -83,8 +87,8 @@ export function ExamSetup() {
           <div className={styles.warning}>
             <span className={styles.warningIcon}>⚠</span>
             <span>
-              Only {questionCount} questions available. You need at least 10 questions to start an exam.
-              Go to Settings to generate more questions.
+              Only {questionCount} questions available. You need at least 10 questions to start an
+              exam. Go to Settings to generate more questions.
             </span>
           </div>
         )}
@@ -120,8 +124,8 @@ export function ExamSetup() {
         </div>
 
         <p className={styles.note}>
-          The exam simulates the real ACE certification experience. You can flag questions
-          for review and navigate freely between questions.
+          The exam simulates the real ACE certification experience. You can flag questions for
+          review and navigate freely between questions.
         </p>
       </div>
     </div>
