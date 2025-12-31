@@ -16,7 +16,8 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
-  const isExamActive = location.pathname.startsWith('/exam/') && !location.pathname.includes('/review');
+  const isExamActive =
+    location.pathname.startsWith('/exam/') && !location.pathname.includes('/review');
 
   return (
     <div className={styles.shell}>

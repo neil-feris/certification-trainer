@@ -7,21 +7,21 @@ import {
   studySessions,
   studySessionResponses,
   spacedRepetition,
-  performanceStats
+  performanceStats,
 } from '../db/schema.js';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import type {
   StartDrillRequest,
   SubmitDrillAnswerRequest,
   CompleteDrillRequest,
-  DrillResult
+  DrillResult,
 } from '@ace-prep/shared';
 import {
   idParamSchema,
   formatZodError,
   startDrillSchema,
   submitDrillAnswerSchema,
-  completeDrillSchema
+  completeDrillSchema,
 } from '../validation/schemas.js';
 import { checkAnswerCorrect } from '../utils/scoring.js';
 import { resolveCertificationId } from '../db/certificationUtils.js';
@@ -74,16 +74,20 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
       if (weakStats.length > 0) {
         const weakTopicIds = weakStats
-          .filter(s => s.topicId !== null)
-          .map(s => s.topicId as number);
-        const weakDomainIds = weakStats
-          .filter(s => s.topicId === null)
-          .map(s => s.domainId);
+          .filter((s) => s.topicId !== null)
+          .map((s) => s.topicId as number);
+        const weakDomainIds = weakStats.filter((s) => s.topicId === null).map((s) => s.domainId);
 
         if (weakTopicIds.length > 0) {
-          whereCondition = and(eq(domains.certificationId, certId), inArray(questions.topicId, weakTopicIds))!;
+          whereCondition = and(
+            eq(domains.certificationId, certId),
+            inArray(questions.topicId, weakTopicIds)
+          )!;
         } else if (weakDomainIds.length > 0) {
-          whereCondition = and(eq(domains.certificationId, certId), inArray(questions.domainId, weakDomainIds))!;
+          whereCondition = and(
+            eq(domains.certificationId, certId),
+            inArray(questions.domainId, weakDomainIds)
+          )!;
         }
       }
       // If no weak areas found, use certification filter only (fallback)
@@ -103,24 +107,25 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
     // Use SQL RANDOM() to select random questions efficiently
     // This avoids loading all questions into memory and shuffling in JS
-    const selectedQuestions = await questionQuery
-      .orderBy(sql`RANDOM()`)
-      .limit(questionCount);
+    const selectedQuestions = await questionQuery.orderBy(sql`RANDOM()`).limit(questionCount);
 
     if (selectedQuestions.length === 0) {
       return reply.status(404).send({ error: 'No questions found for the specified criteria' });
     }
 
     // Create a study session with sessionType='timed_drill'
-    const [session] = await db.insert(studySessions).values({
-      certificationId: certId,
-      sessionType: 'timed_drill',
-      topicId: null,
-      domainId: domainId || null,
-      startedAt: new Date(),
-      status: 'in_progress',
-      totalQuestions: selectedQuestions.length,
-    }).returning();
+    const [session] = await db
+      .insert(studySessions)
+      .values({
+        certificationId: certId,
+        sessionType: 'timed_drill',
+        topicId: null,
+        domainId: domainId || null,
+        startedAt: new Date(),
+        status: 'in_progress',
+        totalQuestions: selectedQuestions.length,
+      })
+      .returning();
 
     // Format questions for response - SECURITY: No answers revealed
     const formattedQuestions = selectedQuestions.map((q) => ({
@@ -202,14 +207,17 @@ export async function drillRoutes(fastify: FastifyInstance) {
       const [existingResponse] = await tx
         .select()
         .from(studySessionResponses)
-        .where(and(
-          eq(studySessionResponses.sessionId, drillId),
-          eq(studySessionResponses.questionId, questionId)
-        ));
+        .where(
+          and(
+            eq(studySessionResponses.sessionId, drillId),
+            eq(studySessionResponses.questionId, questionId)
+          )
+        );
 
       if (existingResponse) {
         // Update existing response
-        await tx.update(studySessionResponses)
+        await tx
+          .update(studySessionResponses)
           .set({
             selectedAnswers: JSON.stringify(selectedAnswers),
             isCorrect,
@@ -253,18 +261,22 @@ export async function drillRoutes(fastify: FastifyInstance) {
             addedToSR = true;
 
             // Update the response to mark it
-            await tx.update(studySessionResponses)
+            await tx
+              .update(studySessionResponses)
               .set({ addedToSR: true })
-              .where(and(
-                eq(studySessionResponses.sessionId, drillId),
-                eq(studySessionResponses.questionId, questionId)
-              ));
+              .where(
+                and(
+                  eq(studySessionResponses.sessionId, drillId),
+                  eq(studySessionResponses.questionId, questionId)
+                )
+              );
           }
         }
       }
 
       // Update session sync time
-      await tx.update(studySessions)
+      await tx
+        .update(studySessions)
         .set({ syncedAt: new Date() })
         .where(eq(studySessions.id, drillId));
     });
@@ -313,12 +325,13 @@ export async function drillRoutes(fastify: FastifyInstance) {
         .orderBy(studySessionResponses.orderIndex);
 
       // Calculate stats
-      const correctCount = responses.filter(r => r.isCorrect).length;
+      const correctCount = responses.filter((r) => r.isCorrect).length;
       const totalCount = responses.length;
-      const addedToSRCount = responses.filter(r => r.addedToSR).length;
+      const addedToSRCount = responses.filter((r) => r.addedToSR).length;
 
       // Complete the session atomically
-      await tx.update(studySessions)
+      await tx
+        .update(studySessions)
         .set({
           status: timedOut ? 'abandoned' : 'completed',
           completedAt: new Date(),
@@ -341,14 +354,15 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const { responses, correctCount, totalCount, addedToSRCount } = txResult;
 
     // Get all questions for the responses to build drill results (outside transaction - read-only)
-    const questionIds = responses.map(r => r.questionId);
-    const drillQuestions = questionIds.length > 0
-      ? await db.select().from(questions).where(inArray(questions.id, questionIds))
-      : [];
-    const questionsMap = new Map(drillQuestions.map(q => [q.id, q]));
+    const questionIds = responses.map((r) => r.questionId);
+    const drillQuestions =
+      questionIds.length > 0
+        ? await db.select().from(questions).where(inArray(questions.id, questionIds))
+        : [];
+    const questionsMap = new Map(drillQuestions.map((q) => [q.id, q]));
 
     // Build drill results with safe JSON parsing
-    const results: DrillResult[] = responses.map(r => {
+    const results: DrillResult[] = responses.map((r) => {
       const q = questionsMap.get(r.questionId);
 
       let selectedAnswers: number[] = [];
@@ -398,10 +412,9 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const [session] = await db
       .select()
       .from(studySessions)
-      .where(and(
-        eq(studySessions.sessionType, 'timed_drill'),
-        eq(studySessions.status, 'in_progress')
-      ))
+      .where(
+        and(eq(studySessions.sessionType, 'timed_drill'), eq(studySessions.status, 'in_progress'))
+      )
       .orderBy(desc(studySessions.startedAt))
       .limit(1);
 
@@ -416,7 +429,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       .where(eq(studySessionResponses.sessionId, session.id));
 
     // Get questions for recovery - fetch all questions that have responses
-    const questionIds = responses.map(r => r.questionId);
+    const questionIds = responses.map((r) => r.questionId);
 
     // Format questions for recovery (without answers - same as start endpoint)
     let formattedQuestions: Array<{
@@ -470,8 +483,8 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
     return {
       session,
-      questions: formattedQuestions.filter(q => q !== null),
-      responses: responses.map(r => {
+      questions: formattedQuestions.filter((q) => q !== null),
+      responses: responses.map((r) => {
         let selectedAnswers: number[] = [];
         try {
           selectedAnswers = JSON.parse(r.selectedAnswers as string);
@@ -499,7 +512,8 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Drill not found' });
     }
 
-    await db.update(studySessions)
+    await db
+      .update(studySessions)
       .set({ status: 'abandoned', completedAt: new Date() })
       .where(eq(studySessions.id, drillId));
 

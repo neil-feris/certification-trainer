@@ -29,10 +29,7 @@ import type {
 
 const API_BASE = '/api';
 
-async function request<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -63,7 +60,10 @@ export const examApi = {
       method: 'POST',
       body: JSON.stringify(options || {}),
     }),
-  submitAnswer: (examId: number, data: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number }) =>
+  submitAnswer: (
+    examId: number,
+    data: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number }
+  ) =>
     request(`/exams/${examId}/answer`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -116,12 +116,20 @@ export const questionApi = {
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
     searchParams.set('limit', '1');
     searchParams.set('offset', '0');
-    const result = await request<PaginatedResponse<QuestionWithDomain>>(`/questions?${searchParams}`);
+    const result = await request<PaginatedResponse<QuestionWithDomain>>(
+      `/questions?${searchParams}`
+    );
     return result.total;
   },
 
   get: (id: number) => request<QuestionWithDomain>(`/questions/${id}`),
-  generate: (data: { domainId: number; topicId?: number; difficulty: DifficultyOption; count: number; model?: LLMModel }) =>
+  generate: (data: {
+    domainId: number;
+    topicId?: number;
+    difficulty: DifficultyOption;
+    count: number;
+    model?: LLMModel;
+  }) =>
     request<{ success: boolean; generated: number; questions: any[] }>('/questions/generate', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -140,8 +148,7 @@ export const progressApi = {
   getDomains: () => request<any[]>('/progress/domains'),
   getWeakAreas: () => request<any[]>('/progress/weak-areas'),
   getHistory: () => request<any[]>('/progress/history'),
-  exportData: () =>
-    request<any>('/progress/export', { method: 'POST' }),
+  exportData: () => request<any>('/progress/export', { method: 'POST' }),
 };
 
 // Study
@@ -150,9 +157,12 @@ export const studyApi = {
   getLearningPath: () => request<LearningPathItem[]>('/study/learning-path'),
   getLearningPathStats: () => request<LearningPathStats>('/study/learning-path/stats'),
   toggleLearningPathItem: (order: number) =>
-    request<{ isCompleted: boolean; completedAt: Date | null }>(`/study/learning-path/${order}/toggle`, {
-      method: 'PATCH',
-    }),
+    request<{ isCompleted: boolean; completedAt: Date | null }>(
+      `/study/learning-path/${order}/toggle`,
+      {
+        method: 'PATCH',
+      }
+    ),
   generateSummary: (domainId: number, topicId?: number) =>
     request<{ success: boolean; summary: any }>('/study/summary', {
       method: 'POST',
@@ -200,15 +210,17 @@ export const studyApi = {
 // Settings
 export const settingsApi = {
   get: () => request<any>('/settings'),
-  update: (data: Partial<{
-    llmProvider: LLMProvider;
-    openaiApiKey: string;
-    anthropicApiKey: string;
-    anthropicModel: AnthropicModel;
-    openaiModel: OpenAIModel;
-    examDurationMinutes: number;
-    questionsPerExam: number;
-  }>) =>
+  update: (
+    data: Partial<{
+      llmProvider: LLMProvider;
+      openaiApiKey: string;
+      anthropicApiKey: string;
+      anthropicModel: AnthropicModel;
+      openaiModel: OpenAIModel;
+      examDurationMinutes: number;
+      questionsPerExam: number;
+    }>
+  ) =>
     request('/settings', {
       method: 'PATCH',
       body: JSON.stringify(data),

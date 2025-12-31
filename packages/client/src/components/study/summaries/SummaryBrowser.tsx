@@ -55,9 +55,7 @@ export function SummaryBrowser() {
               <span className={styles.topicTag}>{viewingSummary.topic.name}</span>
             )}
           </div>
-          <div className={styles.summaryContent}>
-            {viewingSummary.content}
-          </div>
+          <div className={styles.summaryContent}>{viewingSummary.content}</div>
           <div className={styles.summaryMeta}>
             Generated: {new Date(viewingSummary.generatedAt).toLocaleString()}
           </div>
@@ -145,9 +143,7 @@ export function SummaryBrowser() {
                     <span className={styles.summaryTopic}>{summary.topic.name}</span>
                   )}
                 </div>
-                <div className={styles.summaryPreview}>
-                  {summary.content.slice(0, 150)}...
-                </div>
+                <div className={styles.summaryPreview}>{summary.content.slice(0, 150)}...</div>
                 <div className={styles.summaryDate}>
                   {new Date(summary.generatedAt).toLocaleDateString()}
                 </div>

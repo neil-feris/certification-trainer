@@ -106,8 +106,7 @@ export const useSettingsStore = create<SettingsState>()(
           },
         })),
 
-      clearGenerationStatus: () =>
-        set({ generation: initialGenerationState }),
+      clearGenerationStatus: () => set({ generation: initialGenerationState }),
     }),
     {
       name: 'ace-settings-store',

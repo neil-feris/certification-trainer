@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { questions, domains, topics, spacedRepetition } from '../db/schema.js';
-import { eq, sql, lte, and, count } from 'drizzle-orm';
+import { eq, lte, and, count } from 'drizzle-orm';
 import { generateQuestions } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
@@ -56,10 +56,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count with filters applied (single query)
-    const [countResult] = await db
-      .select({ total: count() })
-      .from(questions)
-      .where(whereClause);
+    const [countResult] = await db.select({ total: count() }).from(questions).where(whereClause);
     const total = countResult?.total ?? 0;
 
     // Get paginated results with filters applied in SQL
@@ -126,7 +123,9 @@ export async function questionRoutes(fastify: FastifyInstance) {
       ...result.question,
       options: JSON.parse(result.question.options as string),
       correctAnswers: JSON.parse(result.question.correctAnswers as string),
-      gcpServices: result.question.gcpServices ? JSON.parse(result.question.gcpServices as string) : [],
+      gcpServices: result.question.gcpServices
+        ? JSON.parse(result.question.gcpServices as string)
+        : [],
       domain: result.domain,
       topic: result.topic,
     };
@@ -142,128 +141,132 @@ export async function questionRoutes(fastify: FastifyInstance) {
       count: number;
       model?: string;
     };
-  }>('/generate', {
-    config: {
-      rateLimit: {
-        max: 5,
-        timeWindow: '1 minute',
+  }>(
+    '/generate',
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 minute',
+        },
       },
     },
-  }, async (request, reply) => {
-    const parseResult = generateQuestionsSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      return reply.status(400).send(formatZodError(parseResult.error));
-    }
-    const { domainId, topicId, difficulty, count, model } = parseResult.data;
+    async (request, reply) => {
+      const parseResult = generateQuestionsSchema.safeParse(request.body);
+      if (!parseResult.success) {
+        return reply.status(400).send(formatZodError(parseResult.error));
+      }
+      const { domainId, topicId, difficulty, count, model } = parseResult.data;
 
-    // Get domain and topic info
-    const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
-    if (!domain) {
-      return reply.status(404).send({ error: 'Domain not found' });
-    }
-
-    let topic = null;
-    if (topicId) {
-      const [t] = await db.select().from(topics).where(eq(topics.id, topicId));
-      topic = t;
-    } else {
-      // Pick a random topic from the domain
-      const domainTopics = await db.select().from(topics).where(eq(topics.domainId, domainId));
-      topic = domainTopics[Math.floor(Math.random() * domainTopics.length)];
-    }
-
-    if (!topic) {
-      return reply.status(404).send({ error: 'Topic not found' });
-    }
-
-    try {
-      const generatedQuestions = await generateQuestions({
-        domain: domain.name,
-        topic: topic.name,
-        difficulty,
-        count,
-        model: model as any,
-      });
-
-      // Fetch existing questions for this topic to check for duplicates
-      const existingTopicQuestions = await db
-        .select({ id: questions.id, questionText: questions.questionText })
-        .from(questions)
-        .where(eq(questions.topicId, topic.id));
-
-      // Check for duplicates among generated questions
-      const dedupeResults = deduplicateQuestions(
-        generatedQuestions.map((q) => q.questionText),
-        existingTopicQuestions,
-        SIMILARITY_THRESHOLD
-      );
-
-      // Separate valid questions from duplicates
-      const skipped: Array<{ questionText: string; similarTo: number; similarity: number }> = [];
-      const toInsert: Array<typeof generatedQuestions[number]> = [];
-
-      for (let i = 0; i < generatedQuestions.length; i++) {
-        const q = generatedQuestions[i];
-        const result = dedupeResults[i];
-
-        if (!result.accepted) {
-          // Log skipped duplicate
-          fastify.log.warn({
-            msg: 'Skipping duplicate question',
-            questionText: q.questionText.substring(0, 100) + '...',
-            similarToId: result.duplicate?.id,
-            similarity: result.duplicate?.similarity?.toFixed(2),
-            topicId: topic.id,
-          });
-          skipped.push({
-            questionText: q.questionText.substring(0, 100) + '...',
-            similarTo: result.duplicate!.id,
-            similarity: result.duplicate!.similarity,
-          });
-        } else {
-          toInsert.push(q);
-        }
+      // Get domain and topic info
+      const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
+      if (!domain) {
+        return reply.status(404).send({ error: 'Domain not found' });
       }
 
-      // Batch insert all valid questions in a single query
-      let inserted: any[] = [];
-      if (toInsert.length > 0) {
-        const now = new Date();
-        inserted = await db
-          .insert(questions)
-          .values(
-            toInsert.map((q) => ({
-              domainId: domain.id,
+      let topic = null;
+      if (topicId) {
+        const [t] = await db.select().from(topics).where(eq(topics.id, topicId));
+        topic = t;
+      } else {
+        // Pick a random topic from the domain
+        const domainTopics = await db.select().from(topics).where(eq(topics.domainId, domainId));
+        topic = domainTopics[Math.floor(Math.random() * domainTopics.length)];
+      }
+
+      if (!topic) {
+        return reply.status(404).send({ error: 'Topic not found' });
+      }
+
+      try {
+        const generatedQuestions = await generateQuestions({
+          domain: domain.name,
+          topic: topic.name,
+          difficulty,
+          count,
+          model: model as any,
+        });
+
+        // Fetch existing questions for this topic to check for duplicates
+        const existingTopicQuestions = await db
+          .select({ id: questions.id, questionText: questions.questionText })
+          .from(questions)
+          .where(eq(questions.topicId, topic.id));
+
+        // Check for duplicates among generated questions
+        const dedupeResults = deduplicateQuestions(
+          generatedQuestions.map((q) => q.questionText),
+          existingTopicQuestions,
+          SIMILARITY_THRESHOLD
+        );
+
+        // Separate valid questions from duplicates
+        const skipped: Array<{ questionText: string; similarTo: number; similarity: number }> = [];
+        const toInsert: Array<(typeof generatedQuestions)[number]> = [];
+
+        for (let i = 0; i < generatedQuestions.length; i++) {
+          const q = generatedQuestions[i];
+          const result = dedupeResults[i];
+
+          if (!result.accepted) {
+            // Log skipped duplicate
+            fastify.log.warn({
+              msg: 'Skipping duplicate question',
+              questionText: q.questionText.substring(0, 100) + '...',
+              similarToId: result.duplicate?.id,
+              similarity: result.duplicate?.similarity?.toFixed(2),
               topicId: topic.id,
-              questionText: q.questionText,
-              questionType: q.questionType,
-              options: JSON.stringify(q.options),
-              correctAnswers: JSON.stringify(q.correctAnswers),
-              explanation: q.explanation,
-              difficulty: q.difficulty,
-              gcpServices: JSON.stringify(q.gcpServices),
-              isGenerated: true,
-              createdAt: now,
-            }))
-          )
-          .returning();
-      }
+            });
+            skipped.push({
+              questionText: q.questionText.substring(0, 100) + '...',
+              similarTo: result.duplicate!.id,
+              similarity: result.duplicate!.similarity,
+            });
+          } else {
+            toInsert.push(q);
+          }
+        }
 
-      return {
-        success: true,
-        generated: inserted.length,
-        skippedDuplicates: skipped.length,
-        questions: inserted,
-        ...(skipped.length > 0 && { duplicatesSkipped: skipped }),
-      };
-    } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'Failed to generate questions',
-        message: error.message,
-      });
+        // Batch insert all valid questions in a single query
+        let inserted: any[] = [];
+        if (toInsert.length > 0) {
+          const now = new Date();
+          inserted = await db
+            .insert(questions)
+            .values(
+              toInsert.map((q) => ({
+                domainId: domain.id,
+                topicId: topic.id,
+                questionText: q.questionText,
+                questionType: q.questionType,
+                options: JSON.stringify(q.options),
+                correctAnswers: JSON.stringify(q.correctAnswers),
+                explanation: q.explanation,
+                difficulty: q.difficulty,
+                gcpServices: JSON.stringify(q.gcpServices),
+                isGenerated: true,
+                createdAt: now,
+              }))
+            )
+            .returning();
+        }
+
+        return {
+          success: true,
+          generated: inserted.length,
+          skippedDuplicates: skipped.length,
+          questions: inserted,
+          ...(skipped.length > 0 && { duplicatesSkipped: skipped }),
+        };
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.status(500).send({
+          error: 'Failed to generate questions',
+          message: error.message,
+        });
+      }
     }
-  });
+  );
 
   // Get questions due for spaced repetition review
   fastify.get('/review', async () => {
@@ -308,7 +311,10 @@ export async function questionRoutes(fastify: FastifyInstance) {
     const { questionId, quality } = parseResult.data;
 
     // Get or create spaced repetition record
-    let [sr] = await db.select().from(spacedRepetition).where(eq(spacedRepetition.questionId, questionId));
+    let [sr] = await db
+      .select()
+      .from(spacedRepetition)
+      .where(eq(spacedRepetition.questionId, questionId));
 
     if (!sr) {
       // Create new record

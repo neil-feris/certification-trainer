@@ -96,7 +96,8 @@ export function TimedDrill({ onExit }: TimedDrillProps) {
     try {
       await submitAnswer();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to submit answer. Please try again.';
+      const message =
+        error instanceof Error ? error.message : 'Failed to submit answer. Please try again.';
       setSubmitError(message);
     } finally {
       setIsSubmitting(false);
@@ -181,7 +182,8 @@ export function TimedDrill({ onExit }: TimedDrillProps) {
             {currentQuestion.options.map((option, index) => {
               const isSelected = currentResponse?.selectedAnswers.includes(index) ?? false;
               const isCorrect = showFeedback && currentResponse?.correctAnswers?.includes(index);
-              const isIncorrect = showFeedback && isSelected && !currentResponse?.correctAnswers?.includes(index);
+              const isIncorrect =
+                showFeedback && isSelected && !currentResponse?.correctAnswers?.includes(index);
 
               let optionClass = styles.option;
               if (isSelected && !showFeedback) optionClass += ` ${styles.selected}`;
@@ -217,7 +219,9 @@ export function TimedDrill({ onExit }: TimedDrillProps) {
 
           {/* Feedback */}
           {showFeedback && currentResponse && (
-            <div className={`${styles.feedback} ${currentResponse.isCorrect ? styles.correct : styles.incorrect}`}>
+            <div
+              className={`${styles.feedback} ${currentResponse.isCorrect ? styles.correct : styles.incorrect}`}
+            >
               <div className={styles.feedbackHeader}>
                 {currentResponse.isCorrect ? (
                   <span className={styles.feedbackIcon}>Correct!</span>

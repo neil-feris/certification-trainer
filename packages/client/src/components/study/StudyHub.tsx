@@ -76,7 +76,11 @@ export function StudyHub() {
   }
 
   // If in drills mode with active drill, show full-screen
-  const { drillId, isActive: isDrillActive, showSummary: showDrillSummary } = useDrillStore.getState();
+  const {
+    drillId,
+    isActive: isDrillActive,
+    showSummary: showDrillSummary,
+  } = useDrillStore.getState();
   if (activeTab === 'drills' && drillId && (isDrillActive || showDrillSummary)) {
     return <DrillHub />;
   }
@@ -84,10 +88,7 @@ export function StudyHub() {
   return (
     <div className={styles.container}>
       {showRecoveryModal && (
-        <SessionRecoveryModal
-          onContinue={handleContinueSession}
-          onDiscard={handleDiscardSession}
-        />
+        <SessionRecoveryModal onContinue={handleContinueSession} onDiscard={handleDiscardSession} />
       )}
 
       <header className={styles.header}>

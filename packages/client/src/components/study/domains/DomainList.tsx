@@ -22,17 +22,14 @@ export function DomainList({ onStartPractice }: DomainListProps) {
       <div className={styles.header}>
         <h2 className={styles.title}>ACE Exam Domains</h2>
         <p className={styles.subtitle}>
-          Click on a topic to start a practice session. Questions you get wrong will be added to your review queue.
+          Click on a topic to start a practice session. Questions you get wrong will be added to
+          your review queue.
         </p>
       </div>
 
       <div className={styles.domainList}>
         {domains.map((domain: any) => (
-          <DomainCard
-            key={domain.id}
-            domain={domain}
-            onStartPractice={onStartPractice}
-          />
+          <DomainCard key={domain.id} domain={domain} onStartPractice={onStartPractice} />
         ))}
       </div>
     </div>

@@ -27,7 +27,10 @@ Your explanations should:
 async function getApiConfig() {
   const [provider] = await db.select().from(settings).where(eq(settings.key, 'llmProvider'));
   const [openaiKey] = await db.select().from(settings).where(eq(settings.key, 'openaiApiKey'));
-  const [anthropicKey] = await db.select().from(settings).where(eq(settings.key, 'anthropicApiKey'));
+  const [anthropicKey] = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.key, 'anthropicApiKey'));
 
   return {
     provider: provider?.value || 'anthropic',

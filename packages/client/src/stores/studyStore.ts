@@ -48,12 +48,21 @@ interface StudySessionState {
   needsRecovery: boolean;
 
   // Actions
-  startSession: (type: 'topic_practice' | 'learning_path', topicId?: number, domainId?: number) => Promise<void>;
+  startSession: (
+    type: 'topic_practice' | 'learning_path',
+    topicId?: number,
+    domainId?: number
+  ) => Promise<void>;
   answerQuestion: (questionId: number, selectedAnswers: number[]) => void;
   revealAnswer: () => Promise<{ isCorrect: boolean; explanation: string; addedToSR: boolean }>;
   nextQuestion: () => void;
   previousQuestion: () => void;
-  completeSession: () => Promise<{ score: number; correctCount: number; totalCount: number; addedToSRCount: number }>;
+  completeSession: () => Promise<{
+    score: number;
+    correctCount: number;
+    totalCount: number;
+    addedToSRCount: number;
+  }>;
   abandonSession: () => Promise<void>;
   recoverSession: () => Promise<boolean>;
   setNeedsRecovery: (value: boolean) => void;
@@ -157,7 +166,9 @@ export const useStudyStore = create<StudySessionState>()(
           throw new Error('No response found');
         }
 
-        const timeSpent = questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0;
+        const timeSpent = questionStartTime
+          ? Math.floor((Date.now() - questionStartTime) / 1000)
+          : 0;
 
         // Submit to server
         const result = await studyApi.submitAnswer(sessionId, {
@@ -177,7 +188,7 @@ export const useStudyStore = create<StudySessionState>()(
 
         // Update question with correctAnswers and explanation from server
         const newQuestions = [...questions];
-        const questionIndex = newQuestions.findIndex(q => q.id === question.id);
+        const questionIndex = newQuestions.findIndex((q) => q.id === question.id);
         if (questionIndex !== -1) {
           newQuestions[questionIndex] = {
             ...newQuestions[questionIndex],

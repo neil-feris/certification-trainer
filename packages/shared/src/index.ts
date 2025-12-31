@@ -48,8 +48,8 @@ export const OPENAI_MODELS = [
   'o1',
 ] as const;
 
-export type AnthropicModel = typeof ANTHROPIC_MODELS[number];
-export type OpenAIModel = typeof OPENAI_MODELS[number];
+export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
+export type OpenAIModel = (typeof OPENAI_MODELS)[number];
 export type LLMModel = AnthropicModel | OpenAIModel;
 
 export const DEFAULT_ANTHROPIC_MODEL: AnthropicModel = 'claude-sonnet-4-5-20250929';
@@ -75,19 +75,19 @@ export const MODEL_DISPLAY_NAMES: Record<LLMModel, string> = {
   'gpt-4o': 'GPT-4o',
   'gpt-4o-mini': 'GPT-4o Mini',
   // OpenAI Reasoning Models (o-series)
-  'o3': 'o3 (Reasoning)',
+  o3: 'o3 (Reasoning)',
   'o3-mini': 'o3 Mini (Reasoning)',
   'o4-mini': 'o4-mini (Reasoning)',
-  'o1': 'o1 (Reasoning)',
+  o1: 'o1 (Reasoning)',
 };
 
 // Difficulty options for question generation
 export const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard', 'mixed'] as const;
-export type DifficultyOption = typeof DIFFICULTY_OPTIONS[number];
+export type DifficultyOption = (typeof DIFFICULTY_OPTIONS)[number];
 
 // Exam size options - single source of truth for valid question counts
 export const EXAM_SIZE_OPTIONS = [10, 15, 25, 50] as const;
-export type ExamSize = typeof EXAM_SIZE_OPTIONS[number];
+export type ExamSize = (typeof EXAM_SIZE_OPTIONS)[number];
 export const EXAM_SIZE_MIN = 10;
 export const EXAM_SIZE_MAX = 50;
 export const EXAM_SIZE_DEFAULT = 50;
@@ -303,7 +303,7 @@ export interface GenerateQuestionsRequest {
   topicId?: number;
   difficulty: DifficultyOption;
   count: number;
-  model?: LLMModel;  // Optional: override the default model for this generation
+  model?: LLMModel; // Optional: override the default model for this generation
 }
 
 export interface GenerateExplanationRequest {
@@ -361,8 +361,8 @@ export interface SubmitStudyAnswerRequest {
 
 export interface SubmitStudyAnswerResponse {
   isCorrect: boolean;
-  correctAnswers: number[];  // Revealed only after submission
-  explanation: string;       // Revealed only after submission
+  correctAnswers: number[]; // Revealed only after submission
+  explanation: string; // Revealed only after submission
   addedToSR: boolean;
 }
 
@@ -419,15 +419,15 @@ export const DOMAIN_CODES = {
 } as const;
 
 /** @deprecated Use certification-specific domain codes from the API instead */
-export type DomainCode = typeof DOMAIN_CODES[keyof typeof DOMAIN_CODES];
+export type DomainCode = (typeof DOMAIN_CODES)[keyof typeof DOMAIN_CODES];
 
 // ============ TIMED DRILL TYPES ============
 
 export type DrillMode = 'domain' | 'weak_areas';
 export const DRILL_QUESTION_COUNTS = [5, 10, 15, 20] as const;
 export const DRILL_TIME_LIMITS = [60, 120, 300, 600] as const; // seconds (1, 2, 5, 10 min)
-export type DrillQuestionCount = typeof DRILL_QUESTION_COUNTS[number];
-export type DrillTimeLimit = typeof DRILL_TIME_LIMITS[number];
+export type DrillQuestionCount = (typeof DRILL_QUESTION_COUNTS)[number];
+export type DrillTimeLimit = (typeof DRILL_TIME_LIMITS)[number];
 
 export interface DrillConfig {
   mode: DrillMode;

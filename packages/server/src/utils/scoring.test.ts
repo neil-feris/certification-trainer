@@ -141,20 +141,12 @@ describe('isPassing', () => {
 
 describe('calculateAccuracy', () => {
   it('should return 100 for all correct', () => {
-    const responses = [
-      { isCorrect: true },
-      { isCorrect: true },
-      { isCorrect: true },
-    ];
+    const responses = [{ isCorrect: true }, { isCorrect: true }, { isCorrect: true }];
     expect(calculateAccuracy(responses)).toBe(100);
   });
 
   it('should return 0 for all incorrect', () => {
-    const responses = [
-      { isCorrect: false },
-      { isCorrect: false },
-      { isCorrect: false },
-    ];
+    const responses = [{ isCorrect: false }, { isCorrect: false }, { isCorrect: false }];
     expect(calculateAccuracy(responses)).toBe(0);
   });
 
@@ -179,10 +171,7 @@ describe('calculateAccuracy', () => {
   });
 
   it('should return 0 for all null responses', () => {
-    const responses = [
-      { isCorrect: null },
-      { isCorrect: null },
-    ];
+    const responses = [{ isCorrect: null }, { isCorrect: null }];
     expect(calculateAccuracy(responses)).toBe(0);
   });
 

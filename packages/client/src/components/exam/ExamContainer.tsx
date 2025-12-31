@@ -109,108 +109,112 @@ export function ExamContainer() {
   }, [timeRemaining, examId, handleSubmit]);
 
   // Keyboard navigation handler
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Don't handle if modal is open (except Escape)
-    if (showSubmitConfirm && e.key !== 'Escape') return;
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Don't handle if modal is open (except Escape)
+      if (showSubmitConfirm && e.key !== 'Escape') return;
 
-    // Don't handle if shortcuts overlay is open (except ? and Escape)
-    if (showShortcuts && e.key !== '?' && e.key !== 'Escape') return;
+      // Don't handle if shortcuts overlay is open (except ? and Escape)
+      if (showShortcuts && e.key !== '?' && e.key !== 'Escape') return;
 
-    const currentQuestion = questions[currentQuestionIndex];
-    const currentResponse = responses.get(currentQuestion?.id);
+      const currentQuestion = questions[currentQuestionIndex];
+      const currentResponse = responses.get(currentQuestion?.id);
 
-    switch (e.key) {
-      // Number keys 1-9 to select options
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9': {
-        const optionIndex = parseInt(e.key) - 1;
-        if (currentQuestion && optionIndex < currentQuestion.options.length) {
+      switch (e.key) {
+        // Number keys 1-9 to select options
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': {
+          const optionIndex = parseInt(e.key) - 1;
+          if (currentQuestion && optionIndex < currentQuestion.options.length) {
+            e.preventDefault();
+            const currentAnswers = currentResponse?.selectedAnswers || [];
+            const isSelected = currentAnswers.includes(optionIndex);
+            const newAnswers =
+              currentQuestion.questionType === 'single'
+                ? [optionIndex]
+                : isSelected
+                  ? currentAnswers.filter((a) => a !== optionIndex)
+                  : [...currentAnswers, optionIndex];
+            answerQuestion(currentQuestion.id, newAnswers);
+          }
+          break;
+        }
+
+        // Arrow keys for navigation
+        case 'ArrowLeft':
+        case 'ArrowUp':
           e.preventDefault();
-          const currentAnswers = currentResponse?.selectedAnswers || [];
-          const isSelected = currentAnswers.includes(optionIndex);
-          const newAnswers = currentQuestion.questionType === 'single'
-            ? [optionIndex]
-            : isSelected
-              ? currentAnswers.filter((a) => a !== optionIndex)
-              : [...currentAnswers, optionIndex];
-          answerQuestion(currentQuestion.id, newAnswers);
-        }
-        break;
+          if (currentQuestionIndex > 0) {
+            setCurrentQuestion(currentQuestionIndex - 1);
+          }
+          break;
+
+        case 'ArrowRight':
+        case 'ArrowDown':
+          e.preventDefault();
+          if (currentQuestionIndex < questions.length - 1) {
+            setCurrentQuestion(currentQuestionIndex + 1);
+          }
+          break;
+
+        // F key to flag/unflag
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          if (currentQuestion) {
+            toggleFlag(currentQuestion.id);
+          }
+          break;
+
+        // Enter to confirm and move next (or submit if last)
+        case 'Enter':
+          e.preventDefault();
+          if (showSubmitConfirm) {
+            handleSubmit();
+          } else if (currentQuestionIndex < questions.length - 1) {
+            setCurrentQuestion(currentQuestionIndex + 1);
+          } else {
+            setShowSubmitConfirm(true);
+          }
+          break;
+
+        // Escape to open exit confirmation or close modals
+        case 'Escape':
+          e.preventDefault();
+          if (showShortcuts) {
+            setShowShortcuts(false);
+          } else if (showSubmitConfirm) {
+            setShowSubmitConfirm(false);
+          } else {
+            setShowSubmitConfirm(true);
+          }
+          break;
+
+        // ? key to toggle shortcuts help
+        case '?':
+          e.preventDefault();
+          setShowShortcuts((prev) => !prev);
+          break;
       }
-
-      // Arrow keys for navigation
-      case 'ArrowLeft':
-      case 'ArrowUp':
-        e.preventDefault();
-        if (currentQuestionIndex > 0) {
-          setCurrentQuestion(currentQuestionIndex - 1);
-        }
-        break;
-
-      case 'ArrowRight':
-      case 'ArrowDown':
-        e.preventDefault();
-        if (currentQuestionIndex < questions.length - 1) {
-          setCurrentQuestion(currentQuestionIndex + 1);
-        }
-        break;
-
-      // F key to flag/unflag
-      case 'f':
-      case 'F':
-        e.preventDefault();
-        if (currentQuestion) {
-          toggleFlag(currentQuestion.id);
-        }
-        break;
-
-      // Enter to confirm and move next (or submit if last)
-      case 'Enter':
-        e.preventDefault();
-        if (showSubmitConfirm) {
-          handleSubmit();
-        } else if (currentQuestionIndex < questions.length - 1) {
-          setCurrentQuestion(currentQuestionIndex + 1);
-        } else {
-          setShowSubmitConfirm(true);
-        }
-        break;
-
-      // Escape to open exit confirmation or close modals
-      case 'Escape':
-        e.preventDefault();
-        if (showShortcuts) {
-          setShowShortcuts(false);
-        } else if (showSubmitConfirm) {
-          setShowSubmitConfirm(false);
-        } else {
-          setShowSubmitConfirm(true);
-        }
-        break;
-
-      // ? key to toggle shortcuts help
-      case '?':
-        e.preventDefault();
-        setShowShortcuts((prev) => !prev);
-        break;
-    }
-  }, [
-    currentQuestionIndex,
-    questions,
-    responses,
-    showSubmitConfirm,
-    showShortcuts,
-    setCurrentQuestion,
-    answerQuestion,
-    toggleFlag,
-  ]);
+    },
+    [
+      currentQuestionIndex,
+      questions,
+      responses,
+      showSubmitConfirm,
+      showShortcuts,
+      setCurrentQuestion,
+      answerQuestion,
+      toggleFlag,
+    ]
+  );
 
   // Attach keyboard listener
   useEffect(() => {
@@ -289,7 +293,9 @@ export function ExamContainer() {
             <div className={styles.questionHeaderLeft}>
               <span className={`badge badge-accent`}>{currentQuestion.domain.name}</span>
               {showDifficultyDuringExam && currentQuestion.difficulty && (
-                <span className={`${styles.difficultyBadge} ${DIFFICULTY_STYLES[currentQuestion.difficulty]}`}>
+                <span
+                  className={`${styles.difficultyBadge} ${DIFFICULTY_STYLES[currentQuestion.difficulty]}`}
+                >
                   {currentQuestion.difficulty}
                 </span>
               )}
@@ -302,14 +308,10 @@ export function ExamContainer() {
             </button>
           </div>
 
-          <div className={styles.questionText}>
-            {currentQuestion.questionText}
-          </div>
+          <div className={styles.questionText}>{currentQuestion.questionText}</div>
 
           {currentQuestion.questionType === 'multiple' && (
-            <div className={styles.multiNote}>
-              Select all that apply
-            </div>
+            <div className={styles.multiNote}>Select all that apply</div>
           )}
 
           <div className={styles.options}>
@@ -320,18 +322,23 @@ export function ExamContainer() {
                   key={index}
                   className={`${styles.option} ${isSelected ? styles.optionSelected : ''}`}
                   onClick={() => {
-                    const newAnswers = currentQuestion.questionType === 'single'
-                      ? [index]
-                      : isSelected
-                        ? currentResponse!.selectedAnswers.filter((a) => a !== index)
-                        : [...(currentResponse?.selectedAnswers || []), index];
+                    const newAnswers =
+                      currentQuestion.questionType === 'single'
+                        ? [index]
+                        : isSelected
+                          ? currentResponse!.selectedAnswers.filter((a) => a !== index)
+                          : [...(currentResponse?.selectedAnswers || []), index];
                     answerQuestion(currentQuestion.id, newAnswers);
                   }}
                 >
                   <span className={styles.optionIndicator}>
                     {currentQuestion.questionType === 'single'
-                      ? (isSelected ? '●' : '○')
-                      : (isSelected ? '☑' : '☐')}
+                      ? isSelected
+                        ? '●'
+                        : '○'
+                      : isSelected
+                        ? '☑'
+                        : '☐'}
                   </span>
                   <span className={styles.optionText}>{option}</span>
                 </button>
@@ -399,10 +406,7 @@ export function ExamContainer() {
           aria-modal="true"
           aria-labelledby="shortcuts-title"
         >
-          <div
-            className={styles.shortcutsOverlay}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className={styles.shortcutsOverlay} onClick={(e) => e.stopPropagation()}>
             <div className={styles.shortcutsHeader}>
               <h2 id="shortcuts-title">Keyboard Shortcuts</h2>
               <button
@@ -453,7 +457,9 @@ export function ExamContainer() {
               </div>
             </div>
             <div className={styles.shortcutsFooter}>
-              <span>Press <kbd>Esc</kbd> or <kbd>?</kbd> to close</span>
+              <span>
+                Press <kbd>Esc</kbd> or <kbd>?</kbd> to close
+              </span>
             </div>
           </div>
         </div>
@@ -467,12 +473,13 @@ export function ExamContainer() {
             <p>
               You have answered {progress.answered} of {progress.total} questions.
               {progress.total - progress.answered > 0 && (
-                <> <strong>{progress.total - progress.answered}</strong> questions are unanswered.</>
+                <>
+                  {' '}
+                  <strong>{progress.total - progress.answered}</strong> questions are unanswered.
+                </>
               )}
             </p>
-            {progress.flagged > 0 && (
-              <p>You have {progress.flagged} flagged questions.</p>
-            )}
+            {progress.flagged > 0 && <p>You have {progress.flagged} flagged questions.</p>}
             <div className={styles.modalActions}>
               <button className="btn btn-ghost" onClick={() => setShowSubmitConfirm(false)}>
                 Continue Exam

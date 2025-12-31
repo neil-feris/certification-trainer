@@ -34,9 +34,7 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
   if (!currentQuestion) {
     return (
       <div className={styles.container}>
-        <div className={styles.error}>
-          No questions available. Please try again.
-        </div>
+        <div className={styles.error}>No questions available. Please try again.</div>
       </div>
     );
   }
@@ -98,7 +96,9 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
         />
 
         {isRevealed && currentResponse && (
-          <div className={`${styles.feedback} ${currentResponse.isCorrect ? styles.correct : styles.incorrect}`}>
+          <div
+            className={`${styles.feedback} ${currentResponse.isCorrect ? styles.correct : styles.incorrect}`}
+          >
             <div className={styles.feedbackHeader}>
               {currentResponse.isCorrect ? (
                 <span className={styles.feedbackIcon}>✓ Correct!</span>

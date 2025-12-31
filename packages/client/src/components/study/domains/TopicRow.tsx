@@ -35,10 +35,7 @@ export function TopicRow({ topic, domainId, onStartPractice }: TopicRowProps) {
     };
 
     return (
-      <span
-        className={styles.actionBadge}
-        style={{ background: colors[stats.recommendedAction] }}
-      >
+      <span className={styles.actionBadge} style={{ background: colors[stats.recommendedAction] }}>
         {labels[stats.recommendedAction]}
       </span>
     );
@@ -52,21 +49,13 @@ export function TopicRow({ topic, domainId, onStartPractice }: TopicRowProps) {
           <span className={styles.topicName}>{topic.name}</span>
           {getActionBadge()}
         </div>
-        {topic.description && (
-          <p className={styles.topicDescription}>{topic.description}</p>
-        )}
+        {topic.description && <p className={styles.topicDescription}>{topic.description}</p>}
         {stats && stats.totalAttempted > 0 && (
           <div className={styles.topicStats}>
-            <span className={styles.accuracy}>
-              {stats.accuracy}% accuracy
-            </span>
-            <span className={styles.attempts}>
-              ({stats.totalAttempted} attempts)
-            </span>
+            <span className={styles.accuracy}>{stats.accuracy}% accuracy</span>
+            <span className={styles.attempts}>({stats.totalAttempted} attempts)</span>
             {stats.questionsInSR > 0 && (
-              <span className={styles.srCount}>
-                {stats.questionsInSR} in review queue
-              </span>
+              <span className={styles.srCount}>{stats.questionsInSR} in review queue</span>
             )}
           </div>
         )}

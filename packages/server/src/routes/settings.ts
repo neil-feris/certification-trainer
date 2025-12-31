@@ -4,12 +4,7 @@ import { settings } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import {
-  providerParamSchema,
-  updateSettingsSchema,
-  testApiSchema,
-  formatZodError,
-} from '../validation/schemas.js';
+import { updateSettingsSchema, testApiSchema, formatZodError } from '../validation/schemas.js';
 
 const DEFAULT_SETTINGS: Record<string, string | number> = {
   llmProvider: 'anthropic',
@@ -38,7 +33,8 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       hasAnthropicKey: Boolean(dbValues.anthropicApiKey && dbValues.anthropicApiKey.length > 0),
       anthropicModel: dbValues.anthropicModel || DEFAULT_SETTINGS.anthropicModel,
       openaiModel: dbValues.openaiModel || DEFAULT_SETTINGS.openaiModel,
-      examDurationMinutes: Number(dbValues.examDurationMinutes) || DEFAULT_SETTINGS.examDurationMinutes,
+      examDurationMinutes:
+        Number(dbValues.examDurationMinutes) || DEFAULT_SETTINGS.examDurationMinutes,
       questionsPerExam: Number(dbValues.questionsPerExam) || DEFAULT_SETTINGS.questionsPerExam,
     };
   });

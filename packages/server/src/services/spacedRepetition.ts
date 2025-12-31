@@ -90,9 +90,7 @@ export function getDailyReviewCount(
 export function calculateStreak(examDates: Date[]): number {
   if (examDates.length === 0) return 0;
 
-  const sortedDates = examDates
-    .map((d) => new Date(d))
-    .sort((a, b) => b.getTime() - a.getTime());
+  const sortedDates = examDates.map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime());
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

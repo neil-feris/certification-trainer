@@ -14,7 +14,11 @@ export function ExamReview() {
     resetExam();
   }, []);
 
-  const { data: review, isLoading, error } = useQuery({
+  const {
+    data: review,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['examReview', id],
     queryFn: () => examApi.getReview(parseInt(id!)),
     enabled: !!id,
@@ -76,9 +80,7 @@ export function ExamReview() {
             <span className={styles.detailLabel}>Total</span>
           </div>
           <div className={styles.scoreDetail}>
-            <span className={styles.detailValue}>
-              {Math.floor(exam.timeSpentSeconds / 60)}m
-            </span>
+            <span className={styles.detailValue}>{Math.floor(exam.timeSpentSeconds / 60)}m</span>
             <span className={styles.detailLabel}>Time Used</span>
           </div>
         </div>
@@ -92,7 +94,9 @@ export function ExamReview() {
             <div key={perf.domain.id} className={styles.domainItem}>
               <div className={styles.domainHeader}>
                 <span>{perf.domain.name}</span>
-                <span className={`${styles.domainScore} ${perf.percentage >= passingScore ? styles.passing : ''}`}>
+                <span
+                  className={`${styles.domainScore} ${perf.percentage >= passingScore ? styles.passing : ''}`}
+                >
                   {perf.correct}/{perf.total} ({perf.percentage.toFixed(0)}%)
                 </span>
               </div>

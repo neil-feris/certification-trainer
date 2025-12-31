@@ -1,7 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { exams, examResponses, questions, domains, topics, performanceStats } from '../db/schema.js';
-import { eq, sql, desc, and, lt, gte } from 'drizzle-orm';
+import {
+  exams,
+  examResponses,
+  questions,
+  domains,
+  topics,
+  performanceStats,
+} from '../db/schema.js';
+import { eq, sql, desc } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 
 export async function progressRoutes(fastify: FastifyInstance) {
@@ -13,8 +20,12 @@ export async function progressRoutes(fastify: FastifyInstance) {
         totalExams: sql<number>`count(*)`.as('total_exams'),
         averageScore: sql<number>`coalesce(avg(${exams.score}), 0)`.as('avg_score'),
         bestScore: sql<number>`coalesce(max(${exams.score}), 0)`.as('best_score'),
-        totalQuestionsAnswered: sql<number>`coalesce(sum(${exams.totalQuestions}), 0)`.as('total_questions'),
-        correctAnswers: sql<number>`coalesce(sum(${exams.correctAnswers}), 0)`.as('correct_answers'),
+        totalQuestionsAnswered: sql<number>`coalesce(sum(${exams.totalQuestions}), 0)`.as(
+          'total_questions'
+        ),
+        correctAnswers: sql<number>`coalesce(sum(${exams.correctAnswers}), 0)`.as(
+          'correct_answers'
+        ),
       })
       .from(exams)
       .where(eq(exams.status, 'completed'));
@@ -22,9 +33,8 @@ export async function progressRoutes(fastify: FastifyInstance) {
     const totalExams = examStats.totalExams;
     const totalQuestionsAnswered = examStats.totalQuestionsAnswered;
     const correctAnswers = examStats.correctAnswers;
-    const overallAccuracy = totalQuestionsAnswered > 0
-      ? (correctAnswers / totalQuestionsAnswered) * 100
-      : 0;
+    const overallAccuracy =
+      totalQuestionsAnswered > 0 ? (correctAnswers / totalQuestionsAnswered) * 100 : 0;
 
     // Batch query: domains with aggregated response stats (single query with GROUP BY)
     const domainStatsRaw = await db
@@ -36,7 +46,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
         domainDescription: domains.description,
         domainOrderIndex: domains.orderIndex,
         totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
-        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
+        correctAttempts:
+          sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as(
+            'correct_attempts'
+          ),
       })
       .from(domains)
       .leftJoin(questions, eq(questions.domainId, domains.id))
@@ -73,7 +86,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
         domainDescription: domains.description,
         domainOrderIndex: domains.orderIndex,
         totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
-        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
+        correctAttempts:
+          sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as(
+            'correct_attempts'
+          ),
       })
       .from(topics)
       .innerJoin(domains, eq(domains.id, topics.domainId))
@@ -150,7 +166,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
         domainOrderIndex: domains.orderIndex,
         domainCertificationId: domains.certificationId,
         totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
-        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
+        correctAttempts:
+          sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as(
+            'correct_attempts'
+          ),
         avgTimeSeconds: sql<number>`avg(${examResponses.timeSpentSeconds})`.as('avg_time'),
       })
       .from(topics)
@@ -161,16 +180,19 @@ export async function progressRoutes(fastify: FastifyInstance) {
       .orderBy(domains.orderIndex, topics.id);
 
     // Group by domain in memory (single pass)
-    const domainMap = new Map<number, {
-      domain: typeof domains.$inferSelect;
-      topics: Array<{
-        topic: typeof topics.$inferSelect;
-        totalAttempts: number;
-        correctAttempts: number;
-        accuracy: number;
-        avgTimeSeconds: number | null;
-      }>;
-    }>();
+    const domainMap = new Map<
+      number,
+      {
+        domain: typeof domains.$inferSelect;
+        topics: Array<{
+          topic: typeof topics.$inferSelect;
+          totalAttempts: number;
+          correctAttempts: number;
+          accuracy: number;
+          avgTimeSeconds: number | null;
+        }>;
+      }
+    >();
 
     for (const row of topicStatsRaw) {
       const total = row.totalAttempts || 0;
@@ -240,8 +262,14 @@ export async function progressRoutes(fastify: FastifyInstance) {
         domainDescription: domains.description,
         domainOrderIndex: domains.orderIndex,
         totalAttempts: sql<number>`count(${examResponses.id})`.as('total_attempts'),
-        correctAttempts: sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as('correct_attempts'),
-        incorrectCount: sql<number>`sum(case when ${examResponses.isCorrect} = 0 then 1 else 0 end)`.as('incorrect_count'),
+        correctAttempts:
+          sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as(
+            'correct_attempts'
+          ),
+        incorrectCount:
+          sql<number>`sum(case when ${examResponses.isCorrect} = 0 then 1 else 0 end)`.as(
+            'incorrect_count'
+          ),
       })
       .from(topics)
       .innerJoin(domains, eq(domains.id, topics.domainId))
@@ -274,7 +302,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
           accuracy: Math.round(accuracy * 10) / 10,
           totalAttempts: total,
           incorrectCount: row.incorrectCount || 0,
-          priority: accuracy < 50 ? 'high' : accuracy < 70 ? 'medium' : 'low' as const,
+          priority: accuracy < 50 ? 'high' : accuracy < 70 ? 'medium' : ('low' as const),
         };
       })
       .filter((t) => t.totalAttempts >= 2 && t.accuracy < 80)
@@ -283,11 +311,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
   // Get exam history
   fastify.get('/history', async () => {
-    const allExams = await db
-      .select()
-      .from(exams)
-      .orderBy(desc(exams.startedAt))
-      .limit(50);
+    const allExams = await db.select().from(exams).orderBy(desc(exams.startedAt)).limit(50);
 
     return allExams;
   });

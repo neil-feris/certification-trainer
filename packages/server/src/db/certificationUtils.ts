@@ -37,9 +37,7 @@ export async function validateCertificationId(
  * Gets the default certification ID (first active certification by ID).
  * Returns the certification ID if found, or sends error response and returns null.
  */
-export async function getDefaultCertificationId(
-  reply: FastifyReply
-): Promise<number | null> {
+export async function getDefaultCertificationId(reply: FastifyReply): Promise<number | null> {
   const [cert] = await db
     .select()
     .from(certifications)

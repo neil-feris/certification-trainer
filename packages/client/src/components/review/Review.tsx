@@ -27,7 +27,11 @@ export function Review() {
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isRevealed, setIsRevealed] = useState(false);
 
-  const { data: questions = [], isLoading, error } = useQuery<ReviewQuestion[]>({
+  const {
+    data: questions = [],
+    isLoading,
+    error,
+  } = useQuery<ReviewQuestion[]>({
     queryKey: ['reviewQueue'],
     queryFn: questionApi.getReviewQueue,
   });
@@ -48,9 +52,7 @@ export function Review() {
       setSelectedAnswers([index]);
     } else {
       setSelectedAnswers((prev) =>
-        prev.includes(index)
-          ? prev.filter((i) => i !== index)
-          : [...prev, index]
+        prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
       );
     }
   };
@@ -138,9 +140,7 @@ export function Review() {
             )}
           </div>
 
-          <div className={styles.questionText}>
-            {currentQuestion.questionText}
-          </div>
+          <div className={styles.questionText}>{currentQuestion.questionText}</div>
 
           {currentQuestion.questionType === 'multiple' && (
             <div className={styles.multiNote}>Select all that apply</div>
@@ -169,13 +169,15 @@ export function Review() {
                 >
                   <span className={styles.optionIndicator}>
                     {currentQuestion.questionType === 'single'
-                      ? isSelected(index) ? '●' : '○'
-                      : isSelected(index) ? '☑' : '☐'}
+                      ? isSelected(index)
+                        ? '●'
+                        : '○'
+                      : isSelected(index)
+                        ? '☑'
+                        : '☐'}
                   </span>
                   <span className={styles.optionText}>{option}</span>
-                  {isRevealed && isCorrect(index) && (
-                    <span className={styles.correctBadge}>✓</span>
-                  )}
+                  {isRevealed && isCorrect(index) && <span className={styles.correctBadge}>✓</span>}
                 </button>
               );
             })}

@@ -1,9 +1,23 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { domains, topics, studySummaries, examResponses, questions, studySessions, studySessionResponses, learningPathProgress, spacedRepetition } from '../db/schema.js';
-import { eq, desc, and, sql, inArray, notInArray, lte } from 'drizzle-orm';
+import {
+  domains,
+  topics,
+  studySummaries,
+  examResponses,
+  questions,
+  studySessions,
+  studySessionResponses,
+  learningPathProgress,
+  spacedRepetition,
+} from '../db/schema.js';
+import { eq, desc, and, sql, inArray } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
-import type { StartStudySessionRequest, SubmitStudyAnswerRequest, CompleteStudySessionRequest } from '@ace-prep/shared';
+import type {
+  StartStudySessionRequest,
+  SubmitStudyAnswerRequest,
+  CompleteStudySessionRequest,
+} from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import {
   idParamSchema,
@@ -35,7 +49,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .orderBy(domains.orderIndex, topics.id);
 
     // Group topics by domain
-    const domainMap = new Map<number, { domain: typeof domains.$inferSelect; topics: (typeof topics.$inferSelect)[] }>();
+    const domainMap = new Map<
+      number,
+      { domain: typeof domains.$inferSelect; topics: (typeof topics.$inferSelect)[] }
+    >();
 
     for (const row of result) {
       if (!domainMap.has(row.domain.id)) {
@@ -53,206 +70,234 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Get learning path structure with completion status (filtered by certification)
-  fastify.get<{ Querystring: { certificationId?: string } }>('/learning-path', async (request, reply) => {
-    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
-    if (certId === null) return; // Error already sent
+  fastify.get<{ Querystring: { certificationId?: string } }>(
+    '/learning-path',
+    async (request, reply) => {
+      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+      if (certId === null) return; // Error already sent
 
-    // Get completion status for this certification
-    const progress = await db
-      .select()
-      .from(learningPathProgress)
-      .where(eq(learningPathProgress.certificationId, certId));
-    const completedMap = new Map(progress.map(p => [p.pathItemOrder, p.completedAt]));
+      // Get completion status for this certification
+      const progress = await db
+        .select()
+        .from(learningPathProgress)
+        .where(eq(learningPathProgress.certificationId, certId));
+      const completedMap = new Map(progress.map((p) => [p.pathItemOrder, p.completedAt]));
 
-    // Google Cloud Skills path structure
-    const learningPath = [
-      {
-        order: 1,
-        title: 'A Tour of Google Cloud Hands-on Labs',
-        type: 'course',
-        description: 'Get familiar with the Google Cloud Console, Cloud Shell, and basic navigation',
-        topics: ['Console basics', 'IAM fundamentals', 'API management'],
-        whyItMatters: 'Foundation for all hands-on work with GCP. Understanding the console and Cloud Shell is essential for the exam.',
-      },
-      {
-        order: 2,
-        title: 'Google Cloud Fundamentals: Core Infrastructure',
-        type: 'course',
-        description: 'Learn about GCP resources, identity and access, and core services',
-        topics: ['Resource hierarchy', 'IAM', 'Compute options', 'Storage options'],
-        whyItMatters: 'Covers ~40% of exam content. Core concepts tested heavily.',
-      },
-      {
-        order: 3,
-        title: 'Essential Google Cloud Infrastructure: Foundation',
-        type: 'course',
-        description: 'Deep dive into VPCs, VMs, and networking fundamentals',
-        topics: ['VPC networking', 'Compute Engine', 'Cloud IAM'],
-        whyItMatters: 'Networking questions are common. Understanding VPCs, subnets, and firewall rules is critical.',
-      },
-      {
-        order: 4,
-        title: 'Essential Google Cloud Infrastructure: Core Services',
-        type: 'course',
-        description: 'Storage, databases, and resource management',
-        topics: ['Cloud Storage', 'Cloud SQL', 'Resource Manager'],
-        whyItMatters: 'Storage selection questions appear frequently. Know when to use each storage type.',
-      },
-      {
-        order: 5,
-        title: 'Elastic Google Cloud Infrastructure: Scaling and Automation',
-        type: 'course',
-        description: 'Load balancing, autoscaling, and infrastructure automation',
-        topics: ['Load balancing', 'Autoscaling', 'Managed instance groups', 'Terraform'],
-        whyItMatters: 'Exam tests your ability to design scalable solutions. Load balancer selection is a key topic.',
-      },
-      {
-        order: 6,
-        title: 'Getting Started with Google Kubernetes Engine',
-        type: 'course',
-        description: 'Kubernetes fundamentals on GKE',
-        topics: ['Kubernetes concepts', 'GKE clusters', 'Workloads', 'Services'],
-        whyItMatters: 'GKE questions increased in 2025 exam update. Know cluster types and workload deployment.',
-      },
-      {
-        order: 7,
-        title: 'Developing Applications with Cloud Run',
-        type: 'course',
-        description: 'Serverless containers with Cloud Run',
-        topics: ['Cloud Run deployment', 'Container configuration', 'Traffic management'],
-        whyItMatters: 'Cloud Run is the go-to serverless option. Exam tests when to use it vs other compute options.',
-      },
-      {
-        order: 8,
-        title: 'Logging and Monitoring in Google Cloud',
-        type: 'course',
-        description: 'Cloud Operations suite for observability',
-        topics: ['Cloud Logging', 'Cloud Monitoring', 'Error Reporting', 'Trace'],
-        whyItMatters: 'Operations questions are ~20% of exam. Know how to create metrics, alerts, and dashboards.',
-      },
-      {
-        order: 9,
-        title: 'Cloud Load Balancing Skill Badge',
-        type: 'skill_badge',
-        description: 'Hands-on lab for load balancing configurations',
-        topics: ['HTTP(S) LB', 'Network LB', 'Internal LB', 'SSL certificates'],
-        whyItMatters: 'Practical experience with load balancer setup. Exam has scenario-based LB questions.',
-      },
-      {
-        order: 10,
-        title: 'Set Up an App Dev Environment Skill Badge',
-        type: 'skill_badge',
-        description: 'Configure development environments on GCP',
-        topics: ['Cloud Shell', 'Cloud Code', 'Artifact Registry'],
-        whyItMatters: 'Development workflow questions test your practical GCP experience.',
-      },
-      {
-        order: 11,
-        title: 'Develop your Google Cloud Network Skill Badge',
-        type: 'skill_badge',
-        description: 'Advanced networking configurations',
-        topics: ['VPC peering', 'Shared VPC', 'Private Google Access', 'Cloud NAT'],
-        whyItMatters: 'Complex networking scenarios are common. Know hybrid connectivity options.',
-      },
-      {
-        order: 12,
-        title: 'Build Infrastructure with Terraform Skill Badge',
-        type: 'skill_badge',
-        description: 'Infrastructure as Code with Terraform on GCP',
-        topics: ['Terraform basics', 'State management', 'Modules'],
-        whyItMatters: 'IaC is increasingly important. Know Terraform basics for automated deployments.',
-      },
-      {
-        order: 13,
-        title: 'Preparing for Your Associate Cloud Engineer Exam',
-        type: 'course',
-        description: 'Exam preparation and practice',
-        topics: ['Exam format', 'Question types', 'Time management'],
-        whyItMatters: 'Final preparation. Understand the exam structure and practice strategies.',
-      },
-      {
-        order: 14,
-        title: 'Associate Cloud Engineer Certification',
-        type: 'exam',
-        description: 'The certification exam itself',
-        topics: ['All domains covered'],
-        whyItMatters: 'The goal! 50 questions, 2 hours, passing score ~70%.',
-      },
-    ];
+      // Google Cloud Skills path structure
+      const learningPath = [
+        {
+          order: 1,
+          title: 'A Tour of Google Cloud Hands-on Labs',
+          type: 'course',
+          description:
+            'Get familiar with the Google Cloud Console, Cloud Shell, and basic navigation',
+          topics: ['Console basics', 'IAM fundamentals', 'API management'],
+          whyItMatters:
+            'Foundation for all hands-on work with GCP. Understanding the console and Cloud Shell is essential for the exam.',
+        },
+        {
+          order: 2,
+          title: 'Google Cloud Fundamentals: Core Infrastructure',
+          type: 'course',
+          description: 'Learn about GCP resources, identity and access, and core services',
+          topics: ['Resource hierarchy', 'IAM', 'Compute options', 'Storage options'],
+          whyItMatters: 'Covers ~40% of exam content. Core concepts tested heavily.',
+        },
+        {
+          order: 3,
+          title: 'Essential Google Cloud Infrastructure: Foundation',
+          type: 'course',
+          description: 'Deep dive into VPCs, VMs, and networking fundamentals',
+          topics: ['VPC networking', 'Compute Engine', 'Cloud IAM'],
+          whyItMatters:
+            'Networking questions are common. Understanding VPCs, subnets, and firewall rules is critical.',
+        },
+        {
+          order: 4,
+          title: 'Essential Google Cloud Infrastructure: Core Services',
+          type: 'course',
+          description: 'Storage, databases, and resource management',
+          topics: ['Cloud Storage', 'Cloud SQL', 'Resource Manager'],
+          whyItMatters:
+            'Storage selection questions appear frequently. Know when to use each storage type.',
+        },
+        {
+          order: 5,
+          title: 'Elastic Google Cloud Infrastructure: Scaling and Automation',
+          type: 'course',
+          description: 'Load balancing, autoscaling, and infrastructure automation',
+          topics: ['Load balancing', 'Autoscaling', 'Managed instance groups', 'Terraform'],
+          whyItMatters:
+            'Exam tests your ability to design scalable solutions. Load balancer selection is a key topic.',
+        },
+        {
+          order: 6,
+          title: 'Getting Started with Google Kubernetes Engine',
+          type: 'course',
+          description: 'Kubernetes fundamentals on GKE',
+          topics: ['Kubernetes concepts', 'GKE clusters', 'Workloads', 'Services'],
+          whyItMatters:
+            'GKE questions increased in 2025 exam update. Know cluster types and workload deployment.',
+        },
+        {
+          order: 7,
+          title: 'Developing Applications with Cloud Run',
+          type: 'course',
+          description: 'Serverless containers with Cloud Run',
+          topics: ['Cloud Run deployment', 'Container configuration', 'Traffic management'],
+          whyItMatters:
+            'Cloud Run is the go-to serverless option. Exam tests when to use it vs other compute options.',
+        },
+        {
+          order: 8,
+          title: 'Logging and Monitoring in Google Cloud',
+          type: 'course',
+          description: 'Cloud Operations suite for observability',
+          topics: ['Cloud Logging', 'Cloud Monitoring', 'Error Reporting', 'Trace'],
+          whyItMatters:
+            'Operations questions are ~20% of exam. Know how to create metrics, alerts, and dashboards.',
+        },
+        {
+          order: 9,
+          title: 'Cloud Load Balancing Skill Badge',
+          type: 'skill_badge',
+          description: 'Hands-on lab for load balancing configurations',
+          topics: ['HTTP(S) LB', 'Network LB', 'Internal LB', 'SSL certificates'],
+          whyItMatters:
+            'Practical experience with load balancer setup. Exam has scenario-based LB questions.',
+        },
+        {
+          order: 10,
+          title: 'Set Up an App Dev Environment Skill Badge',
+          type: 'skill_badge',
+          description: 'Configure development environments on GCP',
+          topics: ['Cloud Shell', 'Cloud Code', 'Artifact Registry'],
+          whyItMatters: 'Development workflow questions test your practical GCP experience.',
+        },
+        {
+          order: 11,
+          title: 'Develop your Google Cloud Network Skill Badge',
+          type: 'skill_badge',
+          description: 'Advanced networking configurations',
+          topics: ['VPC peering', 'Shared VPC', 'Private Google Access', 'Cloud NAT'],
+          whyItMatters:
+            'Complex networking scenarios are common. Know hybrid connectivity options.',
+        },
+        {
+          order: 12,
+          title: 'Build Infrastructure with Terraform Skill Badge',
+          type: 'skill_badge',
+          description: 'Infrastructure as Code with Terraform on GCP',
+          topics: ['Terraform basics', 'State management', 'Modules'],
+          whyItMatters:
+            'IaC is increasingly important. Know Terraform basics for automated deployments.',
+        },
+        {
+          order: 13,
+          title: 'Preparing for Your Associate Cloud Engineer Exam',
+          type: 'course',
+          description: 'Exam preparation and practice',
+          topics: ['Exam format', 'Question types', 'Time management'],
+          whyItMatters: 'Final preparation. Understand the exam structure and practice strategies.',
+        },
+        {
+          order: 14,
+          title: 'Associate Cloud Engineer Certification',
+          type: 'exam',
+          description: 'The certification exam itself',
+          topics: ['All domains covered'],
+          whyItMatters: 'The goal! 50 questions, 2 hours, passing score ~70%.',
+        },
+      ];
 
-    return learningPath.map(item => ({
-      ...item,
-      isCompleted: completedMap.has(item.order),
-      completedAt: completedMap.get(item.order) || null,
-    }));
-  });
+      return learningPath.map((item) => ({
+        ...item,
+        isCompleted: completedMap.has(item.order),
+        completedAt: completedMap.get(item.order) || null,
+      }));
+    }
+  );
 
   // Toggle learning path item completion
-  fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>('/learning-path/:order/toggle', async (request, reply) => {
-    const parseResult = orderParamSchema.safeParse(request.params);
-    if (!parseResult.success) {
-      return reply.status(400).send(formatZodError(parseResult.error));
-    }
-    const order = parseResult.data.order;
+  fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>(
+    '/learning-path/:order/toggle',
+    async (request, reply) => {
+      const parseResult = orderParamSchema.safeParse(request.params);
+      if (!parseResult.success) {
+        return reply.status(400).send(formatZodError(parseResult.error));
+      }
+      const order = parseResult.data.order;
 
-    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
-    if (certId === null) return; // Error already sent
+      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+      if (certId === null) return; // Error already sent
 
-    // Check if already completed (for this certification)
-    const [existing] = await db.select().from(learningPathProgress)
-      .where(and(
-        eq(learningPathProgress.certificationId, certId),
-        eq(learningPathProgress.pathItemOrder, order)
-      ));
+      // Check if already completed (for this certification)
+      const [existing] = await db
+        .select()
+        .from(learningPathProgress)
+        .where(
+          and(
+            eq(learningPathProgress.certificationId, certId),
+            eq(learningPathProgress.pathItemOrder, order)
+          )
+        );
 
-    if (existing) {
-      // Remove completion
-      await db.delete(learningPathProgress).where(and(
-        eq(learningPathProgress.certificationId, certId),
-        eq(learningPathProgress.pathItemOrder, order)
-      ));
-      return { isCompleted: false, completedAt: null };
-    } else {
-      // Mark as completed
-      const now = new Date();
-      await db.insert(learningPathProgress).values({
-        certificationId: certId,
-        pathItemOrder: order,
-        completedAt: now,
-      });
-      return { isCompleted: true, completedAt: now };
-    }
-  });
-
-  // Get learning path stats (filtered by certification)
-  fastify.get<{ Querystring: { certificationId?: string } }>('/learning-path/stats', async (request, reply) => {
-    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
-    if (certId === null) return; // Error already sent
-
-    const progress = await db
-      .select()
-      .from(learningPathProgress)
-      .where(eq(learningPathProgress.certificationId, certId));
-    const total = 14; // Total learning path items
-    const completed = progress.length;
-
-    // Find the first incomplete item
-    const completedOrders = new Set(progress.map(p => p.pathItemOrder));
-    let nextRecommended: number | null = null;
-    for (let i = 1; i <= total; i++) {
-      if (!completedOrders.has(i)) {
-        nextRecommended = i;
-        break;
+      if (existing) {
+        // Remove completion
+        await db
+          .delete(learningPathProgress)
+          .where(
+            and(
+              eq(learningPathProgress.certificationId, certId),
+              eq(learningPathProgress.pathItemOrder, order)
+            )
+          );
+        return { isCompleted: false, completedAt: null };
+      } else {
+        // Mark as completed
+        const now = new Date();
+        await db.insert(learningPathProgress).values({
+          certificationId: certId,
+          pathItemOrder: order,
+          completedAt: now,
+        });
+        return { isCompleted: true, completedAt: now };
       }
     }
+  );
 
-    return {
-      completed,
-      total,
-      percentComplete: Math.round((completed / total) * 100),
-      nextRecommended,
-    };
-  });
+  // Get learning path stats (filtered by certification)
+  fastify.get<{ Querystring: { certificationId?: string } }>(
+    '/learning-path/stats',
+    async (request, reply) => {
+      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+      if (certId === null) return; // Error already sent
+
+      const progress = await db
+        .select()
+        .from(learningPathProgress)
+        .where(eq(learningPathProgress.certificationId, certId));
+      const total = 14; // Total learning path items
+      const completed = progress.length;
+
+      // Find the first incomplete item
+      const completedOrders = new Set(progress.map((p) => p.pathItemOrder));
+      let nextRecommended: number | null = null;
+      for (let i = 1; i <= total; i++) {
+        if (!completedOrders.has(i)) {
+          nextRecommended = i;
+          break;
+        }
+      }
+
+      return {
+        completed,
+        total,
+        percentComplete: Math.round((completed / total) * 100),
+        nextRecommended,
+      };
+    }
+  );
 
   // Generate study summary for a domain/topic
   // Rate limit: 10 per minute
@@ -261,71 +306,75 @@ export async function studyRoutes(fastify: FastifyInstance) {
       domainId: number;
       topicId?: number;
     };
-  }>('/summary', {
-    config: {
-      rateLimit: {
-        max: 10,
-        timeWindow: '1 minute',
+  }>(
+    '/summary',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+        },
       },
     },
-  }, async (request, reply) => {
-    const parseResult = studySummarySchema.safeParse(request.body);
-    if (!parseResult.success) {
-      return reply.status(400).send(formatZodError(parseResult.error));
-    }
-    const { domainId, topicId } = parseResult.data;
+    async (request, reply) => {
+      const parseResult = studySummarySchema.safeParse(request.body);
+      if (!parseResult.success) {
+        return reply.status(400).send(formatZodError(parseResult.error));
+      }
+      const { domainId, topicId } = parseResult.data;
 
-    const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
-    if (!domain) {
-      return reply.status(404).send({ error: 'Domain not found' });
-    }
+      const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
+      if (!domain) {
+        return reply.status(404).send({ error: 'Domain not found' });
+      }
 
-    let topic = null;
-    if (topicId) {
-      const [t] = await db.select().from(topics).where(eq(topics.id, topicId));
-      topic = t;
-    }
+      let topic = null;
+      if (topicId) {
+        const [t] = await db.select().from(topics).where(eq(topics.id, topicId));
+        topic = t;
+      }
 
-    // Get weak points from exam responses
-    const responses = await db
-      .select({
-        isCorrect: examResponses.isCorrect,
-        question: questions,
-      })
-      .from(examResponses)
-      .innerJoin(questions, eq(examResponses.questionId, questions.id))
-      .where(topicId ? eq(questions.topicId, topicId) : eq(questions.domainId, domainId));
-
-    const incorrectResponses = responses.filter((r) => r.isCorrect === false);
-    const weakPoints = incorrectResponses.map((r) => r.question.explanation.slice(0, 100));
-
-    try {
-      const content = await generateStudySummary({
-        domain: domain.name,
-        topic: topic?.name,
-        weakPoints: weakPoints.slice(0, 5),
-      });
-
-      // Save the summary
-      const [saved] = await db
-        .insert(studySummaries)
-        .values({
-          domainId,
-          topicId,
-          content,
-          generatedAt: new Date(),
+      // Get weak points from exam responses
+      const responses = await db
+        .select({
+          isCorrect: examResponses.isCorrect,
+          question: questions,
         })
-        .returning();
+        .from(examResponses)
+        .innerJoin(questions, eq(examResponses.questionId, questions.id))
+        .where(topicId ? eq(questions.topicId, topicId) : eq(questions.domainId, domainId));
 
-      return { success: true, summary: saved };
-    } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'Failed to generate study summary',
-        message: error.message,
-      });
+      const incorrectResponses = responses.filter((r) => r.isCorrect === false);
+      const weakPoints = incorrectResponses.map((r) => r.question.explanation.slice(0, 100));
+
+      try {
+        const content = await generateStudySummary({
+          domain: domain.name,
+          topic: topic?.name,
+          weakPoints: weakPoints.slice(0, 5),
+        });
+
+        // Save the summary
+        const [saved] = await db
+          .insert(studySummaries)
+          .values({
+            domainId,
+            topicId,
+            content,
+            generatedAt: new Date(),
+          })
+          .returning();
+
+        return { success: true, summary: saved };
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.status(500).send({
+          error: 'Failed to generate study summary',
+          message: error.message,
+        });
+      }
     }
-  });
+  );
 
   // Generate explanation for a wrong answer
   // Rate limit: 20 per minute
@@ -334,57 +383,61 @@ export async function studyRoutes(fastify: FastifyInstance) {
       questionId: number;
       userAnswers: number[];
     };
-  }>('/explain', {
-    config: {
-      rateLimit: {
-        max: 20,
-        timeWindow: '1 minute',
+  }>(
+    '/explain',
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+        },
       },
     },
-  }, async (request, reply) => {
-    const parseResult = explainSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      return reply.status(400).send(formatZodError(parseResult.error));
+    async (request, reply) => {
+      const parseResult = explainSchema.safeParse(request.body);
+      if (!parseResult.success) {
+        return reply.status(400).send(formatZodError(parseResult.error));
+      }
+      const { questionId, userAnswers } = parseResult.data;
+
+      const [result] = await db
+        .select({
+          question: questions,
+          domain: domains,
+          topic: topics,
+        })
+        .from(questions)
+        .innerJoin(domains, eq(questions.domainId, domains.id))
+        .innerJoin(topics, eq(questions.topicId, topics.id))
+        .where(eq(questions.id, questionId));
+
+      if (!result) {
+        return reply.status(404).send({ error: 'Question not found' });
+      }
+
+      const options = JSON.parse(result.question.options as string);
+      const correctAnswers = JSON.parse(result.question.correctAnswers as string);
+
+      try {
+        const explanation = await generateExplanation({
+          question: result.question.questionText,
+          options,
+          userAnswers,
+          correctAnswers,
+          domain: result.domain.name,
+          topic: result.topic.name,
+        });
+
+        return { success: true, explanation };
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.status(500).send({
+          error: 'Failed to generate explanation',
+          message: error.message,
+        });
+      }
     }
-    const { questionId, userAnswers } = parseResult.data;
-
-    const [result] = await db
-      .select({
-        question: questions,
-        domain: domains,
-        topic: topics,
-      })
-      .from(questions)
-      .innerJoin(domains, eq(questions.domainId, domains.id))
-      .innerJoin(topics, eq(questions.topicId, topics.id))
-      .where(eq(questions.id, questionId));
-
-    if (!result) {
-      return reply.status(404).send({ error: 'Question not found' });
-    }
-
-    const options = JSON.parse(result.question.options as string);
-    const correctAnswers = JSON.parse(result.question.correctAnswers as string);
-
-    try {
-      const explanation = await generateExplanation({
-        question: result.question.questionText,
-        options,
-        userAnswers,
-        correctAnswers,
-        domain: result.domain.name,
-        topic: result.topic.name,
-      });
-
-      return { success: true, explanation };
-    } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        error: 'Failed to generate explanation',
-        message: error.message,
-      });
-    }
-  });
+  );
 
   // Get existing study summaries
   fastify.get('/summaries', async () => {
@@ -414,7 +467,13 @@ export async function studyRoutes(fastify: FastifyInstance) {
     if (!parseResult.success) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
-    const { certificationId, sessionType, topicId, domainId, questionCount = 10 } = parseResult.data;
+    const {
+      certificationId,
+      sessionType,
+      topicId,
+      domainId,
+      questionCount = 10,
+    } = parseResult.data;
 
     // Get and validate certification ID
     const certId = await resolveCertificationId(certificationId, reply);
@@ -441,28 +500,29 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .where(whereCondition);
 
     // Use SQL RANDOM() and LIMIT for efficient random selection
-    const selectedQuestions = await questionQuery
-      .orderBy(sql`RANDOM()`)
-      .limit(questionCount);
+    const selectedQuestions = await questionQuery.orderBy(sql`RANDOM()`).limit(questionCount);
 
     if (selectedQuestions.length === 0) {
       return reply.status(404).send({ error: 'No questions found for the specified criteria' });
     }
 
     // Create the session
-    const [session] = await db.insert(studySessions).values({
-      certificationId: certId,
-      sessionType,
-      topicId: topicId || null,
-      domainId: domainId || selectedQuestions[0]?.question.domainId || null,
-      startedAt: new Date(),
-      status: 'in_progress',
-      totalQuestions: selectedQuestions.length,
-    }).returning();
+    const [session] = await db
+      .insert(studySessions)
+      .values({
+        certificationId: certId,
+        sessionType,
+        topicId: topicId || null,
+        domainId: domainId || selectedQuestions[0]?.question.domainId || null,
+        startedAt: new Date(),
+        status: 'in_progress',
+        totalQuestions: selectedQuestions.length,
+      })
+      .returning();
 
     // Format questions for response - SECURITY: Do NOT include correctAnswers or explanation
     // These are only revealed after user submits via /sessions/:id/answer
-    const formattedQuestions = selectedQuestions.map((q, index) => ({
+    const formattedQuestions = selectedQuestions.map((q) => ({
       id: q.question.id,
       questionText: q.question.questionText,
       questionType: q.question.questionType,
@@ -487,80 +547,82 @@ export async function studyRoutes(fastify: FastifyInstance) {
   });
 
   // Get active study session for recovery (filtered by certification)
-  fastify.get<{ Querystring: { certificationId?: string } }>('/sessions/active', async (request, reply) => {
-    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
-    if (certId === null) return; // Error already sent
+  fastify.get<{ Querystring: { certificationId?: string } }>(
+    '/sessions/active',
+    async (request, reply) => {
+      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+      if (certId === null) return; // Error already sent
 
-    const [session] = await db
-      .select()
-      .from(studySessions)
-      .where(and(
-        eq(studySessions.status, 'in_progress'),
-        eq(studySessions.certificationId, certId)
-      ))
-      .orderBy(desc(studySessions.startedAt))
-      .limit(1);
+      const [session] = await db
+        .select()
+        .from(studySessions)
+        .where(
+          and(eq(studySessions.status, 'in_progress'), eq(studySessions.certificationId, certId))
+        )
+        .orderBy(desc(studySessions.startedAt))
+        .limit(1);
 
-    if (!session) {
-      return null;
-    }
+      if (!session) {
+        return null;
+      }
 
-    // Get responses for this session
-    const responses = await db
-      .select()
-      .from(studySessionResponses)
-      .where(eq(studySessionResponses.sessionId, session.id));
+      // Get responses for this session
+      const responses = await db
+        .select()
+        .from(studySessionResponses)
+        .where(eq(studySessionResponses.sessionId, session.id));
 
-    // Get questions that were part of this session (by looking at responses or re-fetching)
-    const questionIds = responses.map(r => r.questionId);
-    let sessionQuestions: any[] = [];
+      // Get questions that were part of this session (by looking at responses or re-fetching)
+      const questionIds = responses.map((r) => r.questionId);
+      let sessionQuestions: any[] = [];
 
-    if (questionIds.length > 0) {
-      const questionsData = await db
-        .select({
-          question: questions,
-          domain: domains,
-          topic: topics,
-        })
-        .from(questions)
-        .innerJoin(domains, eq(questions.domainId, domains.id))
-        .innerJoin(topics, eq(questions.topicId, topics.id))
-        .where(inArray(questions.id, questionIds));
+      if (questionIds.length > 0) {
+        const questionsData = await db
+          .select({
+            question: questions,
+            domain: domains,
+            topic: topics,
+          })
+          .from(questions)
+          .innerJoin(domains, eq(questions.domainId, domains.id))
+          .innerJoin(topics, eq(questions.topicId, topics.id))
+          .where(inArray(questions.id, questionIds));
 
-      // SECURITY: Only include correctAnswers/explanation for questions that have been answered
-      const answeredQuestionIds = new Set(responses.map(r => r.questionId));
-      sessionQuestions = questionsData.map(q => {
-        const base = {
-          id: q.question.id,
-          questionText: q.question.questionText,
-          questionType: q.question.questionType,
-          options: JSON.parse(q.question.options as string),
-          difficulty: q.question.difficulty,
-          gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
-          domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
-          topic: { id: q.topic.id, name: q.topic.name },
-        };
-        // Only reveal answers for already-answered questions
-        if (answeredQuestionIds.has(q.question.id)) {
-          return {
-            ...base,
-            correctAnswers: JSON.parse(q.question.correctAnswers as string),
-            explanation: q.question.explanation,
+        // SECURITY: Only include correctAnswers/explanation for questions that have been answered
+        const answeredQuestionIds = new Set(responses.map((r) => r.questionId));
+        sessionQuestions = questionsData.map((q) => {
+          const base = {
+            id: q.question.id,
+            questionText: q.question.questionText,
+            questionType: q.question.questionType,
+            options: JSON.parse(q.question.options as string),
+            difficulty: q.question.difficulty,
+            gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+            domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
+            topic: { id: q.topic.id, name: q.topic.name },
           };
-        }
-        return base;
-      });
-    }
+          // Only reveal answers for already-answered questions
+          if (answeredQuestionIds.has(q.question.id)) {
+            return {
+              ...base,
+              correctAnswers: JSON.parse(q.question.correctAnswers as string),
+              explanation: q.question.explanation,
+            };
+          }
+          return base;
+        });
+      }
 
-    return {
-      session,
-      responses: responses.map(r => ({
-        ...r,
-        selectedAnswers: JSON.parse(r.selectedAnswers as string),
-      })),
-      questions: sessionQuestions,
-    };
-  });
+      return {
+        session,
+        responses: responses.map((r) => ({
+          ...r,
+          selectedAnswers: JSON.parse(r.selectedAnswers as string),
+        })),
+        questions: sessionQuestions,
+      };
+    }
+  );
 
   // Submit answer during study session
   fastify.patch<{
@@ -601,9 +663,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(500).send({ error: 'Invalid question data' });
     }
 
-    const isCorrect = selectedAnswers.length === correctAnswers.length &&
-      selectedAnswers.every(a => correctAnswers.includes(a)) &&
-      correctAnswers.every(a => selectedAnswers.includes(a));
+    const isCorrect =
+      selectedAnswers.length === correctAnswers.length &&
+      selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+      correctAnswers.every((a) => selectedAnswers.includes(a));
 
     // Use transaction to prevent TOCTOU race condition
     // The unique constraint on (sessionId, questionId) also prevents duplicates
@@ -612,16 +675,19 @@ export async function studyRoutes(fastify: FastifyInstance) {
       const [existingResponse] = await tx
         .select()
         .from(studySessionResponses)
-        .where(and(
-          eq(studySessionResponses.sessionId, sessionId),
-          eq(studySessionResponses.questionId, questionId)
-        ));
+        .where(
+          and(
+            eq(studySessionResponses.sessionId, sessionId),
+            eq(studySessionResponses.questionId, questionId)
+          )
+        );
 
       let wasAddedToSR = false;
 
       if (existingResponse) {
         // Update existing response
-        await tx.update(studySessionResponses)
+        await tx
+          .update(studySessionResponses)
           .set({
             selectedAnswers: JSON.stringify(selectedAnswers),
             isCorrect,
@@ -665,18 +731,22 @@ export async function studyRoutes(fastify: FastifyInstance) {
             wasAddedToSR = true;
 
             // Update the response to mark it
-            await tx.update(studySessionResponses)
+            await tx
+              .update(studySessionResponses)
               .set({ addedToSR: true })
-              .where(and(
-                eq(studySessionResponses.sessionId, sessionId),
-                eq(studySessionResponses.questionId, questionId)
-              ));
+              .where(
+                and(
+                  eq(studySessionResponses.sessionId, sessionId),
+                  eq(studySessionResponses.questionId, questionId)
+                )
+              );
           }
         }
       }
 
       // Update session sync time
-      await tx.update(studySessions)
+      await tx
+        .update(studySessions)
         .set({ syncedAt: new Date() })
         .where(eq(studySessions.id, sessionId));
 
@@ -715,26 +785,31 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
 
     // Batch fetch all data upfront to avoid N+1
-    const questionIds = responses.map(r => r.questionId);
+    const questionIds = responses.map((r) => r.questionId);
 
     // Fetch all questions in one query
-    const allQuestions = questionIds.length > 0
-      ? await db.select().from(questions).where(inArray(questions.id, questionIds))
-      : [];
-    const questionsMap = new Map(allQuestions.map(q => [q.id, q]));
+    const allQuestions =
+      questionIds.length > 0
+        ? await db.select().from(questions).where(inArray(questions.id, questionIds))
+        : [];
+    const questionsMap = new Map(allQuestions.map((q) => [q.id, q]));
 
     // Fetch all existing responses in one query
     const existingResponses = await db
       .select()
       .from(studySessionResponses)
       .where(eq(studySessionResponses.sessionId, sessionId));
-    const existingResponsesMap = new Map(existingResponses.map(r => [r.questionId, r]));
+    const existingResponsesMap = new Map(existingResponses.map((r) => [r.questionId, r]));
 
     // Fetch all existing SR entries in one query
-    const existingSREntries = questionIds.length > 0
-      ? await db.select().from(spacedRepetition).where(inArray(spacedRepetition.questionId, questionIds))
-      : [];
-    const existingSRMap = new Set(existingSREntries.map(sr => sr.questionId));
+    const existingSREntries =
+      questionIds.length > 0
+        ? await db
+            .select()
+            .from(spacedRepetition)
+            .where(inArray(spacedRepetition.questionId, questionIds))
+        : [];
+    const existingSRMap = new Set(existingSREntries.map((sr) => sr.questionId));
 
     // Use transaction for atomic operations
     const result = await db.transaction(async (tx) => {
@@ -761,9 +836,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
         if (!question) continue;
 
         const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
-        const isCorrect = response.selectedAnswers.length === correctAnswers.length &&
-          response.selectedAnswers.every(a => correctAnswers.includes(a)) &&
-          correctAnswers.every(a => response.selectedAnswers.includes(a));
+        const isCorrect =
+          response.selectedAnswers.length === correctAnswers.length &&
+          response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+          correctAnswers.every((a) => response.selectedAnswers.includes(a));
 
         // Only insert if not already exists
         if (!existingResponsesMap.has(response.questionId)) {
@@ -806,12 +882,13 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       // Count actual correct answers from combined data
       const allResponsesData = [...existingResponses, ...responsesToInsert];
-      const actualCorrect = allResponsesData.filter(r => r.isCorrect).length;
+      const actualCorrect = allResponsesData.filter((r) => r.isCorrect).length;
       const actualTotal = allResponsesData.length;
-      const actualAddedToSR = allResponsesData.filter(r => r.addedToSR).length;
+      const actualAddedToSR = allResponsesData.filter((r) => r.addedToSR).length;
 
       // Complete the session
-      await tx.update(studySessions)
+      await tx
+        .update(studySessions)
         .set({
           status: 'completed',
           completedAt: new Date(),
@@ -845,7 +922,8 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Session not found' });
     }
 
-    await db.update(studySessions)
+    await db
+      .update(studySessions)
       .set({ status: 'abandoned', completedAt: new Date() })
       .where(eq(studySessions.id, sessionId));
 
@@ -889,7 +967,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .orderBy(sql`RANDOM()`)
       .limit(count);
 
-    return selectedQuestions.map(q => ({
+    return selectedQuestions.map((q) => ({
       id: q.question.id,
       questionText: q.question.questionText,
       questionType: q.question.questionType,
@@ -922,7 +1000,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .where(eq(questions.topicId, topicId));
 
     const totalAttempted = responses.length;
-    const correctCount = responses.filter(r => r.isCorrect).length;
+    const correctCount = responses.filter((r) => r.isCorrect).length;
     const accuracy = totalAttempted > 0 ? Math.round((correctCount / totalAttempted) * 100) : 0;
 
     // Get questions in SR queue for this topic
@@ -936,10 +1014,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     const [lastSession] = await db
       .select()
       .from(studySessions)
-      .where(and(
-        eq(studySessions.topicId, topicId),
-        eq(studySessions.status, 'completed')
-      ))
+      .where(and(eq(studySessions.topicId, topicId), eq(studySessions.status, 'completed')))
       .orderBy(desc(studySessions.completedAt))
       .limit(1);
 

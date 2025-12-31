@@ -57,8 +57,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <div className={styles.icon}>&#9888;</div>
           <h2 className={styles.title}>Something went wrong</h2>
           <p className={styles.message}>
-            An unexpected error occurred. Click the button below to try again.
-            If the problem persists, try refreshing the page.
+            An unexpected error occurred. Click the button below to try again. If the problem
+            persists, try refreshing the page.
           </p>
           <div className={styles.actions}>
             <button className={styles.retryBtn} onClick={this.handleReset}>
@@ -68,10 +68,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
           {this.state.error && (
             <div className={styles.details}>
-              <button
-                className={styles.detailsToggle}
-                onClick={this.toggleDetails}
-              >
+              <button className={styles.detailsToggle} onClick={this.toggleDetails}>
                 {this.state.showDetails ? '▼' : '▶'} Error Details
               </button>
               {this.state.showDetails && (

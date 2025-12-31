@@ -37,13 +37,12 @@ export function LearningPathList() {
       <div className={styles.progressHeader}>
         <div className={styles.progressInfo}>
           <span className={styles.progressLabel}>Your Progress</span>
-          <span className={styles.progressCount}>{completedCount} of {totalCount} completed</span>
+          <span className={styles.progressCount}>
+            {completedCount} of {totalCount} completed
+          </span>
         </div>
         <div className={styles.progressBar}>
-          <div
-            className={styles.progressFill}
-            style={{ width: `${percentComplete}%` }}
-          />
+          <div className={styles.progressFill} style={{ width: `${percentComplete}%` }} />
         </div>
         <span className={styles.progressPercent}>{percentComplete}%</span>
       </div>

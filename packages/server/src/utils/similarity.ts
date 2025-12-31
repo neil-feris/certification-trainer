@@ -9,18 +9,107 @@
  */
 
 const STOPWORDS = new Set([
-  'a', 'an', 'the', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
-  'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
-  'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall',
-  'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
-  'into', 'through', 'during', 'before', 'after', 'above', 'below',
-  'between', 'under', 'again', 'further', 'then', 'once', 'here',
-  'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
-  'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not',
-  'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can',
-  'just', 'should', 'now', 'this', 'that', 'these', 'those',
-  'what', 'which', 'who', 'whom', 'if', 'your', 'you', 'we', 'they',
-  'it', 'its', 'my', 'our', 'their', 'his', 'her', 'i', 'me', 'him',
+  'a',
+  'an',
+  'the',
+  'and',
+  'or',
+  'but',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'must',
+  'shall',
+  'to',
+  'of',
+  'in',
+  'for',
+  'on',
+  'with',
+  'at',
+  'by',
+  'from',
+  'as',
+  'into',
+  'through',
+  'during',
+  'before',
+  'after',
+  'above',
+  'below',
+  'between',
+  'under',
+  'again',
+  'further',
+  'then',
+  'once',
+  'here',
+  'there',
+  'when',
+  'where',
+  'why',
+  'how',
+  'all',
+  'each',
+  'few',
+  'more',
+  'most',
+  'other',
+  'some',
+  'such',
+  'no',
+  'nor',
+  'not',
+  'only',
+  'own',
+  'same',
+  'so',
+  'than',
+  'too',
+  'very',
+  'can',
+  'just',
+  'should',
+  'now',
+  'this',
+  'that',
+  'these',
+  'those',
+  'what',
+  'which',
+  'who',
+  'whom',
+  'if',
+  'your',
+  'you',
+  'we',
+  'they',
+  'it',
+  'its',
+  'my',
+  'our',
+  'their',
+  'his',
+  'her',
+  'i',
+  'me',
+  'him',
 ]);
 
 /**
@@ -39,7 +128,7 @@ function couldMeetThreshold(sizeA: number, sizeB: number, threshold: number): bo
   if (sizeA === 0 || sizeB === 0) return threshold === 0;
   const minSize = Math.min(sizeA, sizeB);
   const maxSize = Math.max(sizeA, sizeB);
-  return (minSize / maxSize) >= minSizeRatioForThreshold(threshold);
+  return minSize / maxSize >= minSizeRatioForThreshold(threshold);
 }
 
 /**
@@ -51,7 +140,7 @@ export function tokenize(text: string): Set<string> {
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
-    .filter(word => word.length > 1 && !STOPWORDS.has(word));
+    .filter((word) => word.length > 1 && !STOPWORDS.has(word));
 
   return new Set(normalized);
 }
@@ -204,7 +293,7 @@ export interface TokenizedQuestion {
 export function preTokenizeQuestions(
   questions: { id: number; questionText: string }[]
 ): TokenizedQuestion[] {
-  return questions.map(q => ({
+  return questions.map((q) => ({
     id: q.id,
     questionText: q.questionText,
     tokens: tokenize(q.questionText),
