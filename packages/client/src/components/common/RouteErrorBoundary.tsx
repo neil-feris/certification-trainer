@@ -12,7 +12,10 @@ interface RouteErrorBoundaryState {
   showDetails: boolean;
 }
 
-export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBoundaryState> {
+export class RouteErrorBoundary extends Component<
+  RouteErrorBoundaryProps,
+  RouteErrorBoundaryState
+> {
   constructor(props: RouteErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -50,8 +53,8 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
           <div className={`${styles.icon} ${styles.routeIcon}`}>&#10060;</div>
           <h2 className={styles.title}>Page Failed to Load</h2>
           <p className={styles.message}>
-            This page encountered an error and couldn't be displayed.
-            You can try again or return to the dashboard.
+            This page encountered an error and couldn't be displayed. You can try again or return to
+            the dashboard.
           </p>
           <div className={styles.actions}>
             <button className={styles.retryBtn} onClick={this.handleReset}>
@@ -64,10 +67,7 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
 
           {this.state.error && (
             <div className={styles.details}>
-              <button
-                className={styles.detailsToggle}
-                onClick={this.toggleDetails}
-              >
+              <button className={styles.detailsToggle} onClick={this.toggleDetails}>
                 {this.state.showDetails ? '▼' : '▶'} Error Details
               </button>
               {this.state.showDetails && (

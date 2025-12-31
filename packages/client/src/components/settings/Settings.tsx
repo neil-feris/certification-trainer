@@ -33,7 +33,9 @@ export function Settings() {
   const [openaiModel, setOpenaiModel] = useState<OpenAIModel>(DEFAULT_OPENAI_MODEL);
   const [generateDifficulty, setGenerateDifficulty] = useState<DifficultyOption>('mixed');
   const [generateCount, setGenerateCount] = useState<number>(50);
-  const [testStatus, setTestStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [testStatus, setTestStatus] = useState<{ success?: boolean; message?: string } | null>(
+    null
+  );
 
   // Use Zustand store for generation state (survives navigation) and exam preferences
   const {
@@ -102,7 +104,10 @@ export function Settings() {
     }
   };
 
-  const handleModelChange = async (newModel: AnthropicModel | OpenAIModel, isAnthropic: boolean) => {
+  const handleModelChange = async (
+    newModel: AnthropicModel | OpenAIModel,
+    isAnthropic: boolean
+  ) => {
     if (isAnthropic) {
       setAnthropicModel(newModel as AnthropicModel);
       await updateSettings.mutateAsync({ anthropicModel: newModel as AnthropicModel });
@@ -209,9 +214,7 @@ export function Settings() {
               </option>
             ))}
           </select>
-          <span className={styles.hint}>
-            Select the model to use for question generation
-          </span>
+          <span className={styles.hint}>Select the model to use for question generation</span>
         </div>
 
         <div className={styles.formGroup}>
@@ -234,7 +237,9 @@ export function Settings() {
         </button>
 
         {testStatus && (
-          <div className={`${styles.status} ${testStatus.success ? styles.statusSuccess : styles.statusError}`}>
+          <div
+            className={`${styles.status} ${testStatus.success ? styles.statusSuccess : styles.statusError}`}
+          >
             {testStatus.message}
           </div>
         )}
@@ -244,7 +249,8 @@ export function Settings() {
       <section className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>Question Bank</h2>
         <p className={styles.sectionDescription}>
-          Generate practice questions using AI. You currently have <strong>{questionCount}</strong> questions.
+          Generate practice questions using AI. You currently have <strong>{questionCount}</strong>{' '}
+          questions.
         </p>
 
         <div className={styles.formGroup}>
@@ -304,7 +310,9 @@ export function Settings() {
             <div className={styles.progressBar}>
               <div
                 className={styles.progressFill}
-                style={{ width: `${(generation.domainsCompleted / generation.domainsTotal) * 100}%` }}
+                style={{
+                  width: `${(generation.domainsCompleted / generation.domainsTotal) * 100}%`,
+                }}
               />
             </div>
             <span className={styles.progressText}>
@@ -346,9 +354,7 @@ export function Settings() {
       {/* Exam Preferences */}
       <section className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>Exam Preferences</h2>
-        <p className={styles.sectionDescription}>
-          Configure your exam-taking experience.
-        </p>
+        <p className={styles.sectionDescription}>Configure your exam-taking experience.</p>
 
         <div className={styles.formGroup}>
           <label className={styles.toggleLabel}>
@@ -374,15 +380,18 @@ export function Settings() {
         </p>
 
         <div className={styles.buttonGroup}>
-          <button className="btn btn-secondary" onClick={async () => {
-            const data = await progressApi.exportData();
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `ace-prep-export-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-          }}>
+          <button
+            className="btn btn-secondary"
+            onClick={async () => {
+              const data = await progressApi.exportData();
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `ace-prep-export-${new Date().toISOString().split('T')[0]}.json`;
+              a.click();
+            }}
+          >
             Export Data
           </button>
           <button className="btn btn-secondary" disabled>
@@ -395,7 +404,10 @@ export function Settings() {
       <section className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>About</h2>
         <div className={styles.about}>
-          <p><strong>ACE Prep</strong> - Google Cloud Associate Cloud Engineer Certification Preparation</p>
+          <p>
+            <strong>ACE Prep</strong> - Google Cloud Associate Cloud Engineer Certification
+            Preparation
+          </p>
           <p className={styles.version}>Version 1.0.0</p>
         </div>
       </section>

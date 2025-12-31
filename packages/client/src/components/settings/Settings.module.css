@@ -227,7 +227,9 @@
   font-size: 14px;
   line-height: 1;
   border-radius: 4px;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
+  transition:
+    opacity var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .dismissBtn:hover {
@@ -259,7 +261,7 @@
 }
 
 .toggleInput::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 2px;
   left: 2px;

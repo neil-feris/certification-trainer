@@ -9,7 +9,14 @@ interface DrillSummaryProps {
 
 export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
   const navigate = useNavigate();
-  const { score, correctCount, totalCount, avgTimePerQuestion, addedToSRCount, results: drillResults } = results;
+  const {
+    score,
+    correctCount,
+    totalCount,
+    avgTimePerQuestion,
+    addedToSRCount,
+    results: drillResults,
+  } = results;
 
   // Determine score category
   const getScoreCategory = (): string => {
@@ -52,14 +59,14 @@ export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
           <span className={styles.scoreLabel}>Score</span>
         </div>
 
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          {getScoreMessage()}
-        </p>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>{getScoreMessage()}</p>
 
         {/* Stats Grid */}
         <div className={styles.statsGrid}>
           <div className={styles.statItem}>
-            <span className={styles.statValue}>{correctCount}/{totalCount}</span>
+            <span className={styles.statValue}>
+              {correctCount}/{totalCount}
+            </span>
             <span className={styles.statLabel}>Correct</span>
           </div>
           <div className={styles.statItem}>
@@ -89,9 +96,7 @@ export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
         {/* Wrong Answers Review */}
         {wrongAnswers.length > 0 && (
           <div className={styles.wrongAnswersList}>
-            <div className={styles.wrongAnswersTitle}>
-              Review These ({wrongAnswers.length})
-            </div>
+            <div className={styles.wrongAnswersTitle}>Review These ({wrongAnswers.length})</div>
             {wrongAnswers.slice(0, 3).map((answer, index) => (
               <div key={index} className={styles.wrongAnswerItem}>
                 <div className={styles.wrongAnswerQuestion}>

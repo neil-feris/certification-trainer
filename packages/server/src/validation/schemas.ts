@@ -24,10 +24,13 @@ export const providerParamSchema = z.object({
 export const createExamSchema = z.object({
   certificationId: z.number().int().positive().optional(),
   focusDomains: z.array(z.number().int().positive()).optional(),
-  questionCount: z.number().int().refine(
-    (val) => (EXAM_SIZE_OPTIONS as readonly number[]).includes(val),
-    { message: `Question count must be one of: ${EXAM_SIZE_OPTIONS.join(', ')}` }
-  ).optional(),
+  questionCount: z
+    .number()
+    .int()
+    .refine((val) => (EXAM_SIZE_OPTIONS as readonly number[]).includes(val), {
+      message: `Question count must be one of: ${EXAM_SIZE_OPTIONS.join(', ')}`,
+    })
+    .optional(),
 });
 
 export const submitAnswerSchema = z.object({
@@ -102,11 +105,13 @@ export const submitStudyAnswerSchema = z.object({
 });
 
 export const completeStudySessionSchema = z.object({
-  responses: z.array(z.object({
-    questionId: z.number().int().positive(),
-    selectedAnswers: z.array(z.number().int().min(0)),
-    timeSpentSeconds: z.number().int().min(0),
-  })),
+  responses: z.array(
+    z.object({
+      questionId: z.number().int().positive(),
+      selectedAnswers: z.array(z.number().int().min(0)),
+      timeSpentSeconds: z.number().int().min(0),
+    })
+  ),
   totalTimeSeconds: z.number().int().min(0),
 });
 
@@ -127,15 +132,17 @@ export const topicQuestionsQuerySchema = z.object({
 
 // ============ Settings Schemas ============
 
-export const updateSettingsSchema = z.object({
-  llmProvider: z.enum(['openai', 'anthropic']).optional(),
-  openaiApiKey: z.string().optional(),
-  anthropicApiKey: z.string().optional(),
-  anthropicModel: z.string().optional(),
-  openaiModel: z.string().optional(),
-  examDurationMinutes: z.number().int().positive().max(300).optional(),
-  questionsPerExam: z.number().int().positive().max(200).optional(),
-}).strict();
+export const updateSettingsSchema = z
+  .object({
+    llmProvider: z.enum(['openai', 'anthropic']).optional(),
+    openaiApiKey: z.string().optional(),
+    anthropicApiKey: z.string().optional(),
+    anthropicModel: z.string().optional(),
+    openaiModel: z.string().optional(),
+    examDurationMinutes: z.number().int().positive().max(300).optional(),
+    questionsPerExam: z.number().int().positive().max(200).optional(),
+  })
+  .strict();
 
 export const testApiSchema = z.object({
   provider: z.enum(['openai', 'anthropic']),
@@ -185,22 +192,28 @@ export const importProgressSchema = z.object({
 
 // ============ Drill Schemas ============
 
-export const startDrillSchema = z.object({
-  certificationId: z.number().int().positive().optional(),
-  mode: z.enum(['domain', 'weak_areas']),
-  domainId: z.number().int().positive().optional(),
-  questionCount: z.number().int().refine(
-    (val) => (DRILL_QUESTION_COUNTS as readonly number[]).includes(val),
-    { message: `Question count must be one of: ${DRILL_QUESTION_COUNTS.join(', ')}` }
-  ),
-  timeLimitSeconds: z.number().int().refine(
-    (val) => (DRILL_TIME_LIMITS as readonly number[]).includes(val),
-    { message: `Time limit must be one of: ${DRILL_TIME_LIMITS.join(', ')}` }
-  ),
-}).refine(
-  (data) => data.mode !== 'domain' || data.domainId !== undefined,
-  { message: 'domainId is required when mode is "domain"', path: ['domainId'] }
-);
+export const startDrillSchema = z
+  .object({
+    certificationId: z.number().int().positive().optional(),
+    mode: z.enum(['domain', 'weak_areas']),
+    domainId: z.number().int().positive().optional(),
+    questionCount: z
+      .number()
+      .int()
+      .refine((val) => (DRILL_QUESTION_COUNTS as readonly number[]).includes(val), {
+        message: `Question count must be one of: ${DRILL_QUESTION_COUNTS.join(', ')}`,
+      }),
+    timeLimitSeconds: z
+      .number()
+      .int()
+      .refine((val) => (DRILL_TIME_LIMITS as readonly number[]).includes(val), {
+        message: `Time limit must be one of: ${DRILL_TIME_LIMITS.join(', ')}`,
+      }),
+  })
+  .refine((data) => data.mode !== 'domain' || data.domainId !== undefined, {
+    message: 'domainId is required when mode is "domain"',
+    path: ['domainId'],
+  });
 
 export const submitDrillAnswerSchema = z.object({
   questionId: z.number().int().positive('Question ID must be a positive integer'),

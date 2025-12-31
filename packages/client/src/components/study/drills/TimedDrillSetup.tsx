@@ -134,11 +134,7 @@ export function TimedDrillSetup({ onStart }: TimedDrillSetupProps) {
         </div>
 
         {/* Start Button */}
-        <button
-          className={styles.startBtn}
-          onClick={handleStart}
-          disabled={!canStart || isLoading}
-        >
+        <button className={styles.startBtn} onClick={handleStart} disabled={!canStart || isLoading}>
           {isLoading ? 'Starting...' : 'Start Drill'}
         </button>
       </div>

@@ -15,7 +15,8 @@
   font-weight: 600;
 }
 
-.loading, .error {
+.loading,
+.error {
   display: flex;
   flex-direction: column;
   align-items: center;

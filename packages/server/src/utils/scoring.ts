@@ -8,10 +8,7 @@
  * Handles both single and multiple choice questions.
  * Order-independent comparison (set equality).
  */
-export function checkAnswerCorrect(
-  selectedAnswers: number[],
-  correctAnswers: number[]
-): boolean {
+export function checkAnswerCorrect(selectedAnswers: number[], correctAnswers: number[]): boolean {
   if (selectedAnswers.length !== correctAnswers.length) {
     return false;
   }
@@ -29,10 +26,7 @@ export function checkAnswerCorrect(
  * @param totalCount Total number of questions
  * @returns Percentage score (0-100)
  */
-export function calculateExamScore(
-  correctCount: number,
-  totalCount: number
-): number {
+export function calculateExamScore(correctCount: number, totalCount: number): number {
   if (totalCount === 0) {
     return 0;
   }
@@ -54,9 +48,7 @@ export function isPassing(score: number): boolean {
  * @param responses Array of responses with isCorrect boolean
  * @returns Accuracy percentage (0-100)
  */
-export function calculateAccuracy(
-  responses: { isCorrect: boolean | null }[]
-): number {
+export function calculateAccuracy(responses: { isCorrect: boolean | null }[]): number {
   const answered = responses.filter((r) => r.isCorrect !== null);
   if (answered.length === 0) {
     return 0;

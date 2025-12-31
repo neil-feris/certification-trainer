@@ -23,24 +23,15 @@ export function DomainCard({ domain, onStartPractice }: DomainCardProps) {
 
   return (
     <div className={styles.domainCard}>
-      <button
-        className={styles.domainHeader}
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
+      <button className={styles.domainHeader} onClick={() => setIsExpanded(!isExpanded)}>
         <div className={styles.domainInfo}>
           <h3 className={styles.domainName}>{domain.name}</h3>
-          <span className={styles.domainWeight}>
-            {Math.round(domain.weight * 100)}% of exam
-          </span>
+          <span className={styles.domainWeight}>{Math.round(domain.weight * 100)}% of exam</span>
         </div>
-        <span className={`${styles.expandIcon} ${isExpanded ? styles.expanded : ''}`}>
-          ▼
-        </span>
+        <span className={`${styles.expandIcon} ${isExpanded ? styles.expanded : ''}`}>▼</span>
       </button>
 
-      {domain.description && (
-        <p className={styles.domainDescription}>{domain.description}</p>
-      )}
+      {domain.description && <p className={styles.domainDescription}>{domain.description}</p>}
 
       {isExpanded && (
         <div className={styles.topicList}>

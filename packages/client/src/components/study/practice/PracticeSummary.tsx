@@ -4,7 +4,12 @@ import { useStudyStore } from '../../../stores/studyStore';
 import styles from './Practice.module.css';
 
 interface PracticeSummaryProps {
-  onComplete: () => Promise<{ score: number; correctCount: number; totalCount: number; addedToSRCount: number }>;
+  onComplete: () => Promise<{
+    score: number;
+    correctCount: number;
+    totalCount: number;
+    addedToSRCount: number;
+  }>;
   onExit: () => void;
 }
 
@@ -77,7 +82,8 @@ export function PracticeSummary({ onComplete, onExit }: PracticeSummaryProps) {
           {result.addedToSRCount > 0 && (
             <div className={styles.srNotice}>
               <span className={styles.srIcon}>📝</span>
-              {result.addedToSRCount} question{result.addedToSRCount > 1 ? 's' : ''} added to your review queue
+              {result.addedToSRCount} question{result.addedToSRCount > 1 ? 's' : ''} added to your
+              review queue
             </div>
           )}
 
@@ -86,10 +92,7 @@ export function PracticeSummary({ onComplete, onExit }: PracticeSummaryProps) {
               Continue Studying
             </button>
             {result.addedToSRCount > 0 && (
-              <button
-                className="btn btn-secondary"
-                onClick={() => navigate('/review')}
-              >
+              <button className="btn btn-secondary" onClick={() => navigate('/review')}>
                 Go to Review
               </button>
             )}
@@ -105,15 +108,12 @@ export function PracticeSummary({ onComplete, onExit }: PracticeSummaryProps) {
         <h2 className={styles.summaryTitle}>Ready to Submit?</h2>
         <p className={styles.summaryMessage}>
           You've answered {progress.answered} of {progress.total} questions.
-          {progress.correct} correct so far ({Math.round((progress.correct / progress.answered) * 100) || 0}%).
+          {progress.correct} correct so far (
+          {Math.round((progress.correct / progress.answered) * 100) || 0}%).
         </p>
 
         <div className={styles.summaryActions}>
-          <button
-            className="btn btn-primary"
-            onClick={handleComplete}
-            disabled={isSubmitting}
-          >
+          <button className="btn btn-primary" onClick={handleComplete} disabled={isSubmitting}>
             {isSubmitting ? 'Submitting...' : 'Complete Practice'}
           </button>
         </div>
