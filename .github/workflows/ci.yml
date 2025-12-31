@@ -22,10 +22,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.2.0'
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Run ESLint
         run: npm run lint
@@ -44,10 +44,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.2.0'
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Build shared package
         run: npm run build -w @ace-prep/shared
@@ -70,10 +70,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.2.0'
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Build all packages
         run: npm run build
@@ -90,10 +90,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.2.0'
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Build shared package
         run: npm run build -w @ace-prep/shared
