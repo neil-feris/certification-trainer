@@ -22,6 +22,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
   // Optimized: filters and pagination pushed to SQL instead of in-memory
   fastify.get<{
     Querystring: {
+      certificationId?: string;
       domainId?: string;
       topicId?: string;
       difficulty?: string;
@@ -34,6 +35,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const {
+      certificationId,
       domainId,
       topicId,
       difficulty,
@@ -43,6 +45,10 @@ export async function questionRoutes(fastify: FastifyInstance) {
 
     // Build WHERE conditions dynamically
     const conditions = [];
+    if (certificationId) {
+      // Filter by domains belonging to this certification
+      conditions.push(eq(domains.certificationId, certificationId));
+    }
     if (domainId) {
       conditions.push(eq(questions.domainId, domainId));
     }
@@ -56,7 +62,12 @@ export async function questionRoutes(fastify: FastifyInstance) {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count with filters applied (single query)
-    const [countResult] = await db.select({ total: count() }).from(questions).where(whereClause);
+    // Need to join domains when filtering by certificationId
+    const countQuery = db
+      .select({ total: count() })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id));
+    const [countResult] = await countQuery.where(whereClause);
     const total = countResult?.total ?? 0;
 
     // Get paginated results with filters applied in SQL

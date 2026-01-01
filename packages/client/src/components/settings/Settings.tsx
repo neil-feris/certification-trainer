@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { settingsApi, questionApi, progressApi } from '../../api/client';
+import { settingsApi, questionApi, progressApi, studyApi } from '../../api/client';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useCertificationStore } from '../../stores/certificationStore';
 import {
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
@@ -49,9 +50,22 @@ export function Settings() {
     setShowDifficultyDuringExam,
   } = useSettingsStore();
 
+  // Certification context
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
+
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: settingsApi.get,
+  });
+
+  // Fetch domains for the selected certification
+  const { data: certDomains = [] } = useQuery({
+    queryKey: ['studyDomains', selectedCertificationId],
+    queryFn: () => studyApi.getDomains(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null,
   });
 
   // Sync local state with loaded settings
@@ -70,8 +84,9 @@ export function Settings() {
   }, [settings]);
 
   const { data: questionCount = 0 } = useQuery({
-    queryKey: ['questions', 'count'],
-    queryFn: () => questionApi.getCount(),
+    queryKey: ['questions', 'count', selectedCertificationId],
+    queryFn: () => questionApi.getCount({ certificationId: selectedCertificationId ?? undefined }),
+    enabled: selectedCertificationId !== null,
   });
 
   const updateSettings = useMutation({
@@ -121,14 +136,18 @@ export function Settings() {
   const generateMutation = useMutation({
     mutationFn: async () => {
       const currentModel = provider === 'anthropic' ? anthropicModel : openaiModel;
-      const domains = [1, 2, 3, 4, 5];
-      const questionsPerDomain = Math.ceil(generateCount / domains.length);
+      // Use domains from the selected certification
+      const domainIds = certDomains.map((d: any) => d.id);
+      if (domainIds.length === 0) {
+        throw new Error('No domains available for this certification');
+      }
+      const questionsPerDomain = Math.ceil(generateCount / domainIds.length);
 
-      startGeneration(domains.length);
+      startGeneration(domainIds.length);
 
       // Run all domain generations in parallel for speed
       const results = await Promise.allSettled(
-        domains.map(async (domainId) => {
+        domainIds.map(async (domainId: number) => {
           const result = await questionApi.generate({
             domainId,
             difficulty: generateDifficulty,
@@ -249,8 +268,9 @@ export function Settings() {
       <section className={`card ${styles.section}`}>
         <h2 className={styles.sectionTitle}>Question Bank</h2>
         <p className={styles.sectionDescription}>
-          Generate practice questions using AI. You currently have <strong>{questionCount}</strong>{' '}
-          questions.
+          Generate practice questions for{' '}
+          <strong>{selectedCert?.shortName || 'selected certification'}</strong>. You currently have{' '}
+          <strong>{questionCount}</strong> questions.
         </p>
 
         <div className={styles.formGroup}>
@@ -267,7 +287,8 @@ export function Settings() {
             ))}
           </div>
           <span className={styles.hint}>
-            Questions will be distributed evenly across all 5 exam domains
+            Questions will be distributed evenly across all {certDomains.length}{' '}
+            {selectedCert?.shortName || ''} domains
           </span>
         </div>
 
@@ -405,8 +426,7 @@ export function Settings() {
         <h2 className={styles.sectionTitle}>About</h2>
         <div className={styles.about}>
           <p>
-            <strong>ACE Prep</strong> - Google Cloud Associate Cloud Engineer Certification
-            Preparation
+            <strong>Cert Trainer</strong> - Cloud Certification Preparation
           </p>
           <p className={styles.version}>Version 1.0.0</p>
         </div>
