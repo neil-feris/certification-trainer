@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studyApi } from '../../../api/client';
+import { useCertificationStore } from '../../../stores/certificationStore';
 import styles from './Summaries.module.css';
 
 export function SummaryBrowser() {
@@ -8,10 +9,12 @@ export function SummaryBrowser() {
   const [selectedDomain, setSelectedDomain] = useState<number | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<number | null>(null);
   const [viewingSummary, setViewingSummary] = useState<any | null>(null);
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
 
   const { data: domains = [] } = useQuery({
-    queryKey: ['studyDomains'],
-    queryFn: studyApi.getDomains,
+    queryKey: ['studyDomains', selectedCertificationId],
+    queryFn: () => studyApi.getDomains(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null,
   });
 
   const { data: summaries = [], isLoading } = useQuery({

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { studyApi } from '../../../api/client';
 import { useDrillStore } from '../../../stores/drillStore';
+import { useCertificationStore } from '../../../stores/certificationStore';
 import type { DrillMode, DrillQuestionCount, DrillTimeLimit } from '@ace-prep/shared';
 import { DRILL_QUESTION_COUNTS, DRILL_TIME_LIMITS } from '@ace-prep/shared';
 import styles from './Drills.module.css';
@@ -24,11 +25,13 @@ export function TimedDrillSetup({ onStart }: TimedDrillSetupProps) {
   const [timeLimit, setTimeLimit] = useState<DrillTimeLimit>(120);
 
   const { startDrill, isLoading } = useDrillStore();
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
 
-  // Fetch domains
+  // Fetch domains for the selected certification
   const { data: domains = [] } = useQuery({
-    queryKey: ['study-domains'],
-    queryFn: studyApi.getDomains,
+    queryKey: ['study-domains', selectedCertificationId],
+    queryFn: () => studyApi.getDomains(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null,
   });
 
   // Set first domain as default

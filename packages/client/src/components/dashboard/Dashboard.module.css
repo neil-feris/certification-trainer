@@ -10,9 +10,22 @@
   margin-bottom: 32px;
 }
 
+.headerLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .title {
   font-size: 28px;
   font-weight: 600;
+}
+
+.certBadge {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
 }
 
 .loading,

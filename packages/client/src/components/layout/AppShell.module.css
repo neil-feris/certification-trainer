@@ -20,7 +20,12 @@
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  margin-bottom: 32px;
+  margin-bottom: 16px;
+}
+
+.certSelector {
+  padding: 0 8px;
+  margin-bottom: 24px;
 }
 
 .logoIcon {

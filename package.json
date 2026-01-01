@@ -23,7 +23,8 @@
     "db:setup": "npm run db:setup -w @ace-prep/server",
     "db:generate": "npm run db:generate -w @ace-prep/server",
     "db:migrate": "npm run db:migrate -w @ace-prep/server",
-    "db:seed": "npm run db:seed -w @ace-prep/server"
+    "db:seed": "npm run db:seed -w @ace-prep/server",
+    "db:add-pca": "npm run db:add-pca -w @ace-prep/server"
   },
   "engines": {
     "node": "22.2.0"

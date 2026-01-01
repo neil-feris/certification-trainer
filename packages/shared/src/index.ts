@@ -17,6 +17,10 @@ export interface Certification {
   createdAt: Date;
 }
 
+export interface CertificationWithCount extends Certification {
+  questionCount: number;
+}
+
 // LLM Provider and Model types
 export type LLMProvider = 'openai' | 'anthropic';
 
