@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { examApi, questionApi } from '../../api/client';
+import { examApi, questionApi, studyApi } from '../../api/client';
+import { useCertificationStore } from '../../stores/certificationStore';
 import {
   EXAM_SIZE_OPTIONS as EXAM_SIZES,
   EXAM_SIZE_DEFAULT,
@@ -17,15 +18,47 @@ const EXAM_SIZE_UI: Record<ExamSize, { label: string; description: string; durat
   50: { label: '50', description: 'Full Exam', duration: '2 hrs' },
 };
 
+// Fetches and displays domains for the selected certification
+function DomainsList({ certificationId }: { certificationId: number | null }) {
+  const { data: domains = [] } = useQuery({
+    queryKey: ['studyDomains', certificationId],
+    queryFn: () => studyApi.getDomains(certificationId ?? undefined),
+    enabled: certificationId !== null,
+  });
+
+  if (domains.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.domains}>
+      <h3 className={styles.domainsTitle}>Exam Domains</h3>
+      <ul className={styles.domainList}>
+        {domains.map((domain: any) => (
+          <li key={domain.id}>
+            {domain.name} (~{(domain.weight * 100).toFixed(1)}%)
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function ExamSetup() {
   const navigate = useNavigate();
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<ExamSize>(EXAM_SIZE_DEFAULT);
 
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
+
   const { data: questionCount = 0 } = useQuery({
-    queryKey: ['questions', 'count'],
-    queryFn: () => questionApi.getCount(),
+    queryKey: ['questions', 'count', selectedCertificationId],
+    queryFn: () => questionApi.getCount({ certificationId: selectedCertificationId ?? undefined }),
+    enabled: selectedCertificationId !== null,
   });
 
   const startExam = async () => {
@@ -33,7 +66,10 @@ export function ExamSetup() {
     setError(null);
 
     try {
-      const result = await examApi.create({ questionCount: selectedSize });
+      const result = await examApi.create({
+        questionCount: selectedSize,
+        certificationId: selectedCertificationId ?? undefined,
+      });
       navigate(`/exam/${result.examId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to start exam');
@@ -42,6 +78,8 @@ export function ExamSetup() {
   };
 
   const selectedOption = EXAM_SIZE_UI[selectedSize];
+  const passingScore = selectedCert?.passingScorePercent ?? 70;
+  const certName = selectedCert?.shortName || 'Certification';
 
   return (
     <div className={styles.container}>
@@ -49,7 +87,7 @@ export function ExamSetup() {
         <div className={styles.icon}>◈</div>
         <h1 className={styles.title}>Practice Exam</h1>
         <p className={styles.description}>
-          Test your knowledge with a full-length ACE certification practice exam.
+          Test your knowledge with a {certName} certification practice exam.
         </p>
 
         <div className={styles.sizeSelector}>
@@ -79,7 +117,7 @@ export function ExamSetup() {
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Passing Score</span>
-            <span className={styles.infoValue}>~70%</span>
+            <span className={styles.infoValue}>~{passingScore}%</span>
           </div>
         </div>
 
@@ -99,16 +137,7 @@ export function ExamSetup() {
           </div>
         )}
 
-        <div className={styles.domains}>
-          <h3 className={styles.domainsTitle}>Exam Domains</h3>
-          <ul className={styles.domainList}>
-            <li>Setting Up a Cloud Solution Environment (~17.5%)</li>
-            <li>Planning and Configuring a Cloud Solution (~17.5%)</li>
-            <li>Deploying and Implementing a Cloud Solution (~25%)</li>
-            <li>Ensuring Successful Operation (~20%)</li>
-            <li>Configuring Access and Security (~20%)</li>
-          </ul>
-        </div>
+        <DomainsList certificationId={selectedCertificationId} />
 
         <div className={styles.actions}>
           <button
@@ -124,8 +153,8 @@ export function ExamSetup() {
         </div>
 
         <p className={styles.note}>
-          The exam simulates the real ACE certification experience. You can flag questions for
-          review and navigate freely between questions.
+          The exam simulates the real {certName} certification experience. You can flag questions
+          for review and navigate freely between questions.
         </p>
       </div>
     </div>

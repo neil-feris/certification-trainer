@@ -25,9 +25,16 @@ import type {
   PaginatedResponse,
   QuestionWithDomain,
   Difficulty,
+  CertificationWithCount,
 } from '@ace-prep/shared';
 
 const API_BASE = '/api';
+
+// Certifications
+export const certificationApi = {
+  list: () => request<CertificationWithCount[]>('/certifications'),
+  get: (id: number) => request<CertificationWithCount>(`/certifications/${id}`),
+};
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
@@ -53,7 +60,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 // Exams
 export const examApi = {
-  list: () => request<any[]>('/exams'),
+  list: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<any[]>(`/exams${params}`);
+  },
   get: (id: number) => request<any>(`/exams/${id}`),
   create: (options?: CreateExamRequest) =>
     request<{ examId: number; totalQuestions: number }>('/exams', {
@@ -82,6 +92,7 @@ export const examApi = {
 
 // Question list params
 export interface QuestionListParams {
+  certificationId?: number;
   domainId?: number;
   topicId?: number;
   difficulty?: Difficulty;
@@ -97,6 +108,8 @@ export const questionApi = {
    */
   list: (params?: QuestionListParams) => {
     const searchParams = new URLSearchParams();
+    if (params?.certificationId)
+      searchParams.set('certificationId', String(params.certificationId));
     if (params?.domainId) searchParams.set('domainId', String(params.domainId));
     if (params?.topicId) searchParams.set('topicId', String(params.topicId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
@@ -111,6 +124,8 @@ export const questionApi = {
    */
   getCount: async (params?: Omit<QuestionListParams, 'limit' | 'offset'>): Promise<number> => {
     const searchParams = new URLSearchParams();
+    if (params?.certificationId)
+      searchParams.set('certificationId', String(params.certificationId));
     if (params?.domainId) searchParams.set('domainId', String(params.domainId));
     if (params?.topicId) searchParams.set('topicId', String(params.topicId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
@@ -144,25 +159,45 @@ export const questionApi = {
 
 // Progress
 export const progressApi = {
-  getDashboard: () => request<any>('/progress/dashboard'),
-  getDomains: () => request<any[]>('/progress/domains'),
-  getWeakAreas: () => request<any[]>('/progress/weak-areas'),
+  getDashboard: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<any>(`/progress/dashboard${params}`);
+  },
+  getDomains: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<any[]>(`/progress/domains${params}`);
+  },
+  getWeakAreas: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<any[]>(`/progress/weak-areas${params}`);
+  },
   getHistory: () => request<any[]>('/progress/history'),
   exportData: () => request<any>('/progress/export', { method: 'POST' }),
 };
 
 // Study
 export const studyApi = {
-  getDomains: () => request<any[]>('/study/domains'),
-  getLearningPath: () => request<LearningPathItem[]>('/study/learning-path'),
-  getLearningPathStats: () => request<LearningPathStats>('/study/learning-path/stats'),
-  toggleLearningPathItem: (order: number) =>
-    request<{ isCompleted: boolean; completedAt: Date | null }>(
-      `/study/learning-path/${order}/toggle`,
+  getDomains: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<any[]>(`/study/domains${params}`);
+  },
+  getLearningPath: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<LearningPathItem[]>(`/study/learning-path${params}`);
+  },
+  getLearningPathStats: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<LearningPathStats>(`/study/learning-path/stats${params}`);
+  },
+  toggleLearningPathItem: (order: number, certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<{ isCompleted: boolean; completedAt: Date | null }>(
+      `/study/learning-path/${order}/toggle${params}`,
       {
         method: 'PATCH',
       }
-    ),
+    );
+  },
   generateSummary: (domainId: number, topicId?: number) =>
     request<{ success: boolean; summary: any }>('/study/summary', {
       method: 'POST',

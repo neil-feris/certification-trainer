@@ -54,6 +54,7 @@ export const PAGINATION_DEFAULTS = {
 } as const;
 
 export const questionQuerySchema = z.object({
+  certificationId: z.string().regex(/^\d+$/).transform(Number).optional(),
   domainId: z.string().regex(/^\d+$/).transform(Number).optional(),
   topicId: z.string().regex(/^\d+$/).transform(Number).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),

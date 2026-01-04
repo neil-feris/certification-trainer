@@ -1,18 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { progressApi } from '../../api/client';
+import { useCertificationStore } from '../../stores/certificationStore';
 import styles from './Dashboard.module.css';
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
 
   const {
     data: dashboard,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: progressApi.getDashboard,
+    queryKey: ['dashboard', selectedCertificationId],
+    queryFn: () => progressApi.getDashboard(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null,
   });
 
   if (isLoading) {
@@ -34,12 +40,19 @@ export function Dashboard() {
     );
   }
 
-  const passingScore = 70;
+  const passingScore = selectedCert?.passingScorePercent ?? 70;
 
   return (
     <div className={styles.dashboard}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Dashboard</h1>
+        <div className={styles.headerLeft}>
+          <h1 className={styles.title}>Dashboard</h1>
+          {selectedCert && (
+            <span className={styles.certBadge}>
+              {selectedCert.shortName} · {selectedCert.name}
+            </span>
+          )}
+        </div>
         <button className="btn btn-primary" onClick={() => navigate('/exam')}>
           Start Practice Exam
         </button>

@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { CertificationSelector } from '../common/CertificationSelector';
+import { useCertificationStore } from '../../stores/certificationStore';
 import styles from './AppShell.module.css';
 
 interface AppShellProps {
@@ -19,13 +21,21 @@ export function AppShell({ children }: AppShellProps) {
   const isExamActive =
     location.pathname.startsWith('/exam/') && !location.pathname.includes('/review');
 
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
+
   return (
     <div className={styles.shell}>
       {!isExamActive && (
         <aside className={styles.sidebar}>
           <div className={styles.logo}>
             <span className={styles.logoIcon}>☁</span>
-            <span className={styles.logoText}>ACE Prep</span>
+            <span className={styles.logoText}>Cert Trainer</span>
+          </div>
+
+          <div className={styles.certSelector}>
+            <CertificationSelector />
           </div>
 
           <nav className={styles.nav}>
@@ -44,9 +54,12 @@ export function AppShell({ children }: AppShellProps) {
           </nav>
 
           <div className={styles.footer}>
-            <div className={styles.footerText}>
-              <span className="mono">GCP</span> Associate Cloud Engineer
-            </div>
+            {selectedCert && (
+              <div className={styles.footerText}>
+                <span className="mono">{selectedCert.provider.toUpperCase()}</span>{' '}
+                {selectedCert.name}
+              </div>
+            )}
           </div>
         </aside>
       )}

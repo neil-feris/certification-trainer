@@ -1,12 +1,13 @@
 # ACE Prep
 
-Google Cloud Associate Cloud Engineer (ACE) certification preparation application with AI-powered question generation and spaced repetition.
+Google Cloud certification preparation application with AI-powered question generation and spaced repetition. Supports multiple certifications including Associate Cloud Engineer (ACE) and Professional Cloud Architect (PCA).
 
 ## Features
 
-- **Practice Exams** - Full 50-question timed exams matching the real ACE format
+- **Multi-Certification Support** - Switch between ACE and PCA certifications
+- **Practice Exams** - Full 50-question timed exams matching real certification formats
 - **AI Question Generation** - Generate unlimited practice questions via Claude or GPT-4
-- **Progress Tracking** - Track performance by domain, identify weak areas
+- **Progress Tracking** - Track performance by domain and certification, identify weak areas
 - **Spaced Repetition** - SM-2 algorithm schedules reviews for missed questions
 - **Study Hub** - Learning path breakdown with explanations for each topic
 - **Exam Review** - Detailed explanations for every question
@@ -32,8 +33,8 @@ npm run db:setup
 ```
 
 This creates the SQLite database and seeds it with:
-- 5 ACE exam domains
-- 23 topics
+- ACE and PCA certifications
+- Certification-specific domains and topics
 - 10 sample questions
 
 ### 3. Start the Application
@@ -110,6 +111,7 @@ npm run dev:client       # Start frontend only (port 5173)
 # Database
 npm run db:setup         # Create tables and seed data
 npm run db:generate      # Generate Drizzle migrations
+npm run db:add-pca       # Add PCA certification data
 
 # Build
 npm run build            # Build all packages for production
@@ -120,6 +122,7 @@ npm run build            # Build all packages for production
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
+| GET | `/api/certifications` | List available certifications |
 | GET | `/api/exams` | List all exams |
 | POST | `/api/exams` | Start new exam |
 | GET | `/api/exams/:id` | Get exam with questions |
@@ -132,15 +135,24 @@ npm run build            # Build all packages for production
 | GET | `/api/study/domains` | Exam domains |
 | GET | `/api/study/learning-path` | Learning path |
 
-## ACE Exam Domains
+## Certification Coverage
 
-The application covers all 5 ACE certification domains:
+### Associate Cloud Engineer (ACE) - 5 Domains
 
 1. **Setting Up a Cloud Solution Environment** (~17.5%)
 2. **Planning and Configuring a Cloud Solution** (~17.5%)
 3. **Deploying and Implementing a Cloud Solution** (~25%)
 4. **Ensuring Successful Operation** (~20%)
 5. **Configuring Access and Security** (~20%)
+
+### Professional Cloud Architect (PCA) - 6 Domains
+
+1. **Designing and Planning** (~24%)
+2. **Managing and Provisioning** (~15%)
+3. **Security and Compliance** (~18%)
+4. **Technical & Business Process Analysis** (~17%)
+5. **Managing Implementation** (~13%)
+6. **Ensuring Solution & Operations Reliability** (~13%)
 
 ## License
 

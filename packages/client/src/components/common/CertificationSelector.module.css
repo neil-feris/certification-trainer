@@ -1,0 +1,169 @@
+.selector {
+  position: relative;
+}
+
+.skeleton {
+  width: 80px;
+  height: 36px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.singleCert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.trigger:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-color);
+}
+
+.providerIcon {
+  font-size: 16px;
+}
+
+.certCode,
+.certName {
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+}
+
+.chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 280px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+
+.option:hover {
+  background: var(--bg-tertiary);
+}
+
+.optionActive {
+  background: rgba(0, 212, 170, 0.1);
+}
+
+.optionActive:hover {
+  background: rgba(0, 212, 170, 0.15);
+}
+
+.optionMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.optionIcon {
+  font-size: 20px;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.optionCode {
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.optionName {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.optionMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.questionCount {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+.checkmark {
+  color: var(--accent-primary);
+  font-size: 14px;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

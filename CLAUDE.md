@@ -15,6 +15,7 @@ npm run db:setup         # Create tables + seed (domains, topics, sample questio
 npm run db:generate      # Generate Drizzle migrations
 npm run db:migrate       # Run migrations
 npm run db:seed          # Seed data only
+npm run db:add-pca       # Add PCA certification data
 
 # Build
 npm run build            # Build shared → server → client (order matters)
@@ -31,7 +32,7 @@ Monorepo with npm workspaces: `packages/{client,server,shared}`
 
 ### Client (`@ace-prep/client`)
 - React 18 + Vite + TypeScript
-- **State**: Zustand stores (`examStore`, `studyStore`, `settingsStore`)
+- **State**: Zustand stores (`examStore`, `studyStore`, `settingsStore`, `certificationStore`)
 - **Data fetching**: TanStack Query
 - **Routes**: `/dashboard`, `/exam`, `/exam/:id`, `/exam/:id/review`, `/study`, `/review`, `/settings`
 - **Styling**: CSS Modules + CSS Variables
@@ -40,7 +41,7 @@ Monorepo with npm workspaces: `packages/{client,server,shared}`
 ### Server (`@ace-prep/server`)
 - Fastify with CORS configured for localhost:5173
 - Drizzle ORM + better-sqlite3 (database at `data/ace-prep.db`)
-- **Routes**: `routes/{exams,questions,progress,study,settings}.ts`
+- **Routes**: `routes/{exams,questions,progress,study,settings,certifications}.ts`
 - **LLM**: `services/questionGenerator.ts` - Claude 3.5 Sonnet or GPT-4o
 
 ### Shared (`@ace-prep/shared`)
@@ -50,8 +51,9 @@ Monorepo with npm workspaces: `packages/{client,server,shared}`
 ## Database Schema
 
 Key tables in `packages/server/src/db/schema.ts`:
-- `domains` - 5 ACE exam domains with percentage weights
-- `topics` - 23 topics linked to domains
+- `certifications` - Available certifications (ACE, PCA) with metadata
+- `domains` - Certification domains with percentage weights (linked to certifications)
+- `topics` - Topics linked to domains
 - `questions` - Question bank (JSON `options`/`correctAnswers` fields)
 - `exams` / `examResponses` - Full exam tracking
 - `studySessions` / `studySessionResponses` - Topic practice sessions

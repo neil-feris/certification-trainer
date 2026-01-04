@@ -18,6 +18,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 
+import { certificationRoutes } from './routes/certifications.js';
 import { examRoutes } from './routes/exams.js';
 import { questionRoutes } from './routes/questions.js';
 import { progressRoutes } from './routes/progress.js';
@@ -57,6 +58,7 @@ await fastify.register(rateLimit, {
 });
 
 // API routes
+fastify.register(certificationRoutes, { prefix: '/api/certifications' });
 fastify.register(examRoutes, { prefix: '/api/exams' });
 fastify.register(questionRoutes, { prefix: '/api/questions' });
 fastify.register(progressRoutes, { prefix: '/api/progress' });
