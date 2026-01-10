@@ -1,24 +1,33 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { questions, domains, topics, spacedRepetition } from '../db/schema.js';
-import { eq, lte, and, count } from 'drizzle-orm';
+import { questions, domains, topics, spacedRepetition, certifications } from '../db/schema.js';
+import { eq, lte, and, count, like, desc, asc, inArray, sql } from 'drizzle-orm';
 import { generateQuestions } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
 import {
   idParamSchema,
-  questionQuerySchema,
+  questionBrowseQuerySchema,
   generateQuestionsSchema,
   reviewRatingSchema,
   formatZodError,
   PAGINATION_DEFAULTS,
 } from '../validation/schemas.js';
-import type { PaginatedResponse, QuestionWithDomain } from '@ace-prep/shared';
+import type {
+  PaginatedResponse,
+  QuestionWithDomain,
+  QuestionFilterOptions,
+} from '@ace-prep/shared';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
+/** Escape SQL LIKE wildcard characters to prevent pattern injection */
+function escapeLikePattern(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&');
+}
+
 export async function questionRoutes(fastify: FastifyInstance) {
-  // Get questions with pagination and optional filters
+  // Get questions with pagination, filters, search, and sorting
   // Optimized: filters and pagination pushed to SQL instead of in-memory
   fastify.get<{
     Querystring: {
@@ -26,11 +35,14 @@ export async function questionRoutes(fastify: FastifyInstance) {
       domainId?: string;
       topicId?: string;
       difficulty?: string;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: string;
       limit?: string;
       offset?: string;
     };
   }>('/', async (request, reply) => {
-    const parseResult = questionQuerySchema.safeParse(request.query);
+    const parseResult = questionBrowseQuerySchema.safeParse(request.query);
     if (!parseResult.success) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
@@ -39,6 +51,9 @@ export async function questionRoutes(fastify: FastifyInstance) {
       domainId,
       topicId,
       difficulty,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
       limit = PAGINATION_DEFAULTS.limit,
       offset = PAGINATION_DEFAULTS.offset,
     } = parseResult.data;
@@ -58,8 +73,26 @@ export async function questionRoutes(fastify: FastifyInstance) {
     if (difficulty) {
       conditions.push(eq(questions.difficulty, difficulty));
     }
+    if (search) {
+      const escaped = escapeLikePattern(search);
+      conditions.push(like(questions.questionText, `%${escaped}%`));
+    }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Build ORDER BY clause
+    const orderByClause =
+      sortBy === 'difficulty'
+        ? sortOrder === 'asc'
+          ? asc(questions.difficulty)
+          : desc(questions.difficulty)
+        : sortBy === 'domain'
+          ? sortOrder === 'asc'
+            ? asc(domains.name)
+            : desc(domains.name)
+          : sortOrder === 'asc'
+            ? asc(questions.createdAt)
+            : desc(questions.createdAt);
 
     // Get total count with filters applied (single query)
     // Need to join domains when filtering by certificationId
@@ -81,6 +114,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
       .where(whereClause)
+      .orderBy(orderByClause)
       .limit(limit)
       .offset(offset);
 
@@ -102,6 +136,70 @@ export async function questionRoutes(fastify: FastifyInstance) {
       limit,
       offset,
       hasMore: offset + items.length < total,
+    };
+
+    return response;
+  });
+
+  // Get filter options for question browser
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/filters', async (request) => {
+    const { certificationId } = request.query;
+    const certId = certificationId ? Number(certificationId) : undefined;
+
+    const certs = db
+      .select({
+        id: certifications.id,
+        code: certifications.code,
+        name: certifications.name,
+      })
+      .from(certifications)
+      .where(eq(certifications.isActive, true))
+      .all();
+
+    let domainsQuery = db
+      .select({
+        id: domains.id,
+        name: domains.name,
+        certificationId: domains.certificationId,
+      })
+      .from(domains);
+
+    if (certId) {
+      domainsQuery = domainsQuery.where(eq(domains.certificationId, certId)) as typeof domainsQuery;
+    }
+    const doms = domainsQuery.all();
+
+    let topicsQuery = db
+      .select({
+        id: topics.id,
+        name: topics.name,
+        domainId: topics.domainId,
+      })
+      .from(topics);
+
+    if (certId) {
+      const domainIds = doms.map((d) => d.id);
+      if (domainIds.length > 0) {
+        topicsQuery = topicsQuery.where(inArray(topics.domainId, domainIds)) as typeof topicsQuery;
+      }
+    }
+    const tops = topicsQuery.all();
+
+    const [countResult] = db
+      .select({ count: sql<number>`count(*)` })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .where(certId ? eq(domains.certificationId, certId) : undefined)
+      .all();
+
+    const response: QuestionFilterOptions = {
+      certifications: certs,
+      domains: doms,
+      topics: tops,
+      difficulties: ['easy', 'medium', 'hard'],
+      totalQuestions: Number(countResult?.count ?? 0),
     };
 
     return response;
