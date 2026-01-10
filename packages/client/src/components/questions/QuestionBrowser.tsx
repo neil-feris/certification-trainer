@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { QuestionWithDomain, Difficulty } from '@ace-prep/shared';
@@ -15,12 +15,27 @@ export function QuestionBrowser() {
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const [selectedQuestion, setSelectedQuestion] = useState<QuestionWithDomain | null>(null);
 
-  // Parse URL params
+  // Sync store certification to URL on mount if URL doesn't have one (URL is source of truth)
+  useEffect(() => {
+    if (!searchParams.get('certificationId') && selectedCertificationId) {
+      setSearchParams(
+        (prev) => {
+          const newParams = new URLSearchParams(prev);
+          newParams.set('certificationId', String(selectedCertificationId));
+          return newParams;
+        },
+        { replace: true }
+      );
+    }
+    // Only run on mount - URL is source of truth after initial sync
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Parse URL params - URL is sole source of truth for all filters
   const difficultyParam = searchParams.get('difficulty');
+  const certIdParam = searchParams.get('certificationId');
   const params = {
-    certificationId: searchParams.get('certificationId')
-      ? Number(searchParams.get('certificationId'))
-      : (selectedCertificationId ?? undefined),
+    certificationId: certIdParam ? Number(certIdParam) : undefined,
     domainId: searchParams.get('domainId') ? Number(searchParams.get('domainId')) : undefined,
     topicId: searchParams.get('topicId') ? Number(searchParams.get('topicId')) : undefined,
     difficulty: (difficultyParam === 'easy' ||
