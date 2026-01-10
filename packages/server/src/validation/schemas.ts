@@ -76,6 +76,12 @@ export const questionQuerySchema = z.object({
     .default(String(PAGINATION_DEFAULTS.offset)),
 });
 
+export const questionBrowseQuerySchema = questionQuerySchema.extend({
+  search: z.string().max(200).optional(),
+  sortBy: z.enum(['createdAt', 'difficulty', 'domain']).optional().default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+});
+
 export const generateQuestionsSchema = z.object({
   domainId: z.number().int().positive('Domain ID must be a positive integer'),
   topicId: z.number().int().positive('Topic ID must be a positive integer').optional(),

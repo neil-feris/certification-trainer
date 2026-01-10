@@ -525,3 +525,25 @@ export interface ActiveDrillResponse {
     addedToSR: boolean;
   }>;
 }
+
+// ============ QUESTION BROWSER TYPES ============
+
+export interface QuestionBrowseParams {
+  certificationId?: number;
+  domainId?: number;
+  topicId?: number;
+  difficulty?: Difficulty;
+  search?: string;
+  sortBy?: 'createdAt' | 'difficulty' | 'domain';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export interface QuestionFilterOptions {
+  certifications: Pick<Certification, 'id' | 'code' | 'name'>[];
+  domains: Pick<Domain, 'id' | 'name' | 'certificationId'>[];
+  topics: Pick<Topic, 'id' | 'name' | 'domainId'>[];
+  difficulties: Difficulty[];
+  totalQuestions: number;
+}

@@ -9,6 +9,7 @@ import { ExamReview } from './components/exam/ExamReview';
 import { StudyHub } from './components/study/StudyHub';
 import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
+import { QuestionBrowser } from './components/questions';
 
 function App() {
   return (
@@ -69,6 +70,14 @@ function App() {
             element={
               <RouteErrorBoundary>
                 <Settings />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/questions"
+            element={
+              <RouteErrorBoundary>
+                <QuestionBrowser />
               </RouteErrorBoundary>
             }
           />

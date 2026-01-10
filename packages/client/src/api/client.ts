@@ -26,6 +26,7 @@ import type {
   QuestionWithDomain,
   Difficulty,
   CertificationWithCount,
+  QuestionFilterOptions,
 } from '@ace-prep/shared';
 
 const API_BASE = '/api';
@@ -96,6 +97,9 @@ export interface QuestionListParams {
   domainId?: number;
   topicId?: number;
   difficulty?: Difficulty;
+  search?: string;
+  sortBy?: 'createdAt' | 'difficulty' | 'domain';
+  sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }
@@ -103,7 +107,7 @@ export interface QuestionListParams {
 // Questions
 export const questionApi = {
   /**
-   * Get paginated list of questions with optional filters.
+   * Get paginated list of questions with optional filters, search, and sorting.
    * Returns a PaginatedResponse with items, total, limit, offset, hasMore.
    */
   list: (params?: QuestionListParams) => {
@@ -113,9 +117,21 @@ export const questionApi = {
     if (params?.domainId) searchParams.set('domainId', String(params.domainId));
     if (params?.topicId) searchParams.set('topicId', String(params.topicId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
+    if (params?.search) searchParams.set('search', params.search);
+    if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
+    if (params?.sortOrder) searchParams.set('sortOrder', params.sortOrder);
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.offset) searchParams.set('offset', String(params.offset));
-    return request<PaginatedResponse<QuestionWithDomain>>(`/questions?${searchParams}`);
+    const query = searchParams.toString();
+    return request<PaginatedResponse<QuestionWithDomain>>(`/questions${query ? `?${query}` : ''}`);
+  },
+
+  /**
+   * Get filter options for question browser (certifications, domains, topics, etc.)
+   */
+  getFilterOptions: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<QuestionFilterOptions>(`/questions/filters${params}`);
   },
 
   /**
