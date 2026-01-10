@@ -77,6 +77,22 @@ export function QuestionBrowser() {
     [setSearchParams]
   );
 
+  // Batch update multiple filters at once (avoids race condition with sequential calls)
+  const updateFilters = useCallback(
+    (updates: Record<string, string | undefined>) => {
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev);
+        Object.entries(updates).forEach(([key, value]) => {
+          if (value) newParams.set(key, value);
+          else newParams.delete(key);
+        });
+        newParams.set('offset', '0'); // Reset pagination on filter change
+        return newParams;
+      });
+    },
+    [setSearchParams]
+  );
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -88,6 +104,7 @@ export function QuestionBrowser() {
         params={params}
         filterOptions={filterOptions}
         onFilterChange={updateFilter}
+        onFiltersChange={updateFilters}
       />
 
       <QuestionList
