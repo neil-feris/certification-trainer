@@ -173,6 +173,16 @@ export const questionApi = {
     }),
 };
 
+// Trends API types
+export type Granularity = 'attempt' | 'day' | 'week';
+
+export interface TrendDataPoint {
+  date: string;
+  score: number;
+  certificationId: number;
+  certificationCode: string;
+}
+
 // Progress
 export const progressApi = {
   getDashboard: (certificationId?: number) => {
@@ -189,6 +199,12 @@ export const progressApi = {
   },
   getHistory: () => request<any[]>('/progress/history'),
   exportData: () => request<any>('/progress/export', { method: 'POST' }),
+  getTrends: (certificationId?: number, granularity: Granularity = 'attempt') => {
+    const params = new URLSearchParams();
+    if (certificationId) params.set('certificationId', String(certificationId));
+    params.set('granularity', granularity);
+    return request<TrendDataPoint[]>(`/progress/trends?${params}`);
+  },
 };
 
 // Study
