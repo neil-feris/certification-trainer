@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   LineChart,
@@ -14,9 +15,15 @@ import styles from './PerformanceTrendsChart.module.css';
 
 interface PerformanceTrendsChartProps {
   certificationId?: number;
-  granularity?: Granularity;
+  initialGranularity?: Granularity;
   passingScore?: number;
 }
+
+const GRANULARITY_OPTIONS: { value: Granularity; label: string }[] = [
+  { value: 'attempt', label: 'Each Attempt' },
+  { value: 'day', label: 'By Day' },
+  { value: 'week', label: 'By Week' },
+];
 
 // Color palette for different certifications
 const COLORS = [
@@ -44,9 +51,11 @@ function formatDate(dateStr: string, granularity: Granularity): string {
 
 export function PerformanceTrendsChart({
   certificationId,
-  granularity = 'attempt',
+  initialGranularity = 'attempt',
   passingScore = 70,
 }: PerformanceTrendsChartProps) {
+  const [granularity, setGranularity] = useState<Granularity>(initialGranularity);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['trends', certificationId, granularity],
     queryFn: () => progressApi.getTrends(certificationId, granularity),
@@ -80,75 +89,92 @@ export function PerformanceTrendsChart({
   const chartData = transformDataForChart(data, certifications, granularity);
 
   return (
-    <div className={styles.chartContainer}>
-      <ResponsiveContainer width="100%" height={350}>
-        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-          <XAxis
-            dataKey="date"
-            tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
-            tickLine={{ stroke: 'var(--border-color)' }}
-            axisLine={{ stroke: 'var(--border-color)' }}
-          />
-          <YAxis
-            domain={[0, 100]}
-            tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
-            tickLine={{ stroke: 'var(--border-color)' }}
-            axisLine={{ stroke: 'var(--border-color)' }}
-            tickFormatter={(val) => `${val}%`}
-          />
-          <Tooltip
-            contentStyle={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--border-radius)',
-              color: 'var(--text-primary)',
-            }}
-            formatter={(value: number) => [`${value}%`, 'Score']}
-          />
-          <ReferenceLine
-            y={passingScore}
-            stroke="var(--success)"
-            strokeDasharray="5 5"
-            label={{
-              value: `${passingScore}% Passing`,
-              position: 'insideTopRight',
-              fill: 'var(--success)',
-              fontSize: 11,
-            }}
-          />
-          {isSingleCert ? (
-            <Line
-              type="monotone"
-              dataKey={certifications[0]}
-              stroke={COLORS[0]}
-              strokeWidth={2}
-              dot={{ fill: COLORS[0], strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-              connectNulls
+    <div className={styles.wrapper}>
+      <div className={styles.controls}>
+        <div className={styles.granularityToggle} role="group" aria-label="Granularity">
+          {GRANULARITY_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`${styles.toggleButton} ${granularity === option.value ? styles.toggleButtonActive : ''}`}
+              onClick={() => setGranularity(option.value)}
+              aria-pressed={granularity === option.value}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className={styles.chartContainer}>
+        <ResponsiveContainer width="100%" height={350}>
+          <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
+              tickLine={{ stroke: 'var(--border-color)' }}
+              axisLine={{ stroke: 'var(--border-color)' }}
             />
-          ) : (
-            certifications.map((cert, index) => (
+            <YAxis
+              domain={[0, 100]}
+              tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
+              tickLine={{ stroke: 'var(--border-color)' }}
+              axisLine={{ stroke: 'var(--border-color)' }}
+              tickFormatter={(val) => `${val}%`}
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--border-radius)',
+                color: 'var(--text-primary)',
+              }}
+              formatter={(value: number) => [`${value}%`, 'Score']}
+            />
+            <ReferenceLine
+              y={passingScore}
+              stroke="var(--success)"
+              strokeDasharray="5 5"
+              label={{
+                value: `${passingScore}% Passing`,
+                position: 'insideTopRight',
+                fill: 'var(--success)',
+                fontSize: 11,
+              }}
+            />
+            {isSingleCert ? (
               <Line
-                key={cert}
                 type="monotone"
-                dataKey={cert}
-                name={cert}
-                stroke={COLORS[index % COLORS.length]}
+                dataKey={certifications[0]}
+                stroke={COLORS[0]}
                 strokeWidth={2}
-                dot={{ fill: COLORS[index % COLORS.length], strokeWidth: 2, r: 4 }}
+                dot={{ fill: COLORS[0], strokeWidth: 2, r: 4 }}
                 activeDot={{ r: 6, strokeWidth: 0 }}
                 connectNulls
               />
-            ))
-          )}
-          {!isSingleCert && (
-            <Legend
-              wrapperStyle={{ paddingTop: 16 }}
-              formatter={(value) => <span style={{ color: 'var(--text-primary)' }}>{value}</span>}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
+            ) : (
+              certifications.map((cert, index) => (
+                <Line
+                  key={cert}
+                  type="monotone"
+                  dataKey={cert}
+                  name={cert}
+                  stroke={COLORS[index % COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ fill: COLORS[index % COLORS.length], strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  connectNulls
+                />
+              ))
+            )}
+            {!isSingleCert && (
+              <Legend
+                wrapperStyle={{ paddingTop: 16 }}
+                formatter={(value) => <span style={{ color: 'var(--text-primary)' }}>{value}</span>}
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
