@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   LineChart,
@@ -10,11 +10,11 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts';
-import { progressApi, TrendDataPoint, Granularity } from '../../api/client';
+import { progressApi, certificationApi, TrendDataPoint, Granularity } from '../../api/client';
 import styles from './PerformanceTrendsChart.module.css';
 
 interface PerformanceTrendsChartProps {
-  certificationId?: number;
+  initialCertificationId?: number | null;
   initialGranularity?: Granularity;
   passingScore?: number;
 }
@@ -50,15 +50,44 @@ function formatDate(dateStr: string, granularity: Granularity): string {
 }
 
 export function PerformanceTrendsChart({
-  certificationId,
+  initialCertificationId = null,
   initialGranularity = 'attempt',
   passingScore = 70,
 }: PerformanceTrendsChartProps) {
   const [granularity, setGranularity] = useState<Granularity>(initialGranularity);
+  const [selectedCertificationId, setSelectedCertificationId] = useState<number | null>(
+    initialCertificationId ?? null
+  );
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Fetch available certifications for filter dropdown
+  const { data: availableCerts } = useQuery({
+    queryKey: ['certifications'],
+    queryFn: certificationApi.list,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Get display label for currently selected certification
+  const selectedCertLabel =
+    selectedCertificationId === null
+      ? 'All Certifications'
+      : (availableCerts?.find((c) => c.id === selectedCertificationId)?.shortName ?? 'Loading...');
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['trends', certificationId, granularity],
-    queryFn: () => progressApi.getTrends(certificationId, granularity),
+    queryKey: ['trends', selectedCertificationId, granularity],
+    queryFn: () => progressApi.getTrends(selectedCertificationId ?? undefined, granularity),
   });
 
   if (isLoading) {
@@ -91,6 +120,56 @@ export function PerformanceTrendsChart({
   return (
     <div className={styles.wrapper}>
       <div className={styles.controls}>
+        {/* Certification Filter Dropdown */}
+        <div className={styles.filterDropdown} ref={filterRef}>
+          <button
+            type="button"
+            className={styles.filterTrigger}
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            aria-expanded={isFilterOpen}
+            aria-haspopup="listbox"
+          >
+            <span className={styles.filterLabel}>{selectedCertLabel}</span>
+            <span className={styles.filterChevron}>{isFilterOpen ? '▲' : '▼'}</span>
+          </button>
+          {isFilterOpen && (
+            <div className={styles.filterMenu} role="listbox">
+              <button
+                type="button"
+                className={`${styles.filterOption} ${selectedCertificationId === null ? styles.filterOptionActive : ''}`}
+                onClick={() => {
+                  setSelectedCertificationId(null);
+                  setIsFilterOpen(false);
+                }}
+                role="option"
+                aria-selected={selectedCertificationId === null}
+              >
+                All Certifications
+                {selectedCertificationId === null && <span className={styles.checkmark}>✓</span>}
+              </button>
+              {availableCerts?.map((cert) => (
+                <button
+                  key={cert.id}
+                  type="button"
+                  className={`${styles.filterOption} ${selectedCertificationId === cert.id ? styles.filterOptionActive : ''}`}
+                  onClick={() => {
+                    setSelectedCertificationId(cert.id);
+                    setIsFilterOpen(false);
+                  }}
+                  role="option"
+                  aria-selected={selectedCertificationId === cert.id}
+                >
+                  {cert.shortName}
+                  {selectedCertificationId === cert.id && (
+                    <span className={styles.checkmark}>✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Granularity Toggle */}
         <div className={styles.granularityToggle} role="group" aria-label="Granularity">
           {GRANULARITY_OPTIONS.map((option) => (
             <button
