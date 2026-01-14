@@ -7,12 +7,129 @@ import {
   domains,
   topics,
   performanceStats,
+  certifications,
 } from '../db/schema.js';
 import { eq, sql, desc, and } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 
+type Granularity = 'attempt' | 'day' | 'week';
+
+interface TrendDataPoint {
+  date: string;
+  score: number;
+  certificationId: number;
+  certificationCode: string;
+}
+
 export async function progressRoutes(fastify: FastifyInstance) {
+  // Get performance trends data for charting
+  fastify.get<{
+    Querystring: { certificationId?: string; granularity?: string };
+  }>('/trends', async (request, reply) => {
+    const { certificationId: certIdStr, granularity: granularityStr } = request.query;
+
+    // Validate granularity
+    const validGranularities: Granularity[] = ['attempt', 'day', 'week'];
+    const granularity: Granularity = validGranularities.includes(granularityStr as Granularity)
+      ? (granularityStr as Granularity)
+      : 'attempt';
+
+    // Parse optional certificationId (null means return all)
+    let certId: number | null = null;
+    if (certIdStr) {
+      const parsed = parseInt(certIdStr, 10);
+      if (isNaN(parsed)) {
+        return reply.status(400).send({ error: 'certificationId must be a valid integer' });
+      }
+      certId = parsed;
+    }
+
+    // Build query conditions
+    const conditions = [eq(exams.status, 'completed')];
+    if (certId !== null) {
+      conditions.push(eq(exams.certificationId, certId));
+    }
+
+    // Fetch completed exams with certification info
+    const completedExams = await db
+      .select({
+        id: exams.id,
+        score: exams.score,
+        completedAt: exams.completedAt,
+        certificationId: exams.certificationId,
+        certificationCode: certifications.code,
+      })
+      .from(exams)
+      .innerJoin(certifications, eq(certifications.id, exams.certificationId))
+      .where(and(...conditions))
+      .orderBy(exams.completedAt);
+
+    if (granularity === 'attempt') {
+      // Return individual attempts
+      const dataPoints: TrendDataPoint[] = completedExams
+        .filter((exam) => exam.completedAt && exam.score !== null)
+        .map((exam) => ({
+          date: exam.completedAt!.toISOString(),
+          score: Math.round(exam.score! * 10) / 10,
+          certificationId: exam.certificationId,
+          certificationCode: exam.certificationCode,
+        }));
+
+      return dataPoints;
+    }
+
+    // For day/week granularity, aggregate scores
+    const groupedData = new Map<
+      string,
+      { scores: number[]; certificationId: number; certificationCode: string }
+    >();
+
+    for (const exam of completedExams) {
+      if (!exam.completedAt || exam.score === null) continue;
+
+      const date = exam.completedAt;
+      let key: string;
+
+      if (granularity === 'day') {
+        key = `${exam.certificationId}-${date.toISOString().split('T')[0]}`;
+      } else {
+        // Week: use ISO week number
+        const year = date.getFullYear();
+        const startOfYear = new Date(year, 0, 1);
+        const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+        const weekNum = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+        key = `${exam.certificationId}-${year}-W${weekNum.toString().padStart(2, '0')}`;
+      }
+
+      if (!groupedData.has(key)) {
+        groupedData.set(key, {
+          scores: [],
+          certificationId: exam.certificationId,
+          certificationCode: exam.certificationCode,
+        });
+      }
+      groupedData.get(key)!.scores.push(exam.score);
+    }
+
+    // Calculate averages
+    const dataPoints: TrendDataPoint[] = [];
+    for (const [key, data] of groupedData) {
+      const dateStr = key.substring(key.indexOf('-') + 1); // Remove certificationId prefix
+      const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+      dataPoints.push({
+        date: dateStr,
+        score: Math.round(avgScore * 10) / 10,
+        certificationId: data.certificationId,
+        certificationCode: data.certificationCode,
+      });
+    }
+
+    // Sort by date
+    dataPoints.sort((a, b) => a.date.localeCompare(b.date));
+
+    return dataPoints;
+  });
   // Get dashboard stats - optimized with aggregated queries (filtered by certification)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/dashboard',
