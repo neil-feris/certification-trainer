@@ -14,7 +14,7 @@ export function LearningPathDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['learningPathItem', orderNum, selectedCertificationId],
     queryFn: () => studyApi.getLearningPathItem(orderNum, selectedCertificationId ?? undefined),
     enabled: selectedCertificationId !== null,
@@ -61,8 +61,25 @@ export function LearningPathDetail() {
       <div className={styles.container}>
         <div className={styles.skeleton}>
           <div className={styles.skeletonHeader} />
-          <div className={styles.skeletonContent} />
-          <div className={styles.skeletonContent} />
+          <div className={styles.skeletonSection}>
+            <div className={styles.skeletonSectionTitle} />
+            <div className={styles.skeletonContent} />
+          </div>
+          <div className={styles.skeletonSection}>
+            <div className={styles.skeletonSectionTitle} />
+            <div className={styles.skeletonList}>
+              <div className={styles.skeletonListItem} />
+              <div className={styles.skeletonListItem} />
+              <div className={styles.skeletonListItem} />
+            </div>
+          </div>
+          <div className={styles.skeletonSection}>
+            <div className={styles.skeletonSectionTitle} />
+            <div className={styles.skeletonGrid}>
+              <div className={styles.skeletonCard} />
+              <div className={styles.skeletonCard} />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -75,6 +92,49 @@ export function LearningPathDetail() {
           <span className={styles.errorIcon}>!</span>
           <h2>Unable to load learning path item</h2>
           <p>{error instanceof Error ? error.message : 'An error occurred'}</p>
+          <button className={styles.retryBtn} onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? (
+              <>
+                <span className={styles.spinner} />
+                Retrying...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M2 8C2 4.68629 4.68629 2 8 2C10.0503 2 11.8733 3.04237 12.9581 4.6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M14 8C14 11.3137 11.3137 14 8 14C5.94965 14 4.12672 12.9576 3.04185 11.4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M10 5H13V2"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M6 11H3V14"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Try Again
+              </>
+            )}
+          </button>
+          <Link to="/study" className={styles.backLinkError}>
+            ← Back to Learning Path
+          </Link>
         </div>
       </div>
     );
@@ -240,16 +300,37 @@ export function LearningPathDetail() {
         </>
       )}
 
-      {/* No summary state */}
+      {/* No summary state - shows when summary is being generated */}
       {!summary && (
         <section className={styles.section}>
           <div className={styles.noSummary}>
-            <span className={styles.noSummaryIcon}>~</span>
-            <h3>Generating Summary...</h3>
+            <div className={styles.generatingSpinner}>
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 48 48"
+                fill="none"
+                className={styles.spinnerIcon}
+              >
+                <circle cx="24" cy="24" r="20" stroke="var(--bg-tertiary)" strokeWidth="4" />
+                <path
+                  d="M24 4C35.0457 4 44 12.9543 44 24"
+                  stroke="var(--accent-primary)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <h3>Generating AI Summary</h3>
             <p>
-              The AI is generating a detailed summary for this learning path item. This may take a
-              moment.
+              The AI is analyzing this learning path item and creating a detailed summary with key
+              takeaways, concepts, and exam tips.
             </p>
+            <div className={styles.generatingProgress}>
+              <span className={styles.progressDot} />
+              <span className={styles.progressDot} />
+              <span className={styles.progressDot} />
+            </div>
           </div>
         </section>
       )}

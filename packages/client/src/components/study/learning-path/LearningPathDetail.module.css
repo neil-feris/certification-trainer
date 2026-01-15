@@ -326,33 +326,30 @@
   flex-shrink: 0;
 }
 
-/* ============ NO SUMMARY STATE ============ */
+/* ============ NO SUMMARY STATE (Generating) ============ */
 .noSummary {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
-  background: var(--bg-secondary);
-  border: 1px dashed var(--border-color);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(0, 191, 255, 0.03) 100%);
+  border: 1px dashed var(--accent-primary);
   border-radius: 12px;
   text-align: center;
 }
 
-.noSummaryIcon {
-  font-size: 2.5rem;
-  color: var(--text-muted);
-  margin-bottom: 16px;
-  animation: pulse 2s ease-in-out infinite;
+.generatingSpinner {
+  margin-bottom: 20px;
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
+.spinnerIcon {
+  animation: spinSlow 1.2s linear infinite;
+}
+
+@keyframes spinSlow {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -365,18 +362,87 @@
 .noSummary p {
   font-size: 0.9rem;
   color: var(--text-muted);
-  margin: 0;
-  max-width: 400px;
+  margin: 0 0 20px 0;
+  max-width: 420px;
+  line-height: 1.6;
+}
+
+.generatingProgress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressDot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.progressDot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.progressDot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ============ LOADING SKELETON ============ */
 .skeleton {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 32px;
 }
 
 .skeletonHeader {
+  height: 140px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: 12px;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeletonSectionTitle {
+  width: 180px;
+  height: 28px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonContent {
   height: 120px;
   background: linear-gradient(
     90deg,
@@ -389,8 +455,33 @@
   animation: shimmer 1.5s infinite;
 }
 
-.skeletonContent {
-  height: 200px;
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeletonListItem {
+  height: 64px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: 8px;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.skeletonCard {
+  height: 140px;
   background: linear-gradient(
     90deg,
     var(--bg-secondary) 25%,
@@ -444,7 +535,45 @@
 .errorState p {
   font-size: 0.9rem;
   color: var(--text-muted);
-  margin: 0;
+  margin: 0 0 24px 0;
+  max-width: 400px;
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--accent-gradient);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: 16px;
+}
+
+.retryBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.retryBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.backLinkError {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.backLinkError:hover {
+  color: var(--accent-primary);
 }
 
 /* ============ PRACTICE QUESTIONS ============ */
