@@ -27,6 +27,19 @@ interface TrendsResponse {
   totalExamCount: number;
 }
 
+/**
+ * Calculate ISO 8601 week number.
+ * ISO weeks start on Monday, and week 1 is the week containing the first Thursday.
+ */
+function getISOWeek(date: Date): { year: number; week: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  // Set to nearest Thursday: current date + 4 - current day number (make Sunday=7)
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return { year: d.getUTCFullYear(), week: weekNo };
+}
+
 export async function progressRoutes(fastify: FastifyInstance) {
   // Get performance trends data for charting
   fastify.get<{
@@ -102,12 +115,9 @@ export async function progressRoutes(fastify: FastifyInstance) {
       if (granularity === 'day') {
         key = `${exam.certificationId}-${date.toISOString().split('T')[0]}`;
       } else {
-        // Week: use ISO week number
-        const year = date.getFullYear();
-        const startOfYear = new Date(year, 0, 1);
-        const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-        const weekNum = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-        key = `${exam.certificationId}-${year}-W${weekNum.toString().padStart(2, '0')}`;
+        // Week: use ISO 8601 week number
+        const { year: isoYear, week: isoWeek } = getISOWeek(date);
+        key = `${exam.certificationId}-${isoYear}-W${isoWeek.toString().padStart(2, '0')}`;
       }
 
       if (!groupedData.has(key)) {
