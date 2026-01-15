@@ -238,6 +238,45 @@ export function LearningPathDetail() {
           </div>
         </section>
       )}
+
+      {/* Related Questions */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          <span className={styles.sectionIcon}>?</span>
+          Practice Questions
+        </h2>
+        {data.relatedQuestions.length > 0 ? (
+          <div className={styles.questionsGrid}>
+            {data.relatedQuestions.map((question) => (
+              <div key={question.id} className={styles.questionCard}>
+                <div className={styles.questionHeader}>
+                  <span className={styles.difficultyBadge} data-difficulty={question.difficulty}>
+                    {question.difficulty}
+                  </span>
+                  <span className={styles.questionTopic}>{question.topic.name}</span>
+                </div>
+                <p className={styles.questionText}>
+                  {question.questionText.length > 180
+                    ? question.questionText.slice(0, 180) + '...'
+                    : question.questionText}
+                </p>
+                <div className={styles.questionMeta}>
+                  <span className={styles.domainTag}>{question.domain.name}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.emptyQuestions}>
+            <span className={styles.emptyIcon}>∅</span>
+            <h3>No Practice Questions Yet</h3>
+            <p>
+              Questions related to this topic will appear here once they are available in the
+              question bank.
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
