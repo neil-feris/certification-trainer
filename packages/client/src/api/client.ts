@@ -183,6 +183,11 @@ export interface TrendDataPoint {
   certificationCode: string;
 }
 
+export interface TrendsResponse {
+  data: TrendDataPoint[];
+  totalExamCount: number;
+}
+
 // Progress
 export const progressApi = {
   getDashboard: (certificationId?: number) => {
@@ -203,7 +208,7 @@ export const progressApi = {
     const params = new URLSearchParams();
     if (certificationId) params.set('certificationId', String(certificationId));
     params.set('granularity', granularity);
-    return request<TrendDataPoint[]>(`/progress/trends?${params}`);
+    return request<TrendsResponse>(`/progress/trends?${params}`);
   },
 };
 

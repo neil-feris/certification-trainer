@@ -22,6 +22,11 @@ interface TrendDataPoint {
   certificationCode: string;
 }
 
+interface TrendsResponse {
+  data: TrendDataPoint[];
+  totalExamCount: number;
+}
+
 export async function progressRoutes(fastify: FastifyInstance) {
   // Get performance trends data for charting
   fastify.get<{
@@ -65,6 +70,9 @@ export async function progressRoutes(fastify: FastifyInstance) {
       .where(and(...conditions))
       .orderBy(exams.completedAt);
 
+    // Total count of completed exams matching the filter
+    const totalExamCount = completedExams.length;
+
     if (granularity === 'attempt') {
       // Return individual attempts
       const dataPoints: TrendDataPoint[] = completedExams
@@ -76,7 +84,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
           certificationCode: exam.certificationCode,
         }));
 
-      return dataPoints;
+      return { data: dataPoints, totalExamCount } satisfies TrendsResponse;
     }
 
     // For day/week granularity, aggregate scores
@@ -128,7 +136,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
     // Sort by date
     dataPoints.sort((a, b) => a.date.localeCompare(b.date));
 
-    return dataPoints;
+    return { data: dataPoints, totalExamCount } satisfies TrendsResponse;
   });
   // Get dashboard stats - optimized with aggregated queries (filtered by certification)
   fastify.get<{ Querystring: { certificationId?: string } }>(

@@ -146,3 +146,37 @@
 .error {
   color: var(--error);
 }
+
+/* Empty States */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 32px;
+  text-align: center;
+  color: var(--text-muted);
+  min-height: 350px;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.emptyMessage {
+  font-size: 14px;
+  color: var(--text-secondary);
+  max-width: 320px;
+  line-height: 1.5;
+  margin: 0;
+}

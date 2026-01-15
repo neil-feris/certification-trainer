@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   LineChart,
   Line,
@@ -54,6 +55,7 @@ export function PerformanceTrendsChart({
   initialGranularity = 'attempt',
   passingScore = 70,
 }: PerformanceTrendsChartProps) {
+  const navigate = useNavigate();
   const [granularity, setGranularity] = useState<Granularity>(initialGranularity);
   const [selectedCertificationId, setSelectedCertificationId] = useState<number | null>(
     initialCertificationId ?? null
@@ -106,16 +108,52 @@ export function PerformanceTrendsChart({
     );
   }
 
-  if (!data || data.length === 0) {
-    return null; // Parent handles empty state
+  // Handle empty states based on total exam count
+  const totalExamCount = data?.totalExamCount ?? 0;
+  const trendData = data?.data ?? [];
+
+  if (!isLoading && !error && totalExamCount === 0) {
+    // No completed exams at all
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyIcon}>📊</div>
+        <h3 className={styles.emptyTitle}>No Exam Data Yet</h3>
+        <p className={styles.emptyMessage}>
+          Complete your first practice exam to start tracking your progress over time.
+        </p>
+        <button className="btn btn-primary" onClick={() => navigate('/exam')}>
+          Start Practice Exam
+        </button>
+      </div>
+    );
+  }
+
+  if (!isLoading && !error && totalExamCount === 1) {
+    // Only 1 completed exam - need at least 2 for trends
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyIcon}>📈</div>
+        <h3 className={styles.emptyTitle}>One More Exam Needed</h3>
+        <p className={styles.emptyMessage}>
+          Complete one more practice exam to see your performance trends over time.
+        </p>
+        <button className="btn btn-primary" onClick={() => navigate('/exam')}>
+          Take Another Exam
+        </button>
+      </div>
+    );
+  }
+
+  if (trendData.length === 0) {
+    return null;
   }
 
   // Group by certification for multi-line chart
-  const certifications = [...new Set(data.map((d) => d.certificationCode))];
+  const certifications = [...new Set(trendData.map((d) => d.certificationCode))];
   const isSingleCert = certifications.length === 1;
 
   // Transform data for recharts: one point per date with certification scores
-  const chartData = transformDataForChart(data, certifications, granularity);
+  const chartData = transformDataForChart(trendData, certifications, granularity);
 
   return (
     <div className={styles.wrapper}>
