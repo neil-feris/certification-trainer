@@ -10,6 +10,7 @@ import { StudyHub } from './components/study/StudyHub';
 import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
 import { QuestionBrowser } from './components/questions';
+import { ProgressPage } from './components/progress/ProgressPage';
 
 function App() {
   return (
@@ -78,6 +79,14 @@ function App() {
             element={
               <RouteErrorBoundary>
                 <QuestionBrowser />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/progress"
+            element={
+              <RouteErrorBoundary>
+                <ProgressPage />
               </RouteErrorBoundary>
             }
           />
