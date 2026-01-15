@@ -301,7 +301,22 @@ function transformDataForChart(
   certifications: string[],
   granularity: Granularity
 ): Record<string, string | number | null>[] {
-  // Group points by date
+  // For 'attempt' granularity, preserve each data point individually to avoid
+  // losing multiple attempts on the same day. Use index to ensure uniqueness.
+  if (granularity === 'attempt') {
+    return data.map((point, index) => {
+      const row: Record<string, string | number | null> = {
+        date: `${formatDate(point.date, granularity)} #${index + 1}`,
+      };
+      // Only set the score for this point's certification
+      for (const cert of certifications) {
+        row[cert] = cert === point.certificationCode ? point.score : null;
+      }
+      return row;
+    });
+  }
+
+  // For day/week granularity, group and average (already done server-side)
   const dateMap = new Map<string, Record<string, number>>();
 
   for (const point of data) {
