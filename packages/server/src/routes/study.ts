@@ -271,6 +271,46 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Mark learning path item as complete (idempotent - does not toggle)
+  fastify.patch<{ Params: { order: string }; Querystring: { certificationId?: string } }>(
+    '/learning-path/:order/complete',
+    async (request, reply) => {
+      const parseResult = orderParamSchema.safeParse(request.params);
+      if (!parseResult.success) {
+        return reply.status(400).send(formatZodError(parseResult.error));
+      }
+      const order = parseResult.data.order;
+
+      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+      if (certId === null) return; // Error already sent
+
+      // Check if already completed (for this certification)
+      const [existing] = await db
+        .select()
+        .from(learningPathProgress)
+        .where(
+          and(
+            eq(learningPathProgress.certificationId, certId),
+            eq(learningPathProgress.pathItemOrder, order)
+          )
+        );
+
+      if (existing) {
+        // Already completed - return existing status (idempotent)
+        return { isCompleted: true, completedAt: existing.completedAt };
+      }
+
+      // Mark as completed
+      const now = new Date();
+      await db.insert(learningPathProgress).values({
+        certificationId: certId,
+        pathItemOrder: order,
+        completedAt: now,
+      });
+      return { isCompleted: true, completedAt: now };
+    }
+  );
+
   // Get learning path stats (filtered by certification)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/learning-path/stats',
