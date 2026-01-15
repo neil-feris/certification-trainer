@@ -7,6 +7,7 @@ import { ExamSetup } from './components/exam/ExamSetup';
 import { ExamContainer } from './components/exam/ExamContainer';
 import { ExamReview } from './components/exam/ExamReview';
 import { StudyHub } from './components/study/StudyHub';
+import { LearningPathDetail } from './components/study/learning-path/LearningPathDetail';
 import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
 import { QuestionBrowser } from './components/questions';
@@ -55,6 +56,14 @@ function App() {
             element={
               <RouteErrorBoundary>
                 <StudyHub />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/study/learning-path/:order"
+            element={
+              <RouteErrorBoundary>
+                <LearningPathDetail />
               </RouteErrorBoundary>
             }
           />
