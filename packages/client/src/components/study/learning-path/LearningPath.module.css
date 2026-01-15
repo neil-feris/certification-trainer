@@ -95,6 +95,76 @@
   color: var(--text-secondary);
 }
 
+/* Clickable path item link styles */
+.pathItemLink {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  position: relative;
+}
+
+.pathItemLink:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
+  transform: translateX(4px);
+}
+
+.pathItemLink:hover .pathArrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.pathItemLink:hover .pathNumber {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.pathItemLink:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Completion indicator */
+.completionIndicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.indicatorComplete {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--bg-primary);
+}
+
+.indicatorDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-color);
+}
+
+/* Arrow indicator for clickable items */
+.pathArrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all var(--transition-fast);
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .checkbox {
   background: none;
   border: none;
@@ -208,17 +278,30 @@
     gap: 12px;
   }
 
-  .checkbox {
-    order: 1;
-    align-self: flex-end;
+  .pathItemLink:hover {
+    transform: none;
+  }
+
+  .completionIndicator {
+    order: 0;
+    position: absolute;
+    top: 16px;
+    right: 16px;
   }
 
   .pathNumber {
-    order: 0;
+    order: 1;
   }
 
   .pathContent {
     order: 2;
+  }
+
+  .pathArrow {
+    order: 3;
+    opacity: 1;
+    transform: none;
+    align-self: flex-end;
   }
 }
 

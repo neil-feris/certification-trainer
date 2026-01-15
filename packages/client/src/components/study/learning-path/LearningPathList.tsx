@@ -1,11 +1,10 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { studyApi } from '../../../api/client';
 import { useCertificationStore } from '../../../stores/certificationStore';
 import { LearningPathItem } from './LearningPathItem';
 import styles from './LearningPath.module.css';
 
 export function LearningPathList() {
-  const queryClient = useQueryClient();
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
 
   const { data: learningPath = [], isLoading } = useQuery({
@@ -18,15 +17,6 @@ export function LearningPathList() {
     queryKey: ['learningPathStats', selectedCertificationId],
     queryFn: () => studyApi.getLearningPathStats(selectedCertificationId ?? undefined),
     enabled: selectedCertificationId !== null,
-  });
-
-  const toggleMutation = useMutation({
-    mutationFn: (order: number) =>
-      studyApi.toggleLearningPathItem(order, selectedCertificationId ?? undefined),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['learningPath', selectedCertificationId] });
-      queryClient.invalidateQueries({ queryKey: ['learningPathStats', selectedCertificationId] });
-    },
   });
 
   if (isLoading) {
@@ -54,12 +44,7 @@ export function LearningPathList() {
 
       <div className={styles.pathList}>
         {learningPath.map((item) => (
-          <LearningPathItem
-            key={item.order}
-            item={item}
-            onToggle={() => toggleMutation.mutate(item.order)}
-            isToggling={toggleMutation.isPending}
-          />
+          <LearningPathItem key={item.order} item={item} />
         ))}
       </div>
     </div>
