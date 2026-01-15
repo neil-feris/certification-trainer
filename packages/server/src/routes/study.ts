@@ -664,6 +664,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       item,
       summary,
       relatedQuestions,
+      totalItems: learningPathData.length,
     };
   });
 

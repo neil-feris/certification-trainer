@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studyApi } from '../../../api/client';
 import { useCertificationStore } from '../../../stores/certificationStore';
 import styles from './LearningPathDetail.module.css';
@@ -10,11 +10,26 @@ export function LearningPathDetail() {
   const orderNum = parseInt(order || '1', 10);
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const [expandedConcepts, setExpandedConcepts] = useState<Set<number>>(new Set());
+  const [showSuccess, setShowSuccess] = useState(false);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['learningPathItem', orderNum, selectedCertificationId],
     queryFn: () => studyApi.getLearningPathItem(orderNum, selectedCertificationId ?? undefined),
     enabled: selectedCertificationId !== null,
+  });
+
+  const markCompleteMutation = useMutation({
+    mutationFn: () =>
+      studyApi.markLearningPathComplete(orderNum, selectedCertificationId ?? undefined),
+    onSuccess: () => {
+      setShowSuccess(true);
+      queryClient.invalidateQueries({ queryKey: ['learningPathItem', orderNum] });
+      queryClient.invalidateQueries({ queryKey: ['learningPath'] });
+      queryClient.invalidateQueries({ queryKey: ['learningPathStats'] });
+      setTimeout(() => setShowSuccess(false), 3000);
+    },
   });
 
   const toggleConcept = (index: number) => {
@@ -277,6 +292,99 @@ export function LearningPathDetail() {
           </div>
         )}
       </section>
+
+      {/* Success Toast */}
+      {showSuccess && (
+        <div className={styles.successToast}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M4 10L8 14L16 6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Item marked as complete!
+        </div>
+      )}
+
+      {/* Navigation & Actions */}
+      <div className={styles.footer}>
+        <Link to="/study" className={styles.backLink}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M10 12L6 8L10 4"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back to Learning Path
+        </Link>
+
+        <div className={styles.actions}>
+          {!item.isCompleted && (
+            <button
+              className={styles.completeBtn}
+              onClick={() => markCompleteMutation.mutate()}
+              disabled={markCompleteMutation.isPending}
+            >
+              {markCompleteMutation.isPending ? (
+                <>
+                  <span className={styles.spinner} />
+                  Marking...
+                </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path
+                      d="M4 9L7.5 12.5L14 5.5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Mark as Complete
+                </>
+              )}
+            </button>
+          )}
+          {item.isCompleted && (
+            <span className={styles.alreadyCompleted}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M3 8L6.5 11.5L13 4.5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Completed
+            </span>
+          )}
+          {orderNum < data.totalItems && (
+            <button
+              className={styles.nextBtn}
+              onClick={() => navigate(`/study/learning-path/${orderNum + 1}`)}
+            >
+              Next Item
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M6 4L10 8L6 12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

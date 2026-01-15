@@ -272,6 +272,7 @@ export interface LearningPathDetailResponse {
   item: LearningPathItem;
   summary: LearningPathSummary | null;
   relatedQuestions: QuestionWithDomain[];
+  totalItems: number;
 }
 
 export interface LearningPathStats {
