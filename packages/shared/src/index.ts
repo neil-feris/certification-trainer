@@ -526,6 +526,22 @@ export interface ActiveDrillResponse {
   }>;
 }
 
+// ============ PERFORMANCE TRENDS TYPES ============
+
+export type Granularity = 'attempt' | 'day' | 'week';
+
+export interface TrendDataPoint {
+  date: string;
+  score: number;
+  certificationId: number;
+  certificationCode: string;
+}
+
+export interface TrendsResponse {
+  data: TrendDataPoint[];
+  totalExamCount: number;
+}
+
 // ============ QUESTION BROWSER TYPES ============
 
 export interface QuestionBrowseParams {

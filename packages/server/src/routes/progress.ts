@@ -7,12 +7,134 @@ import {
   domains,
   topics,
   performanceStats,
+  certifications,
 } from '../db/schema.js';
 import { eq, sql, desc, and } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
+import type { Granularity, TrendDataPoint, TrendsResponse } from '@ace-prep/shared';
+
+/**
+ * Calculate ISO 8601 week number.
+ * ISO weeks start on Monday, and week 1 is the week containing the first Thursday.
+ */
+function getISOWeek(date: Date): { year: number; week: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  // Set to nearest Thursday: current date + 4 - current day number (make Sunday=7)
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return { year: d.getUTCFullYear(), week: weekNo };
+}
 
 export async function progressRoutes(fastify: FastifyInstance) {
+  // Get performance trends data for charting
+  fastify.get<{
+    Querystring: { certificationId?: string; granularity?: string };
+  }>('/trends', async (request, reply) => {
+    const { certificationId: certIdStr, granularity: granularityStr } = request.query;
+
+    // Validate granularity
+    const validGranularities: Granularity[] = ['attempt', 'day', 'week'];
+    const granularity: Granularity = validGranularities.includes(granularityStr as Granularity)
+      ? (granularityStr as Granularity)
+      : 'attempt';
+
+    // Parse optional certificationId (null means return all)
+    let certId: number | null = null;
+    if (certIdStr) {
+      const parsed = parseInt(certIdStr, 10);
+      if (isNaN(parsed)) {
+        return reply.status(400).send({ error: 'certificationId must be a valid integer' });
+      }
+      certId = parsed;
+    }
+
+    // Build query conditions
+    const conditions = [eq(exams.status, 'completed')];
+    if (certId !== null) {
+      conditions.push(eq(exams.certificationId, certId));
+    }
+
+    // Fetch completed exams with certification info
+    const completedExams = await db
+      .select({
+        id: exams.id,
+        score: exams.score,
+        completedAt: exams.completedAt,
+        certificationId: exams.certificationId,
+        certificationCode: certifications.code,
+      })
+      .from(exams)
+      .innerJoin(certifications, eq(certifications.id, exams.certificationId))
+      .where(and(...conditions))
+      .orderBy(exams.completedAt);
+
+    // Total count of completed exams matching the filter
+    const totalExamCount = completedExams.length;
+
+    if (granularity === 'attempt') {
+      // Return individual attempts
+      const dataPoints: TrendDataPoint[] = completedExams
+        .filter((exam) => exam.completedAt && exam.score !== null)
+        .map((exam) => ({
+          date: exam.completedAt!.toISOString(),
+          score: Math.round(exam.score! * 10) / 10,
+          certificationId: exam.certificationId,
+          certificationCode: exam.certificationCode,
+        }));
+
+      return { data: dataPoints, totalExamCount } satisfies TrendsResponse;
+    }
+
+    // For day/week granularity, aggregate scores
+    const groupedData = new Map<
+      string,
+      { scores: number[]; certificationId: number; certificationCode: string }
+    >();
+
+    for (const exam of completedExams) {
+      if (!exam.completedAt || exam.score === null) continue;
+
+      const date = exam.completedAt;
+      let key: string;
+
+      if (granularity === 'day') {
+        key = `${exam.certificationId}-${date.toISOString().split('T')[0]}`;
+      } else {
+        // Week: use ISO 8601 week number
+        const { year: isoYear, week: isoWeek } = getISOWeek(date);
+        key = `${exam.certificationId}-${isoYear}-W${isoWeek.toString().padStart(2, '0')}`;
+      }
+
+      if (!groupedData.has(key)) {
+        groupedData.set(key, {
+          scores: [],
+          certificationId: exam.certificationId,
+          certificationCode: exam.certificationCode,
+        });
+      }
+      groupedData.get(key)!.scores.push(exam.score);
+    }
+
+    // Calculate averages
+    const dataPoints: TrendDataPoint[] = [];
+    for (const [key, data] of groupedData) {
+      const dateStr = key.substring(key.indexOf('-') + 1); // Remove certificationId prefix
+      const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+      dataPoints.push({
+        date: dateStr,
+        score: Math.round(avgScore * 10) / 10,
+        certificationId: data.certificationId,
+        certificationCode: data.certificationCode,
+      });
+    }
+
+    // Sort by date
+    dataPoints.sort((a, b) => a.date.localeCompare(b.date));
+
+    return { data: dataPoints, totalExamCount } satisfies TrendsResponse;
+  });
   // Get dashboard stats - optimized with aggregated queries (filtered by certification)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/dashboard',

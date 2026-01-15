@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { path: '/exam', label: 'Practice Exam', icon: '◈' },
   { path: '/study', label: 'Study', icon: '◎' },
   { path: '/questions', label: 'Question Bank', icon: '☰' },
+  { path: '/progress', label: 'Progress', icon: '◔' },
   { path: '/review', label: 'Review', icon: '↻' },
   { path: '/settings', label: 'Settings', icon: '⚙' },
 ];

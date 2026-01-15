@@ -27,6 +27,9 @@ import type {
   Difficulty,
   CertificationWithCount,
   QuestionFilterOptions,
+  Granularity,
+  TrendDataPoint,
+  TrendsResponse,
 } from '@ace-prep/shared';
 
 const API_BASE = '/api';
@@ -173,6 +176,9 @@ export const questionApi = {
     }),
 };
 
+// Re-export trend types from shared for convenience
+export type { Granularity, TrendDataPoint, TrendsResponse };
+
 // Progress
 export const progressApi = {
   getDashboard: (certificationId?: number) => {
@@ -189,6 +195,12 @@ export const progressApi = {
   },
   getHistory: () => request<any[]>('/progress/history'),
   exportData: () => request<any>('/progress/export', { method: 'POST' }),
+  getTrends: (certificationId?: number, granularity: Granularity = 'attempt') => {
+    const params = new URLSearchParams();
+    if (certificationId) params.set('certificationId', String(certificationId));
+    params.set('granularity', granularity);
+    return request<TrendsResponse>(`/progress/trends?${params}`);
+  },
 };
 
 // Study
