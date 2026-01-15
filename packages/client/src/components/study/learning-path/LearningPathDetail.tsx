@@ -14,11 +14,23 @@ export function LearningPathDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['learningPathItem', orderNum, selectedCertificationId],
     queryFn: () => studyApi.getLearningPathItem(orderNum, selectedCertificationId ?? undefined),
     enabled: selectedCertificationId !== null,
   });
+
+  const handleRegenerateSummary = async () => {
+    setIsRegenerating(true);
+    try {
+      await studyApi.getLearningPathItem(orderNum, selectedCertificationId ?? undefined, true);
+      await refetch();
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
 
   const markCompleteMutation = useMutation({
     mutationFn: () =>
@@ -198,10 +210,57 @@ export function LearningPathDetail() {
         <>
           {/* Overview */}
           <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>
-              <span className={styles.sectionIcon}>~</span>
-              Overview
-            </h2>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>
+                <span className={styles.sectionIcon}>~</span>
+                Overview
+              </h2>
+              <button
+                className={styles.regenerateBtn}
+                onClick={handleRegenerateSummary}
+                disabled={isRegenerating}
+                title="Generate a fresh AI summary"
+              >
+                {isRegenerating ? (
+                  <>
+                    <span className={styles.spinner} />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path
+                        d="M1.5 7C1.5 3.96243 3.96243 1.5 7 1.5C8.79396 1.5 10.3891 2.41207 11.3383 3.775"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M12.5 7C12.5 10.0376 10.0376 12.5 7 12.5C5.20604 12.5 3.6109 11.5879 2.66174 10.225"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M9 4H11.5V1.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M5 10H2.5V12.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Regenerate
+                  </>
+                )}
+              </button>
+            </div>
             <div className={styles.overviewCard}>
               <p className={styles.overviewText}>{summary.overview}</p>
             </div>
