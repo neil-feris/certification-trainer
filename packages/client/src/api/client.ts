@@ -27,6 +27,9 @@ import type {
   Difficulty,
   CertificationWithCount,
   QuestionFilterOptions,
+  Granularity,
+  TrendDataPoint,
+  TrendsResponse,
 } from '@ace-prep/shared';
 
 const API_BASE = '/api';
@@ -173,20 +176,8 @@ export const questionApi = {
     }),
 };
 
-// Trends API types
-export type Granularity = 'attempt' | 'day' | 'week';
-
-export interface TrendDataPoint {
-  date: string;
-  score: number;
-  certificationId: number;
-  certificationCode: string;
-}
-
-export interface TrendsResponse {
-  data: TrendDataPoint[];
-  totalExamCount: number;
-}
+// Re-export trend types from shared for convenience
+export type { Granularity, TrendDataPoint, TrendsResponse };
 
 // Progress
 export const progressApi = {

@@ -12,20 +12,7 @@ import {
 import { eq, sql, desc, and } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
-
-type Granularity = 'attempt' | 'day' | 'week';
-
-interface TrendDataPoint {
-  date: string;
-  score: number;
-  certificationId: number;
-  certificationCode: string;
-}
-
-interface TrendsResponse {
-  data: TrendDataPoint[];
-  totalExamCount: number;
-}
+import type { Granularity, TrendDataPoint, TrendsResponse } from '@ace-prep/shared';
 
 /**
  * Calculate ISO 8601 week number.
