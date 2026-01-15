@@ -216,6 +216,32 @@ export const studySessionResponses = sqliteTable(
   ]
 );
 
+// Learning path AI-generated summaries (cached)
+export const learningPathSummaries = sqliteTable(
+  'learning_path_summaries',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    pathItemOrder: integer('path_item_order').notNull(),
+    overview: text('overview').notNull(),
+    keyTakeaways: text('key_takeaways').notNull(), // JSON array of strings
+    importantConcepts: text('important_concepts').notNull(), // JSON array of strings
+    examTips: text('exam_tips').notNull(), // JSON array of strings
+    relatedTopicIds: text('related_topic_ids').notNull(), // JSON array of numbers
+    generatedAt: integer('generated_at', { mode: 'timestamp' }).notNull(),
+    isEnhanced: integer('is_enhanced', { mode: 'boolean' }).default(false),
+  },
+  (table) => [
+    uniqueIndex('learning_path_summary_cert_order_idx').on(
+      table.certificationId,
+      table.pathItemOrder
+    ),
+    index('learning_path_summary_cert_idx').on(table.certificationId),
+  ]
+);
+
 // Learning path completion tracking
 export const learningPathProgress = sqliteTable(
   'learning_path_progress',
@@ -263,3 +289,5 @@ export type NewStudySession = typeof studySessions.$inferInsert;
 export type StudySessionResponseRecord = typeof studySessionResponses.$inferSelect;
 export type NewStudySessionResponse = typeof studySessionResponses.$inferInsert;
 export type LearningPathProgressRecord = typeof learningPathProgress.$inferSelect;
+export type LearningPathSummaryRecord = typeof learningPathSummaries.$inferSelect;
+export type NewLearningPathSummary = typeof learningPathSummaries.$inferInsert;
