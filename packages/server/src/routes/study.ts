@@ -10,13 +10,17 @@ import {
   studySessionResponses,
   learningPathProgress,
   spacedRepetition,
+  learningPathSummaries,
 } from '../db/schema.js';
-import { eq, desc, and, sql, inArray } from 'drizzle-orm';
+import { eq, desc, and, sql, inArray, like, or } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
+import { generateLearningPathSummary } from '../services/learningPathGenerator.js';
 import type {
   StartStudySessionRequest,
   SubmitStudyAnswerRequest,
   CompleteStudySessionRequest,
+  LearningPathItem,
+  LearningPathSummary,
 } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import {
@@ -29,6 +33,7 @@ import {
   studySummarySchema,
   explainSchema,
   topicQuestionsQuerySchema,
+  learningPathDetailQuerySchema,
   formatZodError,
 } from '../validation/schemas.js';
 
@@ -298,6 +303,329 @@ export async function studyRoutes(fastify: FastifyInstance) {
       };
     }
   );
+
+  // Get single learning path item with summary and related questions
+  fastify.get<{
+    Params: { order: string };
+    Querystring: { certificationId?: string; regenerate?: string };
+  }>('/learning-path/:order', async (request, reply) => {
+    const paramResult = orderParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const order = paramResult.data.order;
+
+    const queryResult = learningPathDetailQuerySchema.safeParse(request.query);
+    if (!queryResult.success) {
+      return reply.status(400).send(formatZodError(queryResult.error));
+    }
+    const { regenerate } = queryResult.data;
+
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return; // Error already sent
+
+    // Hardcoded learning path data (same as /learning-path endpoint)
+    const learningPathData = [
+      {
+        order: 1,
+        title: 'A Tour of Google Cloud Hands-on Labs',
+        type: 'course' as const,
+        description:
+          'Get familiar with the Google Cloud Console, Cloud Shell, and basic navigation',
+        topics: ['Console basics', 'IAM fundamentals', 'API management'],
+        whyItMatters:
+          'Foundation for all hands-on work with GCP. Understanding the console and Cloud Shell is essential for the exam.',
+      },
+      {
+        order: 2,
+        title: 'Google Cloud Fundamentals: Core Infrastructure',
+        type: 'course' as const,
+        description: 'Learn about GCP resources, identity and access, and core services',
+        topics: ['Resource hierarchy', 'IAM', 'Compute options', 'Storage options'],
+        whyItMatters: 'Covers ~40% of exam content. Core concepts tested heavily.',
+      },
+      {
+        order: 3,
+        title: 'Essential Google Cloud Infrastructure: Foundation',
+        type: 'course' as const,
+        description: 'Deep dive into VPCs, VMs, and networking fundamentals',
+        topics: ['VPC networking', 'Compute Engine', 'Cloud IAM'],
+        whyItMatters:
+          'Networking questions are common. Understanding VPCs, subnets, and firewall rules is critical.',
+      },
+      {
+        order: 4,
+        title: 'Essential Google Cloud Infrastructure: Core Services',
+        type: 'course' as const,
+        description: 'Storage, databases, and resource management',
+        topics: ['Cloud Storage', 'Cloud SQL', 'Resource Manager'],
+        whyItMatters:
+          'Storage selection questions appear frequently. Know when to use each storage type.',
+      },
+      {
+        order: 5,
+        title: 'Elastic Google Cloud Infrastructure: Scaling and Automation',
+        type: 'course' as const,
+        description: 'Load balancing, autoscaling, and infrastructure automation',
+        topics: ['Load balancing', 'Autoscaling', 'Managed instance groups', 'Terraform'],
+        whyItMatters:
+          'Exam tests your ability to design scalable solutions. Load balancer selection is a key topic.',
+      },
+      {
+        order: 6,
+        title: 'Getting Started with Google Kubernetes Engine',
+        type: 'course' as const,
+        description: 'Kubernetes fundamentals on GKE',
+        topics: ['Kubernetes concepts', 'GKE clusters', 'Workloads', 'Services'],
+        whyItMatters:
+          'GKE questions increased in 2025 exam update. Know cluster types and workload deployment.',
+      },
+      {
+        order: 7,
+        title: 'Developing Applications with Cloud Run',
+        type: 'course' as const,
+        description: 'Serverless containers with Cloud Run',
+        topics: ['Cloud Run deployment', 'Container configuration', 'Traffic management'],
+        whyItMatters:
+          'Cloud Run is the go-to serverless option. Exam tests when to use it vs other compute options.',
+      },
+      {
+        order: 8,
+        title: 'Logging and Monitoring in Google Cloud',
+        type: 'course' as const,
+        description: 'Cloud Operations suite for observability',
+        topics: ['Cloud Logging', 'Cloud Monitoring', 'Error Reporting', 'Trace'],
+        whyItMatters:
+          'Operations questions are ~20% of exam. Know how to create metrics, alerts, and dashboards.',
+      },
+      {
+        order: 9,
+        title: 'Cloud Load Balancing Skill Badge',
+        type: 'skill_badge' as const,
+        description: 'Hands-on lab for load balancing configurations',
+        topics: ['HTTP(S) LB', 'Network LB', 'Internal LB', 'SSL certificates'],
+        whyItMatters:
+          'Practical experience with load balancer setup. Exam has scenario-based LB questions.',
+      },
+      {
+        order: 10,
+        title: 'Set Up an App Dev Environment Skill Badge',
+        type: 'skill_badge' as const,
+        description: 'Configure development environments on GCP',
+        topics: ['Cloud Shell', 'Cloud Code', 'Artifact Registry'],
+        whyItMatters: 'Development workflow questions test your practical GCP experience.',
+      },
+      {
+        order: 11,
+        title: 'Develop your Google Cloud Network Skill Badge',
+        type: 'skill_badge' as const,
+        description: 'Advanced networking configurations',
+        topics: ['VPC peering', 'Shared VPC', 'Private Google Access', 'Cloud NAT'],
+        whyItMatters: 'Complex networking scenarios are common. Know hybrid connectivity options.',
+      },
+      {
+        order: 12,
+        title: 'Build Infrastructure with Terraform Skill Badge',
+        type: 'skill_badge' as const,
+        description: 'Infrastructure as Code with Terraform on GCP',
+        topics: ['Terraform basics', 'State management', 'Modules'],
+        whyItMatters:
+          'IaC is increasingly important. Know Terraform basics for automated deployments.',
+      },
+      {
+        order: 13,
+        title: 'Preparing for Your Associate Cloud Engineer Exam',
+        type: 'course' as const,
+        description: 'Exam preparation and practice',
+        topics: ['Exam format', 'Question types', 'Time management'],
+        whyItMatters: 'Final preparation. Understand the exam structure and practice strategies.',
+      },
+      {
+        order: 14,
+        title: 'Associate Cloud Engineer Certification',
+        type: 'exam' as const,
+        description: 'The certification exam itself',
+        topics: ['All domains covered'],
+        whyItMatters: 'The goal! 50 questions, 2 hours, passing score ~70%.',
+      },
+    ];
+
+    // Find the requested item
+    const itemData = learningPathData.find((item) => item.order === order);
+    if (!itemData) {
+      return reply.status(404).send({ error: 'Learning path item not found' });
+    }
+
+    // Get completion status
+    const [progressRecord] = await db
+      .select()
+      .from(learningPathProgress)
+      .where(
+        and(
+          eq(learningPathProgress.certificationId, certId),
+          eq(learningPathProgress.pathItemOrder, order)
+        )
+      );
+
+    const item: LearningPathItem = {
+      ...itemData,
+      isCompleted: !!progressRecord,
+      completedAt: progressRecord?.completedAt || null,
+    };
+
+    // Try to get cached summary
+    let summary: LearningPathSummary | null = null;
+    if (!regenerate) {
+      const [cachedSummary] = await db
+        .select()
+        .from(learningPathSummaries)
+        .where(
+          and(
+            eq(learningPathSummaries.certificationId, certId),
+            eq(learningPathSummaries.pathItemOrder, order)
+          )
+        );
+
+      if (cachedSummary) {
+        summary = {
+          id: cachedSummary.id,
+          pathItemOrder: cachedSummary.pathItemOrder,
+          certificationId: cachedSummary.certificationId,
+          overview: cachedSummary.overview,
+          keyTakeaways: JSON.parse(cachedSummary.keyTakeaways),
+          importantConcepts: JSON.parse(cachedSummary.importantConcepts),
+          examTips: JSON.parse(cachedSummary.examTips),
+          relatedTopicIds: JSON.parse(cachedSummary.relatedTopicIds),
+          generatedAt: cachedSummary.generatedAt,
+          isEnhanced: cachedSummary.isEnhanced || false,
+        };
+      }
+    }
+
+    // If no cached summary or regenerate requested, generate new one
+    if (!summary) {
+      try {
+        const generated = await generateLearningPathSummary(itemData, order, certId);
+
+        // Find related topic IDs based on topic name matching
+        const topicNames = itemData.topics;
+        const relatedTopicIds: number[] = [];
+
+        if (topicNames.length > 0) {
+          // Build OR conditions for topic name matching
+          const topicConditions = topicNames.map((name) => like(topics.name, `%${name}%`));
+          const relatedTopics = await db
+            .select({ id: topics.id })
+            .from(topics)
+            .innerJoin(domains, eq(topics.domainId, domains.id))
+            .where(and(eq(domains.certificationId, certId), or(...topicConditions)));
+
+          relatedTopicIds.push(...relatedTopics.map((t) => t.id));
+        }
+
+        // Delete existing summary if regenerating
+        if (regenerate) {
+          await db
+            .delete(learningPathSummaries)
+            .where(
+              and(
+                eq(learningPathSummaries.certificationId, certId),
+                eq(learningPathSummaries.pathItemOrder, order)
+              )
+            );
+        }
+
+        // Insert new summary into database
+        const [inserted] = await db
+          .insert(learningPathSummaries)
+          .values({
+            certificationId: certId,
+            pathItemOrder: order,
+            overview: generated.overview,
+            keyTakeaways: JSON.stringify(generated.keyTakeaways),
+            importantConcepts: JSON.stringify(generated.importantConcepts),
+            examTips: JSON.stringify(generated.examTips),
+            relatedTopicIds: JSON.stringify(relatedTopicIds),
+            generatedAt: generated.generatedAt,
+            isEnhanced: generated.isEnhanced,
+          })
+          .returning();
+
+        summary = {
+          id: inserted.id,
+          pathItemOrder: inserted.pathItemOrder,
+          certificationId: inserted.certificationId,
+          overview: inserted.overview,
+          keyTakeaways: JSON.parse(inserted.keyTakeaways),
+          importantConcepts: JSON.parse(inserted.importantConcepts),
+          examTips: JSON.parse(inserted.examTips),
+          relatedTopicIds: JSON.parse(inserted.relatedTopicIds),
+          generatedAt: inserted.generatedAt,
+          isEnhanced: inserted.isEnhanced || false,
+        };
+      } catch (error: any) {
+        fastify.log.error(error, 'Failed to generate learning path summary');
+        // Return response without summary rather than failing entirely
+        summary = null;
+      }
+    }
+
+    // Get related questions by matching topics
+    let relatedQuestions: any[] = [];
+    const topicIds = summary?.relatedTopicIds || [];
+
+    if (topicIds.length > 0) {
+      const questionsData = await db
+        .select({
+          question: questions,
+          domain: domains,
+          topic: topics,
+        })
+        .from(questions)
+        .innerJoin(domains, eq(questions.domainId, domains.id))
+        .innerJoin(topics, eq(questions.topicId, topics.id))
+        .where(inArray(questions.topicId, topicIds))
+        .orderBy(sql`RANDOM()`)
+        .limit(10);
+
+      relatedQuestions = questionsData.map((q) => ({
+        id: q.question.id,
+        topicId: q.question.topicId,
+        domainId: q.question.domainId,
+        questionText: q.question.questionText,
+        questionType: q.question.questionType,
+        options: JSON.parse(q.question.options as string),
+        correctAnswers: JSON.parse(q.question.correctAnswers as string),
+        explanation: q.question.explanation,
+        difficulty: q.question.difficulty,
+        gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+        isGenerated: q.question.isGenerated || true,
+        createdAt: q.question.createdAt,
+        domain: {
+          id: q.domain.id,
+          certificationId: q.domain.certificationId,
+          code: q.domain.code,
+          name: q.domain.name,
+          weight: q.domain.weight,
+          description: q.domain.description,
+          orderIndex: q.domain.orderIndex,
+        },
+        topic: {
+          id: q.topic.id,
+          domainId: q.topic.domainId,
+          code: q.topic.code,
+          name: q.topic.name,
+          description: q.topic.description,
+        },
+      }));
+    }
+
+    return {
+      item,
+      summary,
+      relatedQuestions,
+    };
+  });
 
   // Generate study summary for a domain/topic
   // Rate limit: 10 per minute

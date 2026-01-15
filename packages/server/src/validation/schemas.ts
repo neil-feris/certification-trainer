@@ -137,6 +137,14 @@ export const topicQuestionsQuerySchema = z.object({
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
 });
 
+export const learningPathDetailQuerySchema = z.object({
+  certificationId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  regenerate: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
+});
+
 // ============ Settings Schemas ============
 
 export const updateSettingsSchema = z
