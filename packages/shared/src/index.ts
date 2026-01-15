@@ -255,6 +255,25 @@ export interface LearningPathItem {
   completedAt: Date | null;
 }
 
+export interface LearningPathSummary {
+  id: number;
+  pathItemOrder: number;
+  certificationId: number;
+  overview: string;
+  keyTakeaways: string[];
+  importantConcepts: string[];
+  examTips: string[];
+  relatedTopicIds: number[];
+  generatedAt: Date;
+  isEnhanced: boolean;
+}
+
+export interface LearningPathDetailResponse {
+  item: LearningPathItem;
+  summary: LearningPathSummary | null;
+  relatedQuestions: QuestionWithDomain[];
+}
+
 export interface LearningPathStats {
   completed: number;
   total: number;
