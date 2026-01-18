@@ -34,15 +34,17 @@ const __dirname = dirname(__filename);
 const isProduction = process.env.NODE_ENV === 'production';
 
 const fastify = Fastify({
-  logger: {
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname',
+  logger: isProduction
+    ? true // JSON logging in production
+    : {
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            translateTime: 'HH:MM:ss Z',
+            ignore: 'pid,hostname',
+          },
+        },
       },
-    },
-  },
 });
 
 // Register CORS
