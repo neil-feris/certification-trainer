@@ -19,8 +19,7 @@ packages/*/dist
 **/*.spec.ts
 **/coverage
 
-# Database (will be mounted as volume)
-data/*.db
+# Database journal (not needed)
 data/*.db-journal
 
 # Misc

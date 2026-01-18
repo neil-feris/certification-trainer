@@ -53,8 +53,8 @@ COPY --from=builder /app/packages/client/dist ./packages/client/dist
 COPY packages/server/drizzle.config.ts ./packages/server/
 COPY packages/server/src/db ./packages/server/src/db
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
+# Copy database with seed data
+COPY data ./data
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
