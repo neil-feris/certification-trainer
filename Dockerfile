@@ -40,7 +40,9 @@ COPY packages/server/package.json ./packages/server/
 COPY packages/client/package.json ./packages/client/
 
 # Install production dependencies only (skip prepare script / husky)
-RUN npm ci --omit=dev --ignore-scripts
+# Then rebuild better-sqlite3 native bindings for this platform
+RUN npm ci --omit=dev --ignore-scripts && \
+    npm rebuild better-sqlite3
 
 # Copy built artifacts from builder
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
