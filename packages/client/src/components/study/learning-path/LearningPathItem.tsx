@@ -1,13 +1,12 @@
+import { Link } from 'react-router-dom';
 import type { LearningPathItem as LearningPathItemType } from '@ace-prep/shared';
 import styles from './LearningPath.module.css';
 
 interface LearningPathItemProps {
   item: LearningPathItemType;
-  onToggle: () => void;
-  isToggling: boolean;
 }
 
-export function LearningPathItem({ item, onToggle, isToggling }: LearningPathItemProps) {
+export function LearningPathItem({ item }: LearningPathItemProps) {
   const typeColors: Record<string, string> = {
     course: 'var(--accent-secondary)',
     skill_badge: 'var(--accent-primary)',
@@ -21,38 +20,28 @@ export function LearningPathItem({ item, onToggle, isToggling }: LearningPathIte
   };
 
   return (
-    <div className={`${styles.pathItem} ${item.isCompleted ? styles.completed : ''}`}>
-      <button
-        className={styles.checkbox}
-        onClick={onToggle}
-        disabled={isToggling}
-        aria-label={item.isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+    <Link
+      to={`/study/learning-path/${item.order}`}
+      className={`${styles.pathItem} ${styles.pathItemLink} ${item.isCompleted ? styles.completed : ''}`}
+    >
+      {/* Completion indicator */}
+      <div
+        className={`${styles.completionIndicator} ${item.isCompleted ? styles.indicatorComplete : ''}`}
       >
         {item.isCompleted ? (
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <rect width="20" height="20" rx="4" fill="var(--accent-primary)" />
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path
-              d="M6 10L9 13L14 7"
-              stroke="var(--bg-primary)"
+              d="M4 8L7 11L12 5"
+              stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
         ) : (
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <rect
-              x="1"
-              y="1"
-              width="18"
-              height="18"
-              rx="3"
-              stroke="var(--border-color)"
-              strokeWidth="2"
-            />
-          </svg>
+          <span className={styles.indicatorDot} />
         )}
-      </button>
+      </div>
 
       <div className={styles.pathNumber}>{item.order}</div>
 
@@ -77,6 +66,18 @@ export function LearningPathItem({ item, onToggle, isToggling }: LearningPathIte
           <strong>Why it matters:</strong> {item.whyItMatters}
         </div>
       </div>
-    </div>
+
+      <div className={styles.pathArrow}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M7 4L13 10L7 16"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+    </Link>
   );
 }

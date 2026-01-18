@@ -1,6 +1,7 @@
 import type {
   LearningPathItem,
   LearningPathStats,
+  LearningPathDetailResponse,
   TopicPracticeStats,
   StartStudySessionRequest,
   StartStudySessionResponse,
@@ -221,6 +222,24 @@ export const studyApi = {
     const params = certificationId ? `?certificationId=${certificationId}` : '';
     return request<{ isCompleted: boolean; completedAt: Date | null }>(
       `/study/learning-path/${order}/toggle${params}`,
+      {
+        method: 'PATCH',
+      }
+    );
+  },
+  getLearningPathItem: (order: number, certificationId?: number, regenerate?: boolean) => {
+    const searchParams = new URLSearchParams();
+    if (certificationId) searchParams.set('certificationId', String(certificationId));
+    if (regenerate) searchParams.set('regenerate', 'true');
+    const query = searchParams.toString();
+    return request<LearningPathDetailResponse>(
+      `/study/learning-path/${order}${query ? `?${query}` : ''}`
+    );
+  },
+  markLearningPathComplete: (order: number, certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<{ isCompleted: boolean; completedAt: Date | null }>(
+      `/study/learning-path/${order}/complete${params}`,
       {
         method: 'PATCH',
       }
