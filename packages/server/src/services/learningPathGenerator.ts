@@ -84,19 +84,33 @@ function parseJsonResponse(text: string): GeneratedSummary {
   // Try to extract JSON from the response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error('No JSON found in response');
+    throw new Error(
+      `No JSON found in LLM response. Raw text (first 500 chars): ${text.slice(0, 500)}...`
+    );
   }
 
-  const parsed = JSON.parse(jsonMatch[0]) as GeneratedSummary;
+  let parsed: GeneratedSummary;
+  try {
+    parsed = JSON.parse(jsonMatch[0]) as GeneratedSummary;
+  } catch (e) {
+    const parseError = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `Invalid JSON from LLM: ${parseError}. Extracted JSON (first 300 chars): ${jsonMatch[0].slice(0, 300)}...`
+    );
+  }
 
   // Validate required fields
-  if (
-    !parsed.overview ||
-    !Array.isArray(parsed.keyTakeaways) ||
-    !Array.isArray(parsed.importantConcepts) ||
-    !Array.isArray(parsed.examTips)
-  ) {
-    throw new Error('Invalid response structure');
+  if (!parsed.overview || typeof parsed.overview !== 'string') {
+    throw new Error('Invalid response structure: missing or invalid overview');
+  }
+  if (!Array.isArray(parsed.keyTakeaways)) {
+    throw new Error('Invalid response structure: keyTakeaways must be an array');
+  }
+  if (!Array.isArray(parsed.importantConcepts)) {
+    throw new Error('Invalid response structure: importantConcepts must be an array');
+  }
+  if (!Array.isArray(parsed.examTips)) {
+    throw new Error('Invalid response structure: examTips must be an array');
   }
 
   return parsed;
