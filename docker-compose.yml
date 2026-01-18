@@ -1,0 +1,25 @@
+services:
+  ace-prep:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ace-prep
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ace-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3001
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ace-data:
+    name: ace-prep-data

@@ -1,0 +1,29 @@
+node_modules
+*/node_modules
+**/node_modules
+
+# Build outputs (rebuilt in container)
+packages/*/dist
+**/dist
+
+# Development files
+.git
+.gitignore
+*.md
+.env*
+.vscode
+.idea
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+**/coverage
+
+# Database (will be mounted as volume)
+data/*.db
+data/*.db-journal
+
+# Misc
+.DS_Store
+*.log
+tmp

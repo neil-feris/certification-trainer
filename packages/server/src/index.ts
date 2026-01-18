@@ -14,9 +14,12 @@
  * 5. Securing API key storage with proper encryption
  */
 
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 
 import { certificationRoutes } from './routes/certifications.js';
 import { examRoutes } from './routes/exams.js';
@@ -25,6 +28,10 @@ import { progressRoutes } from './routes/progress.js';
 import { studyRoutes } from './routes/study.js';
 import { settingsRoutes } from './routes/settings.js';
 import { drillRoutes } from './routes/drills.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const isProduction = process.env.NODE_ENV === 'production';
 
 const fastify = Fastify({
   logger: {
@@ -39,8 +46,12 @@ const fastify = Fastify({
 });
 
 // Register CORS
+const allowedOrigins = isProduction
+  ? [process.env.CORS_ORIGIN || 'https://certification-trainer.neilferis.com']
+  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
 await fastify.register(cors, {
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: allowedOrigins,
   credentials: true,
 });
 
@@ -71,11 +82,31 @@ fastify.get('/api/health', async () => {
   return { status: 'ok', timestamp: new Date().toISOString() };
 });
 
+// Serve static files in production
+if (isProduction) {
+  const clientDistPath = join(__dirname, '../../client/dist');
+
+  await fastify.register(fastifyStatic, {
+    root: clientDistPath,
+    prefix: '/',
+  });
+
+  // SPA fallback - serve index.html for client-side routes
+  fastify.setNotFoundHandler(async (request, reply) => {
+    if (request.url.startsWith('/api/')) {
+      return reply.status(404).send({ error: 'Not Found' });
+    }
+    return reply.sendFile('index.html');
+  });
+}
+
 // Start server
 const start = async () => {
   try {
-    await fastify.listen({ port: 3001, host: '127.0.0.1' });
-    console.log('\n ACE Prep API running at http://localhost:3001');
+    const port = parseInt(process.env.PORT || '3001', 10);
+    const host = process.env.HOST || '127.0.0.1';
+    await fastify.listen({ port, host });
+    console.log(`\n ACE Prep API running at http://${host}:${port}`);
     console.log(' API endpoints:');
     console.log('   GET  /api/health');
     console.log('   GET  /api/exams');
