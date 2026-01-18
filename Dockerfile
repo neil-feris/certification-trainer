@@ -39,8 +39,8 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/server/package.json ./packages/server/
 COPY packages/client/package.json ./packages/client/
 
-# Install production dependencies only
-RUN npm ci --omit=dev
+# Install production dependencies only (skip prepare script / husky)
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy built artifacts from builder
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
