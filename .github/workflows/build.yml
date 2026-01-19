@@ -1,0 +1,121 @@
+# Build and Push Docker Image
+# ---------------------------------
+# Triggers on push to main branch
+# Builds the application and pushes Docker image to GitHub Container Registry
+#
+# Image tags:
+#   - latest (main branch only)
+#   - sha-<short-sha> (always)
+#   - main (branch name)
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+
+# Prevent concurrent builds on same branch
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/ace-prep
+
+jobs:
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+
+    # Required permissions for GHCR push
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-digest: ${{ steps.build-push.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      # ---------------------------------
+      # Checkout and setup
+      # ---------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.2.0'
+          cache: 'npm'
+
+      # ---------------------------------
+      # Build application
+      # ---------------------------------
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      # ---------------------------------
+      # Docker setup
+      # ---------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN has packages:write permission by default
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---------------------------------
+      # Build and push image
+      # ---------------------------------
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tag with 'latest' for main branch
+            type=raw,value=latest,enable={{is_default_branch}}
+            # Tag with short SHA (sha-abc1234)
+            type=sha,prefix=sha-,format=short
+            # Tag with branch name
+            type=ref,event=branch
+
+      - name: Build and push Docker image
+        id: build-push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache layers in GitHub Actions cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Build args if needed
+          build-args: |
+            NODE_ENV=production
+
+      # ---------------------------------
+      # Verification
+      # ---------------------------------
+      - name: Output image digest
+        run: |
+          echo "## Docker Image Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest:** ${{ steps.build-push.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tags" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

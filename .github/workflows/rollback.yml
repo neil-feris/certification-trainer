@@ -1,0 +1,147 @@
+# Rollback Production Deployment
+# ---------------------------------
+# Manual-only workflow for rolling back to a previous version
+#
+# This workflow:
+#   1. SSHs to the VPS
+#   2. Runs the rollback script with optional version parameter
+#   3. Verifies health after rollback
+#
+# Required Secrets (same as deploy.yml):
+#   VPS_HOST     - Server IP or hostname
+#   VPS_USER     - SSH username
+#   VPS_SSH_KEY  - Private SSH key for authentication
+#
+# Usage:
+#   - If version is empty, uses .previous_version file on the VPS
+#   - If version is specified, rolls back to that specific version
+#   - Confirmation checkbox MUST be checked to proceed
+
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to rollback to (leave empty to use previous version from .previous_version file)'
+        required: false
+        default: ''
+        type: string
+      confirm:
+        description: 'I confirm I want to rollback production'
+        required: true
+        type: boolean
+        default: false
+
+# Only one rollback at a time, and block if deploy is running
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------
+  # Validation gate
+  # ---------------------------------
+  validate:
+    name: Validate Rollback Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        if: ${{ github.event.inputs.confirm != 'true' }}
+        run: |
+          echo "::error::Rollback not confirmed. You must check the confirmation box to proceed."
+          exit 1
+
+      - name: Log rollback request
+        run: |
+          echo "## Rollback Request" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Requested by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target version:** ${{ github.event.inputs.version || '(previous version)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Confirmed:** ${{ github.event.inputs.confirm }}" >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------
+  # Execute rollback
+  # ---------------------------------
+  rollback:
+    name: Execute Rollback
+    runs-on: ubuntu-latest
+    needs: validate
+
+    # Use production environment for audit trail
+    environment:
+      name: production
+      url: https://certification-trainer.neilferis.com
+
+    steps:
+      - name: Execute rollback via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # 5 minute timeout for rollback
+          timeout: 5m
+          script: |
+            echo "=== Starting rollback ==="
+
+            cd /opt/ace-prep
+
+            # Show current state before rollback
+            echo "Current container:"
+            docker ps --filter "name=ace-prep" --format "table {{.Image}}\t{{.Status}}"
+
+            # Check if version is specified or use previous
+            VERSION="${{ github.event.inputs.version }}"
+
+            if [ -n "${VERSION}" ]; then
+              echo "Rolling back to specified version: ${VERSION}"
+              ./rollback.sh "${VERSION}"
+            else
+              echo "Rolling back to previous version from .previous_version file"
+              ./rollback.sh
+            fi
+
+            echo "=== Rollback script completed ==="
+
+      # ---------------------------------
+      # Post-rollback verification
+      # ---------------------------------
+      - name: Verify rollback health
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 2m
+          script: |
+            echo "=== Running health check after rollback ==="
+            cd /opt/ace-prep
+            ./health-check.sh
+
+            echo "=== Current deployed version ==="
+            docker inspect --format='{{.Config.Image}}' ace-prep
+
+      - name: Rollback summary
+        if: success()
+        run: |
+          echo "## Rollback Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target version:** ${{ github.event.inputs.version || '(previous version)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Executed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Health check passed. Application is running on rolled-back version." >> $GITHUB_STEP_SUMMARY
+
+      - name: Rollback failed
+        if: failure()
+        run: |
+          echo "## Rollback Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target version:** ${{ github.event.inputs.version || '(previous version)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**MANUAL INTERVENTION REQUIRED**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "SSH to the VPS and check:" >> $GITHUB_STEP_SUMMARY
+          echo "1. \`docker logs ace-prep --tail 50\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. \`docker ps -a\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Check /opt/ace-prep/backups for database backups" >> $GITHUB_STEP_SUMMARY

@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { db } from '../db/index.js';
-import { settings } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { userSettings } from '../db/schema.js';
+import { and, eq } from 'drizzle-orm';
 import type {
   GeneratedQuestion,
   Difficulty,
@@ -48,27 +48,33 @@ interface GenerateParams {
   count: number;
   avoidConcepts?: string[];
   model?: LLMModel;
+  userId: number;
 }
 
-async function getApiConfig() {
-  const [provider] = await db.select().from(settings).where(eq(settings.key, 'llmProvider'));
-  const [openaiKey] = await db.select().from(settings).where(eq(settings.key, 'openaiApiKey'));
-  const [anthropicKey] = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, 'anthropicApiKey'));
-  const [anthropicModel] = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, 'anthropicModel'));
-  const [openaiModel] = await db.select().from(settings).where(eq(settings.key, 'openaiModel'));
+async function getApiConfig(userId: number) {
+  // Helper to get a user setting by key
+  const getUserSetting = async (key: string) => {
+    const [setting] = await db
+      .select()
+      .from(userSettings)
+      .where(and(eq(userSettings.userId, userId), eq(userSettings.key, key)));
+    return setting?.value;
+  };
+
+  const [provider, openaiKey, anthropicKey, anthropicModel, openaiModel] = await Promise.all([
+    getUserSetting('llmProvider'),
+    getUserSetting('openaiApiKey'),
+    getUserSetting('anthropicApiKey'),
+    getUserSetting('anthropicModel'),
+    getUserSetting('openaiModel'),
+  ]);
 
   return {
-    provider: provider?.value || 'anthropic',
-    openaiApiKey: openaiKey?.value,
-    anthropicApiKey: anthropicKey?.value,
-    anthropicModel: (anthropicModel?.value || DEFAULT_ANTHROPIC_MODEL) as AnthropicModel,
-    openaiModel: (openaiModel?.value || DEFAULT_OPENAI_MODEL) as OpenAIModel,
+    provider: provider || 'anthropic',
+    openaiApiKey: openaiKey,
+    anthropicApiKey: anthropicKey,
+    anthropicModel: (anthropicModel || DEFAULT_ANTHROPIC_MODEL) as AnthropicModel,
+    openaiModel: (openaiModel || DEFAULT_OPENAI_MODEL) as OpenAIModel,
   };
 }
 
@@ -110,7 +116,7 @@ IMPORTANT:
 }
 
 export async function generateQuestions(params: GenerateParams): Promise<GeneratedQuestion[]> {
-  const config = await getApiConfig();
+  const config = await getApiConfig(params.userId);
 
   // Determine which provider to use: explicit param > settings > default
   // OpenAI models: gpt-*, o3, o4-mini; Anthropic models: claude-*

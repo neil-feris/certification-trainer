@@ -1,10 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { settings } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { userSettings } from '../db/schema.js';
+import { and, eq } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { updateSettingsSchema, testApiSchema, formatZodError } from '../validation/schemas.js';
+import { authenticate } from '../middleware/auth.js';
 
 const DEFAULT_SETTINGS: Record<string, string | number> = {
   llmProvider: 'anthropic',
@@ -17,9 +18,12 @@ const DEFAULT_SETTINGS: Record<string, string | number> = {
 };
 
 export async function settingsRoutes(fastify: FastifyInstance) {
-  // Get current settings
-  fastify.get('/', async () => {
-    const allSettings = await db.select().from(settings);
+  // Apply authentication to all routes in this file
+  fastify.addHook('preHandler', authenticate);
+  // Get current settings for authenticated user
+  fastify.get('/', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
+    const allSettings = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
 
     const dbValues: Record<string, string> = {};
     for (const s of allSettings) {
@@ -39,7 +43,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // Update settings
+  // Update settings for authenticated user
   fastify.patch<{
     Body: Partial<{
       llmProvider: 'openai' | 'anthropic';
@@ -56,20 +60,25 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const updates = parseResult.data;
+    const userId = parseInt(request.user!.id, 10);
     const now = new Date();
 
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined && value !== null) {
-        // Upsert setting
-        const [existing] = await db.select().from(settings).where(eq(settings.key, key));
+        // Upsert user setting
+        const [existing] = await db
+          .select()
+          .from(userSettings)
+          .where(and(eq(userSettings.userId, userId), eq(userSettings.key, key)));
 
         if (existing) {
           await db
-            .update(settings)
+            .update(userSettings)
             .set({ value: String(value), updatedAt: now })
-            .where(eq(settings.key, key));
+            .where(and(eq(userSettings.userId, userId), eq(userSettings.key, key)));
         } else {
-          await db.insert(settings).values({
+          await db.insert(userSettings).values({
+            userId,
             key,
             value: String(value),
             updatedAt: now,

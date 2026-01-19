@@ -37,8 +37,11 @@ import {
   learningPathDetailQuerySchema,
   formatZodError,
 } from '../validation/schemas.js';
+import { authenticate } from '../middleware/auth.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
+  // Apply authentication to all routes in this file
+  fastify.addHook('preHandler', authenticate);
   // Get all domains with topics (single query with JOIN, filtered by certification)
   fastify.get<{ Querystring: { certificationId?: string } }>('/domains', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
@@ -75,18 +78,24 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }));
   });
 
-  // Get learning path structure with completion status (filtered by certification)
+  // Get learning path structure with completion status (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/learning-path',
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
-      // Get completion status for this certification
+      // Get completion status for this certification and user
       const progress = await db
         .select()
         .from(learningPathProgress)
-        .where(eq(learningPathProgress.certificationId, certId));
+        .where(
+          and(
+            eq(learningPathProgress.certificationId, certId),
+            eq(learningPathProgress.userId, userId)
+          )
+        );
       const completedMap = new Map(progress.map((p) => [p.pathItemOrder, p.completedAt]));
 
       return LEARNING_PATH_ITEMS.map((item) => ({
@@ -109,15 +118,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
-      // Check if already completed (for this certification)
+      // Check if already completed (for this certification and user)
       const [existing] = await db
         .select()
         .from(learningPathProgress)
         .where(
           and(
             eq(learningPathProgress.certificationId, certId),
-            eq(learningPathProgress.pathItemOrder, order)
+            eq(learningPathProgress.pathItemOrder, order),
+            eq(learningPathProgress.userId, userId)
           )
         );
 
@@ -128,7 +139,8 @@ export async function studyRoutes(fastify: FastifyInstance) {
           .where(
             and(
               eq(learningPathProgress.certificationId, certId),
-              eq(learningPathProgress.pathItemOrder, order)
+              eq(learningPathProgress.pathItemOrder, order),
+              eq(learningPathProgress.userId, userId)
             )
           );
         return { isCompleted: false, completedAt: null };
@@ -136,6 +148,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
         // Mark as completed
         const now = new Date();
         await db.insert(learningPathProgress).values({
+          userId,
           certificationId: certId,
           pathItemOrder: order,
           completedAt: now,
@@ -157,15 +170,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
-      // Check if already completed (for this certification)
+      // Check if already completed (for this certification and user)
       const [existing] = await db
         .select()
         .from(learningPathProgress)
         .where(
           and(
             eq(learningPathProgress.certificationId, certId),
-            eq(learningPathProgress.pathItemOrder, order)
+            eq(learningPathProgress.pathItemOrder, order),
+            eq(learningPathProgress.userId, userId)
           )
         );
 
@@ -177,6 +192,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       // Mark as completed
       const now = new Date();
       await db.insert(learningPathProgress).values({
+        userId,
         certificationId: certId,
         pathItemOrder: order,
         completedAt: now,
@@ -185,17 +201,23 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Get learning path stats (filtered by certification)
+  // Get learning path stats (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/learning-path/stats',
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
       const progress = await db
         .select()
         .from(learningPathProgress)
-        .where(eq(learningPathProgress.certificationId, certId));
+        .where(
+          and(
+            eq(learningPathProgress.certificationId, certId),
+            eq(learningPathProgress.userId, userId)
+          )
+        );
       const total = LEARNING_PATH_TOTAL;
       const completed = progress.length;
 
@@ -248,6 +270,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
       // Find the requested item
       const itemData = LEARNING_PATH_ITEMS.find((item) => item.order === order);
@@ -255,14 +278,15 @@ export async function studyRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Learning path item not found' });
       }
 
-      // Get completion status
+      // Get completion status for this user
       const [progressRecord] = await db
         .select()
         .from(learningPathProgress)
         .where(
           and(
             eq(learningPathProgress.certificationId, certId),
-            eq(learningPathProgress.pathItemOrder, order)
+            eq(learningPathProgress.pathItemOrder, order),
+            eq(learningPathProgress.userId, userId)
           )
         );
 
@@ -665,9 +689,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
 
     // Create the session
+    const userId = parseInt(request.user!.id, 10);
     const [session] = await db
       .insert(studySessions)
       .values({
+        userId,
         certificationId: certId,
         sessionType,
         topicId: topicId || null,
@@ -704,18 +730,23 @@ export async function studyRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // Get active study session for recovery (filtered by certification)
+  // Get active study session for recovery (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/sessions/active',
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
       const [session] = await db
         .select()
         .from(studySessions)
         .where(
-          and(eq(studySessions.status, 'in_progress'), eq(studySessions.certificationId, certId))
+          and(
+            eq(studySessions.status, 'in_progress'),
+            eq(studySessions.certificationId, certId),
+            eq(studySessions.userId, userId)
+          )
         )
         .orderBy(desc(studySessions.startedAt))
         .limit(1);
@@ -792,6 +823,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const sessionId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
     const bodyResult = submitStudyAnswerSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -799,8 +831,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
     const { questionId, selectedAnswers, timeSpentSeconds } = bodyResult.data;
 
-    // Verify session exists and is active
-    const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
+    // Verify session exists, belongs to user, and is active
+    const [session] = await db
+      .select()
+      .from(studySessions)
+      .where(and(eq(studySessions.id, sessionId), eq(studySessions.userId, userId)));
     if (!session) {
       return reply.status(404).send({ error: 'Session not found' });
     }
@@ -862,6 +897,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
         // Create new response
         await tx.insert(studySessionResponses).values({
+          userId,
           sessionId,
           questionId,
           selectedAnswers: JSON.stringify(selectedAnswers),
@@ -871,15 +907,18 @@ export async function studyRoutes(fastify: FastifyInstance) {
           addedToSR: false,
         });
 
-        // If incorrect, add to spaced repetition queue
+        // If incorrect, add to spaced repetition queue for this user
         if (!isCorrect) {
           const [existingSR] = await tx
             .select()
             .from(spacedRepetition)
-            .where(eq(spacedRepetition.questionId, questionId));
+            .where(
+              and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
+            );
 
           if (!existingSR) {
             await tx.insert(spacedRepetition).values({
+              userId,
               questionId,
               easeFactor: 2.5,
               interval: 1,
@@ -930,6 +969,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const sessionId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
     const bodyResult = completeStudySessionSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -937,7 +977,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
     const { responses, totalTimeSeconds } = bodyResult.data;
 
-    const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
+    // Verify session ownership
+    const [session] = await db
+      .select()
+      .from(studySessions)
+      .where(and(eq(studySessions.id, sessionId), eq(studySessions.userId, userId)));
     if (!session) {
       return reply.status(404).send({ error: 'Session not found' });
     }
@@ -959,13 +1003,18 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .where(eq(studySessionResponses.sessionId, sessionId));
     const existingResponsesMap = new Map(existingResponses.map((r) => [r.questionId, r]));
 
-    // Fetch all existing SR entries in one query
+    // Fetch all existing SR entries for this user in one query
     const existingSREntries =
       questionIds.length > 0
         ? await db
             .select()
             .from(spacedRepetition)
-            .where(inArray(spacedRepetition.questionId, questionIds))
+            .where(
+              and(
+                inArray(spacedRepetition.questionId, questionIds),
+                eq(spacedRepetition.userId, userId)
+              )
+            )
         : [];
     const existingSRMap = new Set(existingSREntries.map((sr) => sr.questionId));
 
@@ -973,6 +1022,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     const result = await db.transaction(async (tx) => {
       let currentOrderIndex = existingResponses.length;
       const responsesToInsert: Array<{
+        userId: number;
         sessionId: number;
         questionId: number;
         selectedAnswers: string;
@@ -982,6 +1032,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
         addedToSR: boolean;
       }> = [];
       const srToInsert: Array<{
+        userId: number;
         questionId: number;
         easeFactor: number;
         interval: number;
@@ -1006,6 +1057,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
           if (!isCorrect && !existingSRMap.has(response.questionId)) {
             srToInsert.push({
+              userId,
               questionId: response.questionId,
               easeFactor: 2.5,
               interval: 1,
@@ -1017,6 +1069,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
           }
 
           responsesToInsert.push({
+            userId,
             sessionId,
             questionId: response.questionId,
             selectedAnswers: JSON.stringify(response.selectedAnswers),
@@ -1074,8 +1127,13 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const sessionId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
-    const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
+    // Verify ownership
+    const [session] = await db
+      .select()
+      .from(studySessions)
+      .where(and(eq(studySessions.id, sessionId), eq(studySessions.userId, userId)));
     if (!session) {
       return reply.status(404).send({ error: 'Session not found' });
     }
@@ -1083,7 +1141,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     await db
       .update(studySessions)
       .set({ status: 'abandoned', completedAt: new Date() })
-      .where(eq(studySessions.id, sessionId));
+      .where(and(eq(studySessions.id, sessionId), eq(studySessions.userId, userId)));
 
     return { success: true };
   });
@@ -1139,15 +1197,16 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }));
   });
 
-  // Get topic practice stats
+  // Get topic practice stats for authenticated user
   fastify.get<{ Params: { topicId: string } }>('/topics/:topicId/stats', async (request, reply) => {
     const paramResult = topicIdParamSchema.safeParse(request.params);
     if (!paramResult.success) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const topicId = paramResult.data.topicId;
+    const userId = parseInt(request.user!.id, 10);
 
-    // Get all exam responses for this topic
+    // Get all exam responses for this topic for this user
     const responses = await db
       .select({
         isCorrect: examResponses.isCorrect,
@@ -1155,24 +1214,30 @@ export async function studyRoutes(fastify: FastifyInstance) {
       })
       .from(examResponses)
       .innerJoin(questions, eq(examResponses.questionId, questions.id))
-      .where(eq(questions.topicId, topicId));
+      .where(and(eq(questions.topicId, topicId), eq(examResponses.userId, userId)));
 
     const totalAttempted = responses.length;
     const correctCount = responses.filter((r) => r.isCorrect).length;
     const accuracy = totalAttempted > 0 ? Math.round((correctCount / totalAttempted) * 100) : 0;
 
-    // Get questions in SR queue for this topic
+    // Get questions in SR queue for this topic for this user
     const srQuestions = await db
       .select({ count: sql<number>`count(*)` })
       .from(spacedRepetition)
       .innerJoin(questions, eq(spacedRepetition.questionId, questions.id))
-      .where(eq(questions.topicId, topicId));
+      .where(and(eq(questions.topicId, topicId), eq(spacedRepetition.userId, userId)));
 
-    // Get last practice date from study sessions
+    // Get last practice date from study sessions for this user
     const [lastSession] = await db
       .select()
       .from(studySessions)
-      .where(and(eq(studySessions.topicId, topicId), eq(studySessions.status, 'completed')))
+      .where(
+        and(
+          eq(studySessions.topicId, topicId),
+          eq(studySessions.status, 'completed'),
+          eq(studySessions.userId, userId)
+        )
+      )
       .orderBy(desc(studySessions.completedAt))
       .limit(1);
 

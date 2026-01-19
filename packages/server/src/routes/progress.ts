@@ -13,6 +13,7 @@ import { eq, sql, desc, and } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import type { Granularity, TrendDataPoint, TrendsResponse } from '@ace-prep/shared';
+import { authenticate } from '../middleware/auth.js';
 
 /**
  * Calculate ISO 8601 week number.
@@ -28,11 +29,14 @@ function getISOWeek(date: Date): { year: number; week: number } {
 }
 
 export async function progressRoutes(fastify: FastifyInstance) {
+  // Apply authentication to all routes in this file
+  fastify.addHook('preHandler', authenticate);
   // Get performance trends data for charting
   fastify.get<{
     Querystring: { certificationId?: string; granularity?: string };
   }>('/trends', async (request, reply) => {
     const { certificationId: certIdStr, granularity: granularityStr } = request.query;
+    const userId = parseInt(request.user!.id, 10);
 
     // Validate granularity
     const validGranularities: Granularity[] = ['attempt', 'day', 'week'];
@@ -50,8 +54,8 @@ export async function progressRoutes(fastify: FastifyInstance) {
       certId = parsed;
     }
 
-    // Build query conditions
-    const conditions = [eq(exams.status, 'completed')];
+    // Build query conditions - always filter by userId
+    const conditions = [eq(exams.status, 'completed'), eq(exams.userId, userId)];
     if (certId !== null) {
       conditions.push(eq(exams.certificationId, certId));
     }
@@ -135,14 +139,15 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     return { data: dataPoints, totalExamCount } satisfies TrendsResponse;
   });
-  // Get dashboard stats - optimized with aggregated queries (filtered by certification)
+  // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/dashboard',
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
-      // Single aggregated query for exam stats (filtered by certification)
+      // Single aggregated query for exam stats (filtered by certification and user)
       const [examStats] = await db
         .select({
           totalExams: sql<number>`count(*)`.as('total_exams'),
@@ -156,7 +161,13 @@ export async function progressRoutes(fastify: FastifyInstance) {
           ),
         })
         .from(exams)
-        .where(and(eq(exams.status, 'completed'), eq(exams.certificationId, certId)));
+        .where(
+          and(
+            eq(exams.status, 'completed'),
+            eq(exams.certificationId, certId),
+            eq(exams.userId, userId)
+          )
+        );
 
       const totalExams = examStats.totalExams;
       const totalQuestionsAnswered = examStats.totalQuestionsAnswered;
@@ -165,7 +176,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
         totalQuestionsAnswered > 0 ? (correctAnswers / totalQuestionsAnswered) * 100 : 0;
 
       // Batch query: domains with aggregated response stats (single query with GROUP BY)
-      // Only include domains for the selected certification
+      // Only include domains for the selected certification, filtered by user's responses
       const domainStatsRaw = await db
         .select({
           domainId: domains.id,
@@ -182,7 +193,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
         })
         .from(domains)
         .leftJoin(questions, eq(questions.domainId, domains.id))
-        .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+        .leftJoin(
+          examResponses,
+          and(eq(examResponses.questionId, questions.id), eq(examResponses.userId, userId))
+        )
         .where(eq(domains.certificationId, certId))
         .groupBy(domains.id)
         .orderBy(domains.orderIndex);
@@ -203,7 +217,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
       }));
 
       // Batch query: topics with domain info and aggregated stats (single query with JOINs + GROUP BY)
-      // Only include topics for domains in the selected certification
+      // Only include topics for domains in the selected certification, filtered by user's responses
       const topicStatsRaw = await db
         .select({
           topicId: topics.id,
@@ -226,7 +240,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
         .from(topics)
         .innerJoin(domains, eq(domains.id, topics.domainId))
         .leftJoin(questions, eq(questions.topicId, topics.id))
-        .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+        .leftJoin(
+          examResponses,
+          and(eq(examResponses.questionId, questions.id), eq(examResponses.userId, userId))
+        )
         .where(eq(domains.certificationId, certId))
         .groupBy(topics.id, domains.id);
 
@@ -260,11 +277,17 @@ export async function progressRoutes(fastify: FastifyInstance) {
         .sort((a, b) => a.accuracy - b.accuracy)
         .slice(0, 5);
 
-      // Recent exams (limit 5, filtered by certification)
+      // Recent exams (limit 5, filtered by certification and user)
       const recentExams = await db
         .select()
         .from(exams)
-        .where(and(eq(exams.status, 'completed'), eq(exams.certificationId, certId)))
+        .where(
+          and(
+            eq(exams.status, 'completed'),
+            eq(exams.certificationId, certId),
+            eq(exams.userId, userId)
+          )
+        )
         .orderBy(desc(exams.completedAt))
         .limit(5);
 
@@ -286,8 +309,9 @@ export async function progressRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: { certificationId?: string } }>('/domains', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
+    const userId = parseInt(request.user!.id, 10);
 
-    // Single query: topics with domain info and aggregated response stats (filtered by certification)
+    // Single query: topics with domain info and aggregated response stats (filtered by certification and user)
     const topicStatsRaw = await db
       .select({
         topicId: topics.id,
@@ -312,7 +336,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
       .from(topics)
       .innerJoin(domains, eq(domains.id, topics.domainId))
       .leftJoin(questions, eq(questions.topicId, topics.id))
-      .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+      .leftJoin(
+        examResponses,
+        and(eq(examResponses.questionId, questions.id), eq(examResponses.userId, userId))
+      )
       .where(eq(domains.certificationId, certId))
       .groupBy(topics.id, domains.id)
       .orderBy(domains.orderIndex, topics.id);
@@ -389,8 +416,9 @@ export async function progressRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
+      const userId = parseInt(request.user!.id, 10);
 
-      // Single query: topics with domain info and aggregated stats (filtered by certification)
+      // Single query: topics with domain info and aggregated stats (filtered by certification and user)
       const topicStatsRaw = await db
         .select({
           topicId: topics.id,
@@ -417,7 +445,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
         .from(topics)
         .innerJoin(domains, eq(domains.id, topics.domainId))
         .leftJoin(questions, eq(questions.topicId, topics.id))
-        .leftJoin(examResponses, eq(examResponses.questionId, questions.id))
+        .leftJoin(
+          examResponses,
+          and(eq(examResponses.questionId, questions.id), eq(examResponses.userId, userId))
+        )
         .where(eq(domains.certificationId, certId))
         .groupBy(topics.id, domains.id);
 
@@ -455,17 +486,30 @@ export async function progressRoutes(fastify: FastifyInstance) {
   );
 
   // Get exam history
-  fastify.get('/history', async () => {
-    const allExams = await db.select().from(exams).orderBy(desc(exams.startedAt)).limit(50);
+  fastify.get('/history', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
+    const allExams = await db
+      .select()
+      .from(exams)
+      .where(eq(exams.userId, userId))
+      .orderBy(desc(exams.startedAt))
+      .limit(50);
 
     return allExams;
   });
 
-  // Export all progress data
-  fastify.post('/export', async () => {
-    const allExams = await db.select().from(exams);
-    const allResponses = await db.select().from(examResponses);
-    const allSR = await db.select().from(performanceStats);
+  // Export all progress data for authenticated user
+  fastify.post('/export', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
+    const allExams = await db.select().from(exams).where(eq(exams.userId, userId));
+    const allResponses = await db
+      .select()
+      .from(examResponses)
+      .where(eq(examResponses.userId, userId));
+    const allSR = await db
+      .select()
+      .from(performanceStats)
+      .where(eq(performanceStats.userId, userId));
 
     return {
       exportedAt: new Date().toISOString(),

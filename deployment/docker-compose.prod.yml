@@ -1,0 +1,63 @@
+# Production Docker Compose for ACE Prep
+# Usage: VERSION=v1.0.0 docker compose -f docker-compose.prod.yml up -d
+#
+# Required environment variables:
+#   GHCR_OWNER - GitHub username or org (e.g., neilferis)
+#   VERSION    - Image tag to deploy (default: latest)
+
+services:
+  ace-prep:
+    image: ghcr.io/${GHCR_OWNER}/ace-prep:${VERSION:-latest}
+    container_name: ace-prep
+    restart: unless-stopped
+
+    # Bind to localhost only - reverse proxy handles external traffic
+    ports:
+      - "127.0.0.1:3001:3001"
+
+    # Named volume for SQLite persistence across deployments
+    volumes:
+      - ace-data:/app/data
+
+    # Environment variables - load from .env file
+    env_file:
+      - .env
+
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3001
+
+    # Health check using /api/health endpoint
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+    # JSON file logging with rotation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777
+
+volumes:
+  ace-data:
+    name: ace-prep-data
