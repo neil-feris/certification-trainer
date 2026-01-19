@@ -18,6 +18,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 
@@ -28,6 +29,7 @@ import { progressRoutes } from './routes/progress.js';
 import { studyRoutes } from './routes/study.js';
 import { settingsRoutes } from './routes/settings.js';
 import { drillRoutes } from './routes/drills.js';
+import { authRoutes } from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -57,6 +59,9 @@ await fastify.register(cors, {
   credentials: true,
 });
 
+// Register cookie plugin for auth
+await fastify.register(cookie);
+
 // Register global rate limiting (200 requests per minute)
 // Increased from 100 to accommodate SPA navigation patterns
 await fastify.register(rateLimit, {
@@ -71,6 +76,7 @@ await fastify.register(rateLimit, {
 });
 
 // API routes
+fastify.register(authRoutes, { prefix: '/api/auth' });
 fastify.register(certificationRoutes, { prefix: '/api/certifications' });
 fastify.register(examRoutes, { prefix: '/api/exams' });
 fastify.register(questionRoutes, { prefix: '/api/questions' });
@@ -111,6 +117,11 @@ const start = async () => {
     console.log(`\n ACE Prep API running at http://${host}:${port}`);
     console.log(' API endpoints:');
     console.log('   GET  /api/health');
+    console.log('   GET  /api/auth/google-url');
+    console.log('   POST /api/auth/google-callback');
+    console.log('   POST /api/auth/refresh');
+    console.log('   POST /api/auth/logout');
+    console.log('   GET  /api/auth/me (protected)');
     console.log('   GET  /api/exams');
     console.log('   POST /api/exams');
     console.log('   GET  /api/questions');
