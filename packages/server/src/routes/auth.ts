@@ -15,6 +15,7 @@ import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../services/jwt.js';
+import { migrateOrphanedDataToUser } from '../services/dataMigration.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthResponse, User, GoogleCallbackRequest } from '@ace-prep/shared';
 
@@ -145,6 +146,21 @@ export async function authRoutes(fastify: FastifyInstance) {
           .returning();
 
         fastify.log.info({ userId: user.id, email: user.email }, 'New user created');
+
+        // Migrate orphaned data from anonymous session to new user
+        try {
+          const migrationResult = await migrateOrphanedDataToUser(user.id);
+          const totalMigrated = Object.values(migrationResult).reduce((a, b) => a + b, 0);
+          if (totalMigrated > 0) {
+            fastify.log.info(
+              { userId: user.id, migration: migrationResult },
+              'Migrated orphaned data to new user'
+            );
+          }
+        } catch (migrationError) {
+          // Log but don't fail the login if migration fails
+          fastify.log.error({ error: migrationError, userId: user.id }, 'Data migration failed');
+        }
       }
 
       // Generate JWT tokens
