@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { updateSettingsSchema, testApiSchema, formatZodError } from '../validation/schemas.js';
+import { authenticate } from '../middleware/auth.js';
 
 const DEFAULT_SETTINGS: Record<string, string | number> = {
   llmProvider: 'anthropic',
@@ -17,6 +18,8 @@ const DEFAULT_SETTINGS: Record<string, string | number> = {
 };
 
 export async function settingsRoutes(fastify: FastifyInstance) {
+  // Apply authentication to all routes in this file
+  fastify.addHook('preHandler', authenticate);
   // Get current settings
   fastify.get('/', async () => {
     const allSettings = await db.select().from(settings);

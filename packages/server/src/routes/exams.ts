@@ -11,17 +11,21 @@ import {
   completeExamSchema,
   formatZodError,
 } from '../validation/schemas.js';
+import { authenticate } from '../middleware/auth.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
-  // Get all exams (filtered by certification)
+  // Apply authentication to all routes in this file
+  fastify.addHook('preHandler', authenticate);
+  // Get all exams (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>('/', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
 
+    const userId = parseInt(request.user!.id, 10);
     const allExams = await db
       .select()
       .from(exams)
-      .where(eq(exams.certificationId, certId))
+      .where(and(eq(exams.certificationId, certId), eq(exams.userId, userId)))
       .orderBy(sql`${exams.startedAt} DESC`);
     return allExams;
   });
@@ -33,8 +37,12 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const examId = parseResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
-    const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
     if (!exam) {
       return reply.status(404).send({ error: 'Exam not found' });
     }
@@ -125,9 +133,11 @@ export async function examRoutes(fastify: FastifyInstance) {
     const selectedQuestions = await baseQuery.orderBy(sql`RANDOM()`).limit(targetCount);
 
     // Create exam
+    const userId = parseInt(request.user!.id, 10);
     const [newExam] = await db
       .insert(exams)
       .values({
+        userId,
         certificationId: certId,
         startedAt: new Date(),
         totalQuestions: selectedQuestions.length,
@@ -138,6 +148,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     // Create exam responses (batch insert for performance)
     await db.insert(examResponses).values(
       selectedQuestions.map((q, i) => ({
+        userId,
         examId: newExam.id,
         questionId: q.question.id,
         selectedAnswers: JSON.stringify([]),
@@ -164,6 +175,16 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Verify exam ownership
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
+    if (!exam) {
+      return reply.status(404).send({ error: 'Exam not found' });
+    }
 
     const bodyResult = submitAnswerSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -207,6 +228,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
     const bodyResult = completeExamSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -217,8 +239,12 @@ export async function examRoutes(fastify: FastifyInstance) {
     // Use transaction to ensure consistent read and update of exam state
     // Note: better-sqlite3 is synchronous, so no async/await inside transaction
     const txResult = db.transaction((tx) => {
-      // Check exam exists and is in_progress
-      const [exam] = tx.select().from(exams).where(eq(exams.id, examId)).all();
+      // Check exam exists, belongs to user, and is in_progress
+      const [exam] = tx
+        .select()
+        .from(exams)
+        .where(and(eq(exams.id, examId), eq(exams.userId, userId)))
+        .all();
       if (!exam) {
         return { error: 'not_found' as const };
       }
@@ -270,8 +296,13 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
-    await db.update(exams).set({ status: 'abandoned' }).where(eq(exams.id, examId));
+    // Verify ownership and update
+    await db
+      .update(exams)
+      .set({ status: 'abandoned' })
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
 
     return { success: true };
   });
@@ -283,8 +314,12 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
-    const [exam] = await db.select().from(exams).where(eq(exams.id, examId));
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
     if (!exam) {
       return reply.status(404).send({ error: 'Exam not found' });
     }

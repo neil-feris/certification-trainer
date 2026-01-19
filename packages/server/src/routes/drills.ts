@@ -25,20 +25,11 @@ import {
 } from '../validation/schemas.js';
 import { checkAnswerCorrect } from '../utils/scoring.js';
 import { resolveCertificationId } from '../db/certificationUtils.js';
+import { authenticate } from '../middleware/auth.js';
 
-/**
- * SECURITY WARNING: This API is designed for SINGLE-USER local use only.
- *
- * There is NO authentication or authorization implemented.
- * All drill sessions are accessible to anyone with network access.
- *
- * Before deploying to multi-user environments:
- * 1. Implement user authentication (JWT, session cookies, OAuth)
- * 2. Add user ownership to studySessions table
- * 3. Verify session ownership on all endpoints
- * 4. Add user-based rate limiting
- */
 export async function drillRoutes(fastify: FastifyInstance) {
+  // Apply authentication to all routes in this file
+  fastify.addHook('preHandler', authenticate);
   // Create a new timed drill
   fastify.post<{ Body: StartDrillRequest }>('/', async (request, reply) => {
     const parseResult = startDrillSchema.safeParse(request.body);
@@ -58,7 +49,8 @@ export async function drillRoutes(fastify: FastifyInstance) {
       // Filter by specific domain (within certification)
       whereCondition = and(eq(domains.certificationId, certId), eq(questions.domainId, domainId))!;
     } else if (mode === 'weak_areas') {
-      // Get weak areas from performance stats (accuracy < 70%)
+      // Get weak areas from performance stats (accuracy < 70%) for this user
+      const userId = parseInt(request.user!.id, 10);
       const weakStats = await db
         .select({
           topicId: performanceStats.topicId,
@@ -68,7 +60,8 @@ export async function drillRoutes(fastify: FastifyInstance) {
         .where(
           and(
             sql`(${performanceStats.correctAttempts} * 1.0 / NULLIF(${performanceStats.totalAttempts}, 0)) < 0.7`,
-            sql`${performanceStats.totalAttempts} > 0`
+            sql`${performanceStats.totalAttempts} > 0`,
+            eq(performanceStats.userId, userId)
           )
         );
 
@@ -114,9 +107,11 @@ export async function drillRoutes(fastify: FastifyInstance) {
     }
 
     // Create a study session with sessionType='timed_drill'
+    const userId = parseInt(request.user!.id, 10);
     const [session] = await db
       .insert(studySessions)
       .values({
+        userId,
         certificationId: certId,
         sessionType: 'timed_drill',
         topicId: null,
@@ -163,6 +158,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const drillId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
     const bodyResult = submitDrillAnswerSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -170,8 +166,11 @@ export async function drillRoutes(fastify: FastifyInstance) {
     }
     const { questionId, selectedAnswers, timeSpentSeconds } = bodyResult.data;
 
-    // Verify drill exists and is active
-    const [session] = await db.select().from(studySessions).where(eq(studySessions.id, drillId));
+    // Verify drill exists, belongs to user, and is active
+    const [session] = await db
+      .select()
+      .from(studySessions)
+      .where(and(eq(studySessions.id, drillId), eq(studySessions.userId, userId)));
     if (!session) {
       return reply.status(404).send({ error: 'Drill not found' });
     }
@@ -234,6 +233,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
         // Create new response
         await tx.insert(studySessionResponses).values({
+          userId,
           sessionId: drillId,
           questionId,
           selectedAnswers: JSON.stringify(selectedAnswers),
@@ -243,15 +243,18 @@ export async function drillRoutes(fastify: FastifyInstance) {
           addedToSR: false,
         });
 
-        // If incorrect, add to spaced repetition queue
+        // If incorrect, add to spaced repetition queue for this user
         if (!isCorrect) {
           const [existingSR] = await tx
             .select()
             .from(spacedRepetition)
-            .where(eq(spacedRepetition.questionId, questionId));
+            .where(
+              and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
+            );
 
           if (!existingSR) {
             await tx.insert(spacedRepetition).values({
+              userId,
               questionId,
               easeFactor: 2.5,
               interval: 1,
@@ -300,6 +303,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const drillId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
     const bodyResult = completeDrillSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -309,7 +313,10 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
     // Use transaction to ensure consistent read and update of session state
     const txResult = await db.transaction(async (tx) => {
-      const [session] = await tx.select().from(studySessions).where(eq(studySessions.id, drillId));
+      const [session] = await tx
+        .select()
+        .from(studySessions)
+        .where(and(eq(studySessions.id, drillId), eq(studySessions.userId, userId)));
       if (!session) {
         return { error: 'not_found' as const };
       }
@@ -408,12 +415,17 @@ export async function drillRoutes(fastify: FastifyInstance) {
   });
 
   // Get active drill session (for recovery)
-  fastify.get('/active', async () => {
+  fastify.get('/active', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
     const [session] = await db
       .select()
       .from(studySessions)
       .where(
-        and(eq(studySessions.sessionType, 'timed_drill'), eq(studySessions.status, 'in_progress'))
+        and(
+          eq(studySessions.sessionType, 'timed_drill'),
+          eq(studySessions.status, 'in_progress'),
+          eq(studySessions.userId, userId)
+        )
       )
       .orderBy(desc(studySessions.startedAt))
       .limit(1);
@@ -506,8 +518,13 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const drillId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
 
-    const [session] = await db.select().from(studySessions).where(eq(studySessions.id, drillId));
+    // Verify ownership
+    const [session] = await db
+      .select()
+      .from(studySessions)
+      .where(and(eq(studySessions.id, drillId), eq(studySessions.userId, userId)));
     if (!session) {
       return reply.status(404).send({ error: 'Drill not found' });
     }
@@ -515,7 +532,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
     await db
       .update(studySessions)
       .set({ status: 'abandoned', completedAt: new Date() })
-      .where(eq(studySessions.id, drillId));
+      .where(and(eq(studySessions.id, drillId), eq(studySessions.userId, userId)));
 
     return { success: true };
   });

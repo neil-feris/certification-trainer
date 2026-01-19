@@ -18,6 +18,7 @@ import type {
   QuestionWithDomain,
   QuestionFilterOptions,
 } from '@ace-prep/shared';
+import { authenticate } from '../middleware/auth.js';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
@@ -27,6 +28,8 @@ function escapeLikePattern(s: string): string {
 }
 
 export async function questionRoutes(fastify: FastifyInstance) {
+  // Apply authentication to all routes in this file
+  fastify.addHook('preHandler', authenticate);
   // Get questions with pagination, filters, search, and sorting
   // Optimized: filters and pagination pushed to SQL instead of in-memory
   fastify.get<{
@@ -378,8 +381,9 @@ export async function questionRoutes(fastify: FastifyInstance) {
   );
 
   // Get questions due for spaced repetition review
-  fastify.get('/review', async () => {
+  fastify.get('/review', async (request) => {
     const now = new Date();
+    const userId = parseInt(request.user!.id, 10);
 
     const dueQuestions = await db
       .select({
@@ -392,7 +396,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       .innerJoin(questions, eq(spacedRepetition.questionId, questions.id))
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
-      .where(lte(spacedRepetition.nextReviewAt, now))
+      .where(and(lte(spacedRepetition.nextReviewAt, now), eq(spacedRepetition.userId, userId)))
       .limit(20);
 
     return dueQuestions.map((r) => ({
@@ -418,18 +422,20 @@ export async function questionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const { questionId, quality } = parseResult.data;
+    const userId = parseInt(request.user!.id, 10);
 
-    // Get or create spaced repetition record
+    // Get or create spaced repetition record for this user
     let [sr] = await db
       .select()
       .from(spacedRepetition)
-      .where(eq(spacedRepetition.questionId, questionId));
+      .where(and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId)));
 
     if (!sr) {
       // Create new record
       [sr] = await db
         .insert(spacedRepetition)
         .values({
+          userId,
           questionId,
           easeFactor: 2.5,
           interval: 1,
