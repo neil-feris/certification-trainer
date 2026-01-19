@@ -185,25 +185,127 @@
   font-size: 0.8rem;
 }
 
-/* Responsive */
+/* Responsive - Mobile Study Hub Optimization (US-009) */
 @media (max-width: 768px) {
+  /* Domain list spacing for accordion-style mobile */
+  .domainList {
+    gap: 12px;
+  }
+
+  /* Domain header as accordion trigger - 48px touch target */
   .domainHeader {
     padding: 16px;
+    min-height: 48px;
   }
 
   .domainInfo {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 6px;
   }
 
+  .domainName {
+    font-size: 0.95rem;
+  }
+
+  .domainWeight {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+  }
+
+  /* Expand icon more visible on mobile */
+  .expandIcon {
+    font-size: 0.85rem;
+    padding: 8px;
+  }
+
+  /* Domain description compact */
+  .domainDescription {
+    padding: 0 16px 12px;
+    font-size: 0.8rem;
+  }
+
+  /* Topic list with 12px minimum gap */
+  .topicList {
+    padding: 4px;
+    gap: 12px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Topic row as touch target - 48px minimum height */
   .topicRow {
     flex-direction: column;
     gap: 12px;
+    padding: 12px;
+    min-height: 48px;
   }
 
+  /* Tap feedback for topic rows on touch devices */
+  @media (hover: none) {
+    .topicRow {
+      transition:
+        transform var(--transition-fast),
+        background var(--transition-fast);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .topicRow:active {
+      transform: scale(0.98);
+      background: var(--bg-elevated);
+    }
+
+    .domainHeader {
+      transition:
+        transform var(--transition-fast),
+        background var(--transition-fast);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .domainHeader:active {
+      transform: scale(0.99);
+    }
+  }
+
+  /* Topic info adjustments */
+  .topicHeader {
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .topicName {
+    font-size: 0.9rem;
+  }
+
+  .topicDescription {
+    font-size: 0.75rem;
+    margin-left: 16px;
+    margin-bottom: 8px;
+  }
+
+  /* Topic stats - keep progress info visible and readable */
+  .topicStats {
+    margin-left: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+
+  .accuracy {
+    font-size: 0.75rem;
+  }
+
+  .actionBadge {
+    font-size: 0.6rem;
+    padding: 2px 5px;
+  }
+
+  /* Practice button - 48px touch target */
   .practiceBtn {
-    align-self: flex-start;
-    margin-left: 18px;
+    align-self: stretch;
+    margin-left: 16px;
+    margin-right: 4px;
+    min-height: 44px;
+    font-size: 0.85rem;
   }
 }
