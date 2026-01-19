@@ -583,3 +583,31 @@ export interface QuestionFilterOptions {
   difficulties: Difficulty[];
   totalQuestions: number;
 }
+
+// ============ AUTHENTICATION TYPES ============
+
+export interface User {
+  id: number;
+  googleId: string;
+  email: string;
+  name: string;
+  picture: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+}
+
+export interface AuthResponse {
+  user: User;
+  tokens: AuthTokens;
+}
+
+export interface GoogleCallbackRequest {
+  code: string;
+  state?: string;
+}
