@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { CertificationSelector } from '../common/CertificationSelector';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { UserProfile } from './UserProfile';
 import styles from './AppShell.module.css';
 
 interface AppShellProps {
@@ -56,6 +57,7 @@ export function AppShell({ children }: AppShellProps) {
           </nav>
 
           <div className={styles.footer}>
+            <UserProfile />
             {selectedCert && (
               <div className={styles.footerText}>
                 <span className="mono">{selectedCert.provider.toUpperCase()}</span>{' '}
