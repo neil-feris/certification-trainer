@@ -35,19 +35,22 @@ export function AppShell({ children }: AppShellProps) {
   const isExamActive =
     location.pathname.startsWith('/exam/') && !location.pathname.includes('/review');
 
-  // Hide nav during exam or active practice session
-  const hideNavigation = isExamActive || isPracticeActive;
-
-  const selectedCert = useCertificationStore((s) =>
-    s.certifications.find((c) => c.id === s.selectedCertificationId)
-  );
-
-  // Fetch review queue for due count
+  // Fetch review queue for due count (also used to detect active review session)
   const { data: reviewQueue = [] } = useQuery({
     queryKey: ['reviewQueue'],
     queryFn: questionApi.getReviewQueue,
     staleTime: 60000, // Consider fresh for 1 minute
   });
+
+  // Hide nav during active review session (when on /review page with questions)
+  const isReviewActive = location.pathname === '/review' && reviewQueue.length > 0;
+
+  // Hide nav during exam, active practice session, or active review session
+  const hideNavigation = isExamActive || isPracticeActive || isReviewActive;
+
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
 
   return (
     <div className={styles.shell}>

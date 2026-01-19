@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSwipeable } from 'react-swipeable';
 import { questionApi } from '../../api/client';
 import styles from './Review.module.css';
 
@@ -23,9 +24,23 @@ interface ReviewQuestion {
 
 export function Review() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isRevealed, setIsRevealed] = useState(false);
+
+  // Swipe up to reveal answer (optional gesture)
+  const swipeHandlers = useSwipeable({
+    onSwipedUp: () => {
+      if (!isRevealed && selectedAnswers.length > 0) {
+        setIsRevealed(true);
+      }
+    },
+    delta: 50,
+    preventScrollOnSwipe: false,
+    trackTouch: true,
+    trackMouse: false,
+  });
 
   const {
     data: questions = [],
@@ -116,7 +131,8 @@ export function Review() {
   const isSelected = (index: number) => selectedAnswers.includes(index);
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} {...swipeHandlers}>
+      {/* Desktop header */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>Spaced Repetition Review</h1>
@@ -127,6 +143,19 @@ export function Review() {
         <Link to="/dashboard" className="btn btn-ghost">
           Exit Review
         </Link>
+      </header>
+
+      {/* Mobile header */}
+      <header className={styles.mobileHeader}>
+        <button className={styles.backBtn} onClick={() => navigate('/dashboard')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          <span className={styles.backBtnText}>Exit</span>
+        </button>
+        <span className={styles.mobileProgress}>
+          {currentIndex + 1} of {questions.length}
+        </span>
       </header>
 
       <div className={styles.main}>
