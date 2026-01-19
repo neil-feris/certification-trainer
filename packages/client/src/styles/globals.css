@@ -30,6 +30,12 @@
 
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
+
+  /* Mobile breakpoint */
+  --breakpoint-mobile: 768px;
+
+  /* Safe area for mobile devices with notches/gesture bars */
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 * {
@@ -279,4 +285,22 @@ input::placeholder {
   inset: 0;
   background: linear-gradient(135deg, rgba(0, 212, 170, 0.05) 0%, rgba(0, 153, 204, 0.05) 100%);
   pointer-events: none;
+}
+
+/* Mobile touch utilities */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Tap feedback for touch devices (no hover capability) */
+@media (hover: none) {
+  .tap-feedback {
+    transition: transform var(--transition-fast);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tap-feedback:active {
+    transform: scale(0.97);
+  }
 }
