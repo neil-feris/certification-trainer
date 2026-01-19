@@ -141,6 +141,17 @@
   color: var(--text-secondary);
 }
 
+.moreNavInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
+}
+
 /* Tap feedback for touch devices */
 @media (hover: none) {
   .moreNavLink:active {

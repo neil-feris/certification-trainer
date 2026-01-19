@@ -110,6 +110,33 @@ export async function clearCache(): Promise<void> {
 }
 
 /**
+ * Prune cache to keep only the most recent questions up to maxCount
+ * @param maxCount Maximum number of questions to keep (default: 500)
+ */
+export async function pruneCache(maxCount: number = 500): Promise<number> {
+  const questions = await getCachedQuestionsInternal();
+
+  if (questions.length <= maxCount) {
+    return 0;
+  }
+
+  // Sort by cachedAt descending (newest first) and keep only maxCount
+  const sorted = questions.sort((a, b) => b.cachedAt - a.cachedAt);
+  const pruned = sorted.slice(0, maxCount);
+  const removedCount = questions.length - pruned.length;
+
+  await set(QUESTIONS_KEY, pruned, questionsStore);
+
+  const metadata: CacheMetadata = {
+    lastUpdated: Date.now(),
+    questionCount: pruned.length,
+  };
+  await set(CACHE_METADATA_KEY, metadata, questionsStore);
+
+  return removedCount;
+}
+
+/**
  * Internal helper to get cached questions with type safety
  */
 async function getCachedQuestionsInternal(): Promise<CachedQuestion[]> {

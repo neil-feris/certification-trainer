@@ -1,10 +1,12 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { NavLink, useLocation, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CertificationSelector } from '../common/CertificationSelector';
+import { OfflineBanner } from '../common/OfflineBanner';
 import { useCertificationStore } from '../../stores/certificationStore';
 import { useStudyStore } from '../../stores/studyStore';
 import { questionApi } from '../../api/client';
+import { getCachedQuestionCount } from '../../services/offlineStorage';
 import { UserProfile } from './UserProfile';
 import { MobileNavBar } from './MobileNavBar';
 import { BottomSheet } from './BottomSheet';
@@ -27,6 +29,21 @@ const NAV_ITEMS = [
 export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+  const [cachedQuestionCount, setCachedQuestionCount] = useState(0);
+
+  // Load cached question count on mount and periodically refresh
+  useEffect(() => {
+    const loadCount = async () => {
+      const count = await getCachedQuestionCount();
+      setCachedQuestionCount(count);
+    };
+
+    loadCount();
+
+    // Refresh count every 30 seconds (in case caching happens in background)
+    const interval = setInterval(loadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Check for active practice session (hide nav during practice)
   const studySessionId = useStudyStore((s) => s.sessionId);
@@ -92,6 +109,8 @@ export function AppShell({ children }: AppShellProps) {
         </aside>
       )}
 
+      <OfflineBanner cachedQuestionCount={cachedQuestionCount} />
+
       <main
         className={`${styles.main} ${hideNavigation ? styles.mainFullWidth : styles.mainWithMobileNav}`}
       >
@@ -142,6 +161,12 @@ export function AppShell({ children }: AppShellProps) {
                 <span className={styles.moreNavIcon}>◈</span>
                 <span>Practice Exam</span>
               </Link>
+              {cachedQuestionCount > 0 && (
+                <div className={styles.moreNavInfo}>
+                  <span className={styles.moreNavIcon}>📥</span>
+                  <span>{cachedQuestionCount} questions cached for offline</span>
+                </div>
+              )}
             </nav>
           </BottomSheet>
         </>

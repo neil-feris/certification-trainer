@@ -66,6 +66,11 @@
   color: var(--text-muted);
 }
 
+.offlineIndicator {
+  color: var(--warning);
+  font-weight: 500;
+}
+
 .main {
   flex: 1;
   display: flex;

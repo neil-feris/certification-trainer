@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { studyApi } from '../api/client';
+import { getCachedQuestions } from '../services/offlineStorage';
+import type { Question } from '@ace-prep/shared';
 
 interface StudyQuestion {
   id: number;
@@ -31,6 +33,7 @@ interface StudySessionState {
   sessionType: 'topic_practice' | 'learning_path' | null;
   topicId: number | null;
   domainId: number | null;
+  isOfflineMode: boolean;
 
   // Questions & Responses
   currentQuestionIndex: number;
@@ -79,6 +82,7 @@ const initialState = {
   sessionType: null,
   topicId: null,
   domainId: null,
+  isOfflineMode: false,
   currentQuestionIndex: 0,
   questions: [],
   responses: new Map(),
@@ -97,6 +101,63 @@ export const useStudyStore = create<StudySessionState>()(
 
       startSession: async (type, topicId, domainId) => {
         set({ isLoading: true });
+
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+        // If offline, try to use cached questions
+        if (isOffline && topicId) {
+          try {
+            const cachedQuestions = await getCachedQuestions(topicId);
+            if (cachedQuestions.length > 0) {
+              // Take up to 10 questions for offline practice
+              const questions = cachedQuestions.slice(0, 10).map((q: Question) => ({
+                id: q.id,
+                questionText: q.questionText,
+                questionType: q.questionType,
+                options: q.options,
+                correctAnswers: q.correctAnswers,
+                explanation: q.explanation,
+                difficulty: q.difficulty,
+                gcpServices: q.gcpServices,
+                domain: { id: q.domainId, name: '', code: '' },
+                topic: { id: q.topicId, name: '' },
+              }));
+
+              const responses = new Map<number, StudyResponse>();
+              questions.forEach((q) => {
+                responses.set(q.id, {
+                  questionId: q.id,
+                  selectedAnswers: [],
+                  isCorrect: null,
+                  timeSpentSeconds: 0,
+                  addedToSR: false,
+                });
+              });
+
+              set({
+                sessionId: -Date.now(), // Negative ID to indicate offline session
+                sessionType: type,
+                topicId: topicId || null,
+                domainId: domainId || null,
+                isOfflineMode: true,
+                questions,
+                responses,
+                currentQuestionIndex: 0,
+                startTime: Date.now(),
+                questionStartTime: Date.now(),
+                isRevealed: false,
+                showSummary: false,
+                isLoading: false,
+                needsRecovery: false,
+              });
+              return;
+            }
+          } catch (error) {
+            console.error('Failed to load cached questions:', error);
+          }
+          set({ isLoading: false });
+          throw new Error('No cached questions available for offline practice');
+        }
 
         try {
           const result = await studyApi.createSession({
@@ -122,6 +183,7 @@ export const useStudyStore = create<StudySessionState>()(
             sessionType: type,
             topicId: topicId || null,
             domainId: domainId || null,
+            isOfflineMode: false,
             questions: result.questions,
             responses,
             currentQuestionIndex: 0,
@@ -155,7 +217,14 @@ export const useStudyStore = create<StudySessionState>()(
       },
 
       revealAnswer: async () => {
-        const { sessionId, questions, currentQuestionIndex, responses, questionStartTime } = get();
+        const {
+          sessionId,
+          questions,
+          currentQuestionIndex,
+          responses,
+          questionStartTime,
+          isOfflineMode,
+        } = get();
         const question = questions[currentQuestionIndex];
         if (!question || !sessionId) {
           throw new Error('No active question or session');
@@ -169,6 +238,36 @@ export const useStudyStore = create<StudySessionState>()(
         const timeSpent = questionStartTime
           ? Math.floor((Date.now() - questionStartTime) / 1000)
           : 0;
+
+        // In offline mode, calculate correctness locally (we have the answers from cache)
+        if (isOfflineMode) {
+          const correctAnswers = question.correctAnswers || [];
+          const selectedSet = new Set(response.selectedAnswers);
+          const correctSet = new Set(correctAnswers);
+          const isCorrect =
+            selectedSet.size === correctSet.size &&
+            response.selectedAnswers.every((a) => correctSet.has(a));
+
+          const newResponses = new Map(responses);
+          newResponses.set(question.id, {
+            ...response,
+            isCorrect,
+            timeSpentSeconds: timeSpent,
+            addedToSR: false, // Can't add to SR in offline mode
+          });
+
+          set({
+            responses: newResponses,
+            isRevealed: true,
+          });
+
+          return {
+            isCorrect,
+            correctAnswers,
+            explanation: question.explanation || 'Explanation not available offline',
+            addedToSR: false,
+          };
+        }
 
         // Submit to server
         const result = await studyApi.submitAnswer(sessionId, {
@@ -231,9 +330,27 @@ export const useStudyStore = create<StudySessionState>()(
       },
 
       completeSession: async () => {
-        const { sessionId, responses, startTime } = get();
+        const { sessionId, responses, startTime, isOfflineMode, questions } = get();
         if (!sessionId) {
           throw new Error('No active session');
+        }
+
+        // In offline mode, calculate results locally
+        if (isOfflineMode) {
+          const responsesArr = Array.from(responses.values());
+          const correctCount = responsesArr.filter((r) => r.isCorrect).length;
+          const totalCount = questions.length;
+          const score = Math.round((correctCount / totalCount) * 100);
+
+          // Reset state after completion
+          set(initialState);
+
+          return {
+            score,
+            correctCount,
+            totalCount,
+            addedToSRCount: 0, // Can't add to SR in offline mode
+          };
         }
 
         const totalTimeSeconds = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
@@ -256,8 +373,9 @@ export const useStudyStore = create<StudySessionState>()(
       },
 
       abandonSession: async () => {
-        const { sessionId } = get();
-        if (sessionId) {
+        const { sessionId, isOfflineMode } = get();
+        // Only call API if not in offline mode and session ID is valid
+        if (sessionId && !isOfflineMode && sessionId > 0) {
           await studyApi.abandonSession(sessionId);
         }
         set(initialState);
