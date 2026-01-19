@@ -1,4 +1,5 @@
 import { useStudyStore } from '../../../stores/studyStore';
+import { useSwipeNavigation } from '../../../hooks/useSwipeNavigation';
 import { PracticeQuestion } from './PracticeQuestion';
 import { PracticeSummary } from './PracticeSummary';
 import styles from './Practice.module.css';
@@ -26,6 +27,19 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
   const currentQuestion = getCurrentQuestion();
   const progress = getProgress();
   const currentResponse = currentQuestion ? responses.get(currentQuestion.id) : undefined;
+
+  // Swipe navigation - only when answer is revealed
+  const canGoNext = isRevealed && currentQuestionIndex < questions.length - 1;
+  const canGoPrev = currentQuestionIndex > 0;
+
+  const { handlers: swipeHandlers } = useSwipeNavigation({
+    onSwipeLeft: () => {
+      if (canGoNext) nextQuestion();
+    },
+    onSwipeRight: () => {
+      if (canGoPrev) previousQuestion();
+    },
+  });
 
   if (showSummary) {
     return <PracticeSummary onComplete={completeSession} onExit={onExit} />;
@@ -58,15 +72,16 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} {...swipeHandlers}>
       <div className={styles.header}>
         <button className={`btn btn-ghost ${styles.exitBtn}`} onClick={onExit}>
-          ← Exit Practice
+          <span aria-hidden="true">←</span>
+          <span className={styles.exitBtnText}> Exit Practice</span>
         </button>
 
         <div className={styles.progressInfo}>
           <span className={styles.questionNumber}>
-            Question {currentQuestionIndex + 1} of {questions.length}
+            {currentQuestionIndex + 1} of {questions.length}
           </span>
           <div className={styles.progressBar}>
             <div
@@ -78,7 +93,7 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
 
         <div className={styles.stats}>
           <span className={styles.correctCount}>
-            {progress.correct}/{progress.answered} correct
+            {progress.correct}/{progress.answered}
           </span>
         </div>
       </div>

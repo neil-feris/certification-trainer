@@ -3,6 +3,7 @@ import { NavLink, useLocation, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CertificationSelector } from '../common/CertificationSelector';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { useStudyStore } from '../../stores/studyStore';
 import { questionApi } from '../../api/client';
 import { UserProfile } from './UserProfile';
 import { MobileNavBar } from './MobileNavBar';
@@ -27,8 +28,15 @@ export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
 
+  // Check for active practice session (hide nav during practice)
+  const studySessionId = useStudyStore((s) => s.sessionId);
+  const isPracticeActive = studySessionId !== null && location.pathname === '/study';
+
   const isExamActive =
     location.pathname.startsWith('/exam/') && !location.pathname.includes('/review');
+
+  // Hide nav during exam or active practice session
+  const hideNavigation = isExamActive || isPracticeActive;
 
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
@@ -43,7 +51,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className={styles.shell}>
-      {!isExamActive && (
+      {!hideNavigation && (
         <aside className={styles.sidebar}>
           <div className={styles.logo}>
             <span className={styles.logoIcon}>☁</span>
@@ -82,12 +90,12 @@ export function AppShell({ children }: AppShellProps) {
       )}
 
       <main
-        className={`${styles.main} ${isExamActive ? styles.mainFullWidth : styles.mainWithMobileNav}`}
+        className={`${styles.main} ${hideNavigation ? styles.mainFullWidth : styles.mainWithMobileNav}`}
       >
         {children}
       </main>
 
-      {!isExamActive && (
+      {!hideNavigation && (
         <>
           <MobileNavBar
             reviewDueCount={reviewQueue.length}
