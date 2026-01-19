@@ -1,8 +1,41 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { progressApi } from '../../api/client';
+import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
 import styles from './Dashboard.module.css';
+
+// SVG icons for quick actions
+const ReviewIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12,6 12,12 16,14" />
+  </svg>
+);
+
+const StudyIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </svg>
+);
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -19,6 +52,13 @@ export function Dashboard() {
     queryKey: ['dashboard', selectedCertificationId],
     queryFn: () => progressApi.getDashboard(selectedCertificationId ?? undefined),
     enabled: selectedCertificationId !== null,
+  });
+
+  // Fetch review queue for quick action badge
+  const { data: reviewQueue } = useQuery({
+    queryKey: ['reviewQueue'],
+    queryFn: () => questionApi.getReviewQueue(),
+    staleTime: 60000,
   });
 
   if (isLoading) {
@@ -41,6 +81,15 @@ export function Dashboard() {
   }
 
   const passingScore = selectedCert?.passingScorePercent ?? 70;
+  const reviewDueCount = reviewQueue?.length ?? 0;
+
+  // Find weakest domain for "Continue" button
+  const weakestDomain = dashboard?.domainStats?.reduce((weakest: any, stat: any) => {
+    if (!weakest || stat.accuracy < weakest.accuracy) {
+      return stat;
+    }
+    return weakest;
+  }, null);
 
   return (
     <div className={styles.dashboard}>
@@ -57,6 +106,37 @@ export function Dashboard() {
           Start Practice Exam
         </button>
       </header>
+
+      {/* Quick Actions - mobile only */}
+      <div className={styles.quickActions}>
+        {reviewDueCount > 0 && (
+          <button
+            className={`${styles.quickActionBtn} ${styles.primary}`}
+            onClick={() => navigate('/review')}
+          >
+            <span className={styles.quickActionIcon}>
+              <ReviewIcon />
+            </span>
+            <span className={styles.quickActionText}>
+              <span className={styles.quickActionLabel}>Start Review</span>
+              <span className={styles.quickActionMeta}>{reviewDueCount} due</span>
+            </span>
+          </button>
+        )}
+        {weakestDomain && (
+          <button className={styles.quickActionBtn} onClick={() => navigate('/study')}>
+            <span className={styles.quickActionIcon}>
+              <StudyIcon />
+            </span>
+            <span className={styles.quickActionText}>
+              <span className={styles.quickActionLabel}>Continue: {weakestDomain.domain.name}</span>
+              <span className={styles.quickActionMeta}>
+                {weakestDomain.accuracy.toFixed(0)}% accuracy
+              </span>
+            </span>
+          </button>
+        )}
+      </div>
 
       {/* Stats Grid */}
       <div className={styles.statsGrid}>
