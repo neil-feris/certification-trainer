@@ -1,8 +1,12 @@
-import { ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { ReactNode, useState } from 'react';
+import { NavLink, useLocation, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { CertificationSelector } from '../common/CertificationSelector';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { questionApi } from '../../api/client';
 import { UserProfile } from './UserProfile';
+import { MobileNavBar } from './MobileNavBar';
+import { BottomSheet } from './BottomSheet';
 import styles from './AppShell.module.css';
 
 interface AppShellProps {
@@ -21,12 +25,21 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+
   const isExamActive =
     location.pathname.startsWith('/exam/') && !location.pathname.includes('/review');
 
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
   );
+
+  // Fetch review queue for due count
+  const { data: reviewQueue = [] } = useQuery({
+    queryKey: ['reviewQueue'],
+    queryFn: questionApi.getReviewQueue,
+    staleTime: 60000, // Consider fresh for 1 minute
+  });
 
   return (
     <div className={styles.shell}>
@@ -68,9 +81,60 @@ export function AppShell({ children }: AppShellProps) {
         </aside>
       )}
 
-      <main className={`${styles.main} ${isExamActive ? styles.mainFullWidth : ''}`}>
+      <main
+        className={`${styles.main} ${isExamActive ? styles.mainFullWidth : styles.mainWithMobileNav}`}
+      >
         {children}
       </main>
+
+      {!isExamActive && (
+        <>
+          <MobileNavBar
+            reviewDueCount={reviewQueue.length}
+            onMoreClick={() => setIsMoreSheetOpen(true)}
+          />
+          <BottomSheet
+            isOpen={isMoreSheetOpen}
+            onClose={() => setIsMoreSheetOpen(false)}
+            title="More"
+          >
+            <nav className={styles.moreNav}>
+              <Link
+                to="/settings"
+                className={styles.moreNavLink}
+                onClick={() => setIsMoreSheetOpen(false)}
+              >
+                <span className={styles.moreNavIcon}>⚙</span>
+                <span>Settings</span>
+              </Link>
+              <Link
+                to="/progress"
+                className={styles.moreNavLink}
+                onClick={() => setIsMoreSheetOpen(false)}
+              >
+                <span className={styles.moreNavIcon}>◔</span>
+                <span>Progress</span>
+              </Link>
+              <Link
+                to="/questions"
+                className={styles.moreNavLink}
+                onClick={() => setIsMoreSheetOpen(false)}
+              >
+                <span className={styles.moreNavIcon}>☰</span>
+                <span>Question Bank</span>
+              </Link>
+              <Link
+                to="/exam"
+                className={styles.moreNavLink}
+                onClick={() => setIsMoreSheetOpen(false)}
+              >
+                <span className={styles.moreNavIcon}>◈</span>
+                <span>Practice Exam</span>
+              </Link>
+            </nav>
+          </BottomSheet>
+        </>
+      )}
     </div>
   );
 }
