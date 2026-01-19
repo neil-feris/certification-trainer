@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { RouteErrorBoundary } from './components/common/RouteErrorBoundary';
+import { AuthLoader, ErrorBoundary, RouteErrorBoundary } from './components/common';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { ExamSetup } from './components/exam/ExamSetup';
@@ -20,9 +19,9 @@ import { useAuthStore } from './stores/authStore';
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuthStore();
 
-  // While loading auth state, show nothing (ProtectedRoute handles loading UI)
+  // While loading auth state, show full-screen loader
   if (isLoading) {
-    return null;
+    return <AuthLoader message="Loading..." />;
   }
 
   // Redirect based on authentication status

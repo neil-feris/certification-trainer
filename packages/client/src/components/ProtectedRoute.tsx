@@ -1,7 +1,7 @@
 import { ReactNode, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import styles from './ProtectedRoute.module.css';
+import { AuthLoader } from './common/AuthLoader';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -56,14 +56,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     }
   }, [accessToken, isLoading, setLoading, login, logout]);
 
-  // Show loading spinner while checking auth
+  // Show full-screen loader while verifying auth
   if (isLoading) {
-    return (
-      <div className={styles.loadingContainer}>
-        <div className={styles.spinner} />
-        <span className={styles.loadingText}>Verifying authentication...</span>
-      </div>
-    );
+    return <AuthLoader message="Verifying authentication..." />;
   }
 
   // Not authenticated - redirect to login
