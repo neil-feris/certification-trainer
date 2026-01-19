@@ -32,19 +32,138 @@ import type {
   TrendDataPoint,
   TrendsResponse,
 } from '@ace-prep/shared';
+import { useAuthStore } from '../stores/authStore';
 
 const API_BASE = '/api';
 
-// Certifications
+// Track if we're currently refreshing to avoid multiple concurrent refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Attempt to refresh the access token using the httpOnly refresh token cookie
+ * Returns new access token or null if refresh failed
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include', // Include cookies for refresh token
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data: { accessToken: string; expiresAt: number } = await response.json();
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Handle 401 response by attempting token refresh and retrying the request
+ */
+async function handleUnauthorized<T>(endpoint: string, options: RequestInit): Promise<T | null> {
+  // If already refreshing, wait for that to complete
+  if (isRefreshing && refreshPromise) {
+    const newToken = await refreshPromise;
+    if (newToken) {
+      // Retry with new token
+      return retryWithToken<T>(endpoint, options, newToken);
+    }
+    return null;
+  }
+
+  // Start refresh process
+  isRefreshing = true;
+  refreshPromise = refreshAccessToken();
+
+  try {
+    const newToken = await refreshPromise;
+
+    if (newToken) {
+      // Update auth store with new token
+      const authStore = useAuthStore.getState();
+      if (authStore.user) {
+        authStore.login(authStore.user, newToken);
+      }
+
+      // Retry original request with new token
+      return retryWithToken<T>(endpoint, options, newToken);
+    }
+
+    // Refresh failed - logout and redirect
+    const authStore = useAuthStore.getState();
+    authStore.logout();
+
+    // Only redirect if we're in a browser context and not already on login page
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login?error=session_expired';
+    }
+
+    return null;
+  } finally {
+    isRefreshing = false;
+    refreshPromise = null;
+  }
+}
+
+/**
+ * Retry a request with a new access token
+ */
+async function retryWithToken<T>(
+  endpoint: string,
+  options: RequestInit,
+  token: string
+): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+    Authorization: `Bearer ${token}`,
+  };
+
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new Error(error.message || error.error || 'Request failed');
+  }
+
+  return response.json();
+}
+
+// Certifications (public - no auth required)
 export const certificationApi = {
-  list: () => request<CertificationWithCount[]>('/certifications'),
-  get: (id: number) => request<CertificationWithCount>(`/certifications/${id}`),
+  list: () => request<CertificationWithCount[]>('/certifications', {}, false),
+  get: (id: number) => request<CertificationWithCount>(`/certifications/${id}`, {}, false),
 };
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+  requiresAuth: boolean = true
+): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
+
+  // Add Authorization header if token exists and route requires auth
+  if (requiresAuth) {
+    const token = useAuthStore.getState().accessToken;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
   // Only set Content-Type for requests with a body
   if (options.body) {
     headers['Content-Type'] = 'application/json';
@@ -53,7 +172,18 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
     headers,
+    credentials: 'include', // Always include cookies for refresh token
   });
+
+  // Handle 401 Unauthorized - attempt token refresh
+  if (response.status === 401 && requiresAuth) {
+    const result = await handleUnauthorized<T>(endpoint, options);
+    if (result !== null) {
+      return result;
+    }
+    // If handleUnauthorized returned null, throw error
+    throw new Error('Session expired. Please log in again.');
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
