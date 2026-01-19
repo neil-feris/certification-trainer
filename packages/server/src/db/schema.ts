@@ -1,5 +1,24 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
+// ============ USERS ============
+export const users = sqliteTable(
+  'users',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    googleId: text('google_id').notNull().unique(),
+    email: text('email').notNull().unique(),
+    name: text('name').notNull(),
+    picture: text('picture'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+    lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
+  },
+  (table) => [
+    uniqueIndex('users_google_id_idx').on(table.googleId),
+    uniqueIndex('users_email_idx').on(table.email),
+  ]
+);
+
 // Certifications (supports multiple Google Cloud certifications)
 export const certifications = sqliteTable('certifications', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -268,6 +287,8 @@ export const settings = sqliteTable('settings', {
 });
 
 // Type exports for Drizzle
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 export type Certification = typeof certifications.$inferSelect;
 export type NewCertification = typeof certifications.$inferInsert;
 export type Domain = typeof domains.$inferSelect;
