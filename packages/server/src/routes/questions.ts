@@ -291,12 +291,14 @@ export async function questionRoutes(fastify: FastifyInstance) {
       }
 
       try {
+        const userId = parseInt(request.user!.id, 10);
         const generatedQuestions = await generateQuestions({
           domain: domain.name,
           topic: topic.name,
           difficulty,
           count,
           model: model as any,
+          userId,
         });
 
         // Fetch existing questions for this topic to check for duplicates
