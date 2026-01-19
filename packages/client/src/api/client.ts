@@ -33,6 +33,7 @@ import type {
   TrendsResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
+import { showToast } from '../components/common';
 
 const API_BASE = '/api';
 
@@ -94,13 +95,23 @@ async function handleUnauthorized<T>(endpoint: string, options: RequestInit): Pr
       return retryWithToken<T>(endpoint, options, newToken);
     }
 
-    // Refresh failed - logout and redirect
+    // Refresh failed - show notification, logout and redirect
     const authStore = useAuthStore.getState();
     authStore.logout();
 
     // Only redirect if we're in a browser context and not already on login page
     if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-      window.location.href = '/login?error=session_expired';
+      // Show session expired notification before redirect
+      showToast({
+        message: 'Your session has expired. Redirecting to login...',
+        type: 'warning',
+        duration: 2000,
+      });
+
+      // Delay redirect to allow user to see the notification
+      setTimeout(() => {
+        window.location.href = '/login?error=session_expired';
+      }, 2000);
     }
 
     return null;
@@ -169,11 +180,35 @@ async function request<T>(
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-    credentials: 'include', // Always include cookies for refresh token
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      credentials: 'include', // Always include cookies for refresh token
+    });
+  } catch (err) {
+    // Handle network errors (offline, DNS failure, connection refused, etc.)
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      // Check if browser is offline
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        showToast({
+          message: 'You are offline. Please check your internet connection.',
+          type: 'error',
+          duration: 4000,
+        });
+        throw new Error('Network error: You are offline. Please check your internet connection.');
+      }
+      // Generic network error
+      showToast({
+        message: 'Network error. Please check your connection.',
+        type: 'error',
+        duration: 4000,
+      });
+      throw new Error('Network error. Please check your connection and try again.');
+    }
+    throw err;
+  }
 
   // Handle 401 Unauthorized - attempt token refresh
   if (response.status === 401 && requiresAuth) {

@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
-import { AuthLoader, ErrorBoundary, RouteErrorBoundary } from './components/common';
+import { AuthLoader, ErrorBoundary, RouteErrorBoundary, Toast } from './components/common';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { ExamSetup } from './components/exam/ExamSetup';
@@ -31,6 +31,7 @@ function RootRedirect() {
 function App() {
   return (
     <ErrorBoundary>
+      <Toast />
       <Routes>
         {/* Root redirect based on auth state */}
         <Route path="/" element={<RootRedirect />} />

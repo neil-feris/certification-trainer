@@ -21,13 +21,16 @@ export function LoginPage() {
           setError('Your session has expired. Please sign in again.');
           break;
         case 'auth_failed':
-          setError('Authentication failed. Please try again.');
+          setError('Unable to sign in. Please try again.');
           break;
         case 'cancelled':
-          setError('Sign in was cancelled.');
+          setError('Google sign-in was cancelled.');
+          break;
+        case 'network_error':
+          setError('Network error. Please check your connection and try again.');
           break;
         default:
-          setError('An error occurred. Please try again.');
+          setError('Unable to sign in. Please try again.');
       }
     }
   }, [searchParams]);
@@ -51,8 +54,13 @@ export function LoginPage() {
 
       const { url } = await response.json();
       window.location.href = url;
-    } catch {
-      setError('Unable to initiate sign in. Please try again.');
+    } catch (err) {
+      // Check for network errors (offline, DNS failure, etc.)
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        setError('Network error. Please check your connection and try again.');
+      } else {
+        setError('Unable to sign in. Please try again.');
+      }
       setIsLoading(false);
     }
   };
