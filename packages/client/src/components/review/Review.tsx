@@ -5,6 +5,7 @@ import { useSwipeable } from 'react-swipeable';
 import { questionApi } from '../../api/client';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { getCachedQuestions } from '../../services/offlineStorage';
+import { queueResponse } from '../../services/syncQueue';
 import styles from './Review.module.css';
 
 type Quality = 'again' | 'hard' | 'good' | 'easy';
@@ -113,8 +114,26 @@ export function Review() {
   const handleRate = async (quality: Quality) => {
     const currentQuestion = questions[currentIndex];
 
-    // In offline mode, skip server submission and just move to next question
-    if (!isOfflineMode) {
+    // In offline mode, queue the response for later sync
+    if (isOfflineMode) {
+      // Queue the review response (using negative session ID to indicate review mode)
+      // Map quality to a numeric representation for the sync queue
+      const qualityMap: Record<Quality, number> = {
+        again: 0,
+        hard: 1,
+        good: 2,
+        easy: 3,
+      };
+
+      queueResponse({
+        sessionId: -1, // Special marker for review responses
+        questionId: currentQuestion.id,
+        selectedAnswers: [qualityMap[quality]], // Encode quality as answer
+        timeSpentSeconds: 0, // Not tracking time for reviews
+      }).catch((err) => {
+        console.error('Failed to queue offline review response:', err);
+      });
+    } else {
       await submitMutation.mutateAsync({ questionId: currentQuestion.id, quality });
     }
 

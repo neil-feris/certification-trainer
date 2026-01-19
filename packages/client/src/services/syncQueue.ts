@@ -46,6 +46,25 @@ export async function queueResponse(response: {
 }
 
 /**
+ * Calculate exponential backoff delay
+ */
+function getBackoffDelay(retryCount: number): number {
+  // Exponential backoff: 1s, 2s, 4s, 8s, 16s (max)
+  const baseDelay = 1000;
+  const maxDelay = 16000;
+  const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay);
+  // Add jitter (0-500ms) to prevent thundering herd
+  return delay + Math.random() * 500;
+}
+
+/**
+ * Sleep helper for backoff delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * Flush the queue by POSTing all queued items when online
  * Uses exponential backoff on failure
  */
@@ -64,6 +83,11 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
   const remainingItems: QueuedResponse[] = [];
 
   for (const item of queue) {
+    // Apply exponential backoff delay if this is a retry
+    if (item.retryCount > 0) {
+      await sleep(getBackoffDelay(item.retryCount - 1));
+    }
+
     try {
       const response = await fetch(`/api/study/sessions/${item.sessionId}/answer`, {
         method: 'POST',

@@ -3,9 +3,10 @@ import styles from './OfflineBanner.module.css';
 
 interface OfflineBannerProps {
   cachedQuestionCount: number;
+  pendingSyncCount?: number;
 }
 
-export function OfflineBanner({ cachedQuestionCount }: OfflineBannerProps) {
+export function OfflineBanner({ cachedQuestionCount, pendingSyncCount = 0 }: OfflineBannerProps) {
   const { isOnline } = useOnlineStatus();
 
   if (isOnline) {
@@ -29,6 +30,12 @@ export function OfflineBanner({ cachedQuestionCount }: OfflineBannerProps) {
       </svg>
       <span className={styles.message}>
         Offline mode — {cachedQuestionCount} questions available
+        {pendingSyncCount > 0 && (
+          <span className={styles.pendingSync}>
+            {' '}
+            · {pendingSyncCount} response{pendingSyncCount !== 1 ? 's' : ''} pending sync
+          </span>
+        )}
       </span>
     </div>
   );

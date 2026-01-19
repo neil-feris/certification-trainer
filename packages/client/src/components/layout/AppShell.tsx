@@ -7,6 +7,7 @@ import { useCertificationStore } from '../../stores/certificationStore';
 import { useStudyStore } from '../../stores/studyStore';
 import { questionApi } from '../../api/client';
 import { getCachedQuestionCount } from '../../services/offlineStorage';
+import { useSyncQueue } from '../../hooks/useSyncQueue';
 import { UserProfile } from './UserProfile';
 import { MobileNavBar } from './MobileNavBar';
 import { BottomSheet } from './BottomSheet';
@@ -30,6 +31,9 @@ export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const [cachedQuestionCount, setCachedQuestionCount] = useState(0);
+
+  // Sync queue management
+  const { pendingCount: pendingSyncCount } = useSyncQueue();
 
   // Load cached question count on mount and periodically refresh
   useEffect(() => {
@@ -109,7 +113,10 @@ export function AppShell({ children }: AppShellProps) {
         </aside>
       )}
 
-      <OfflineBanner cachedQuestionCount={cachedQuestionCount} />
+      <OfflineBanner
+        cachedQuestionCount={cachedQuestionCount}
+        pendingSyncCount={pendingSyncCount}
+      />
 
       <main
         className={`${styles.main} ${hideNavigation ? styles.mainFullWidth : styles.mainWithMobileNav}`}

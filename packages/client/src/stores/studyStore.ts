@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { studyApi } from '../api/client';
 import { getCachedQuestions } from '../services/offlineStorage';
+import { queueResponse } from '../services/syncQueue';
 import type { Question } from '@ace-prep/shared';
 
 interface StudyQuestion {
@@ -254,6 +255,16 @@ export const useStudyStore = create<StudySessionState>()(
             isCorrect,
             timeSpentSeconds: timeSpent,
             addedToSR: false, // Can't add to SR in offline mode
+          });
+
+          // Queue the response for sync when back online
+          queueResponse({
+            sessionId: sessionId,
+            questionId: question.id,
+            selectedAnswers: response.selectedAnswers,
+            timeSpentSeconds: timeSpent,
+          }).catch((err) => {
+            console.error('Failed to queue offline response:', err);
           });
 
           set({

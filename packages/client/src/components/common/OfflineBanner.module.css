@@ -38,6 +38,10 @@
   color: var(--warning);
 }
 
+.pendingSync {
+  opacity: 0.85;
+}
+
 /* Mobile adjustments */
 @media (max-width: 768px) {
   .banner {
