@@ -1,0 +1,200 @@
+# Deploy to Production VPS
+# ---------------------------------
+# Triggers:
+#   - Push tags matching v* (e.g., v1.0.0, v1.2.3-beta)
+#   - Manual workflow_dispatch with version input
+#
+# Required Secrets:
+#   VPS_HOST     - Server IP or hostname (e.g., 123.45.67.89 or vps.example.com)
+#   VPS_USER     - SSH username (e.g., deploy or ubuntu)
+#   VPS_SSH_KEY  - Private SSH key for authentication (ed25519 or RSA)
+#
+# The deployment scripts must be installed at /opt/ace-prep on the VPS:
+#   - deploy.sh
+#   - rollback.sh
+#   - health-check.sh
+#   - docker-compose.prod.yml
+#   - .env (with production environment variables)
+
+name: Deploy
+
+on:
+  # Deploy on version tags
+  push:
+    tags:
+      - 'v*'
+
+  # Manual deployment trigger
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Docker image tag to deploy (e.g., v1.0.0, sha-abc1234, latest)'
+        required: false
+        default: 'latest'
+        type: string
+
+# Only one deployment at a time
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/ace-prep
+
+jobs:
+  # ---------------------------------
+  # Build and push Docker image
+  # ---------------------------------
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image-digest: ${{ steps.build-push.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Determine version to deploy
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use input or default to 'latest'
+            VERSION="${{ github.event.inputs.version }}"
+            echo "version=${VERSION:-latest}" >> $GITHUB_OUTPUT
+          else
+            # Tag push - extract version from tag (e.g., refs/tags/v1.0.0 -> v1.0.0)
+            VERSION="${GITHUB_REF#refs/tags/}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.2.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Always tag with the determined version
+            type=raw,value=${{ steps.version.outputs.version }}
+            # Also tag with short SHA for traceability
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push Docker image
+        id: build-push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Output build info
+        run: |
+          echo "## Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest:** ${{ steps.build-push.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------
+  # Deploy to VPS
+  # ---------------------------------
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: build
+
+    # Use production environment for additional protection
+    # Configure environment protection rules in GitHub repo settings
+    environment:
+      name: production
+      url: https://certification-trainer.neilferis.com
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # 5 minute timeout for deployment
+          timeout: 5m
+          script: |
+            echo "=== Starting deployment of version: ${{ needs.build.outputs.version }} ==="
+
+            # Navigate to deployment directory
+            cd /opt/ace-prep
+
+            # Run deployment script with version
+            ./deploy.sh ${{ needs.build.outputs.version }}
+
+            echo "=== Deployment script completed ==="
+
+      # ---------------------------------
+      # Post-deployment verification
+      # ---------------------------------
+      - name: Verify deployment health
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 2m
+          script: |
+            echo "=== Running health check ==="
+            cd /opt/ace-prep
+            ./health-check.sh
+
+            echo "=== Checking deployed version ==="
+            docker inspect --format='{{.Config.Image}}' ace-prep
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "## Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.build.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** production" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://certification-trainer.neilferis.com" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Health check passed. Application is running." >> $GITHUB_STEP_SUMMARY
+
+      - name: Deployment failed
+        if: failure()
+        run: |
+          echo "## Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.build.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the deployment logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "The deployment script may have triggered an automatic rollback." >> $GITHUB_STEP_SUMMARY

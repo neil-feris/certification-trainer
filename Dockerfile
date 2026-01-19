@@ -56,11 +56,25 @@ COPY packages/server/src/db ./packages/server/src/db
 # Copy database with seed data
 COPY data ./data
 
+# Create non-root user for security
+# Using high UID/GID (10001) to avoid conflicts with host system users
+RUN groupadd --gid 10001 nodejs && \
+    useradd --uid 10001 --gid nodejs --shell /bin/bash --create-home aceprep
+
+# Set ownership of /app to aceprep:nodejs
+# Data directory needs write permissions for SQLite
+RUN chown -R aceprep:nodejs /app && \
+    chmod -R 755 /app && \
+    chmod -R 775 /app/data
+
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3001
 
 EXPOSE 3001
+
+# Switch to non-root user
+USER aceprep
 
 # Start server
 CMD ["node", "packages/server/dist/index.js"]
