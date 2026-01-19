@@ -13,6 +13,13 @@ BACKUP_DIR="${SCRIPT_DIR}/backups"
 PREVIOUS_VERSION_FILE="${SCRIPT_DIR}/.previous_version"
 CONTAINER_NAME="ace-prep"
 
+# Load .env file if it exists
+if [ -f "${SCRIPT_DIR}/.env" ]; then
+    set -a
+    source "${SCRIPT_DIR}/.env"
+    set +a
+fi
+
 # GHCR_OWNER must be set (GitHub username/org)
 if [ -z "${GHCR_OWNER:-}" ]; then
     echo "ERROR: GHCR_OWNER environment variable must be set"
