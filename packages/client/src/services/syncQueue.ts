@@ -47,8 +47,12 @@ export async function queueResponse(response: {
 }): Promise<void> {
   const queue = await getQueue();
 
+  // Use deterministic ID for idempotency - prevents duplicate entries
+  const id = `${response.sessionId}-${response.questionId}`;
+  const existingIndex = queue.findIndex((item) => item.id === id);
+
   const queuedItem: QueuedResponse = {
-    id: `${response.sessionId}-${response.questionId}-${Date.now()}`,
+    id,
     sessionId: response.sessionId,
     questionId: response.questionId,
     selectedAnswers: response.selectedAnswers,
@@ -60,7 +64,12 @@ export async function queueResponse(response: {
     quality: response.quality,
   };
 
-  queue.push(queuedItem);
+  if (existingIndex >= 0) {
+    // Update existing entry instead of creating duplicate
+    queue[existingIndex] = queuedItem;
+  } else {
+    queue.push(queuedItem);
+  }
   await set(QUEUE_KEY, queue, syncStore);
 }
 
