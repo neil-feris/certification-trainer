@@ -17,6 +17,9 @@ const MAX_TEXT_LENGTH = 10000;
 const MAX_OPTION_LENGTH = 2000;
 const MAX_OPTIONS_COUNT = 10;
 
+// Maximum number of questions to keep in cache to limit memory usage
+const MAX_CACHE_SIZE = 500;
+
 interface CacheMetadata {
   lastUpdated: number;
   questionCount: number;
@@ -87,6 +90,9 @@ function isValidCachedQuestion(q: unknown): q is CachedQuestion {
  * Cache an array of questions for offline use
  * Merges with existing cache, updates existing questions by ID
  * Invalid questions are silently skipped to prevent cache corruption
+ *
+ * Memory optimization: checks cache metadata first to avoid loading
+ * all existing questions when cache is empty or small.
  */
 export async function cacheQuestions(questions: Question[]): Promise<void> {
   if (!questions.length) return;
@@ -95,24 +101,42 @@ export async function cacheQuestions(questions: Question[]): Promise<void> {
   const validQuestions = questions.filter((q) => isValidQuestion(q));
   if (!validQuestions.length) return;
 
-  const existingQuestions = await getCachedQuestionsInternal();
   const now = Date.now();
 
-  // Create a map of existing questions by ID
-  const questionsMap = new Map<number, CachedQuestion>();
-  for (const q of existingQuestions) {
-    questionsMap.set(q.id, q);
+  // Check current cache size via metadata to optimize memory usage
+  const currentCount = await getCachedQuestionCount();
+
+  let cachedQuestions: CachedQuestion[];
+
+  if (currentCount === 0) {
+    // Fast path: cache is empty, no need to load existing questions
+    cachedQuestions = validQuestions.map((q) => ({ ...q, cachedAt: now }));
+  } else {
+    // Load existing questions for merge
+    const existingQuestions = await getCachedQuestionsInternal();
+
+    // Create a map of existing questions by ID
+    const questionsMap = new Map<number, CachedQuestion>();
+    for (const q of existingQuestions) {
+      questionsMap.set(q.id, q);
+    }
+
+    // Add/update with new validated questions
+    for (const question of validQuestions) {
+      questionsMap.set(question.id, {
+        ...question,
+        cachedAt: now,
+      });
+    }
+
+    cachedQuestions = Array.from(questionsMap.values());
   }
 
-  // Add/update with new validated questions
-  for (const question of validQuestions) {
-    questionsMap.set(question.id, {
-      ...question,
-      cachedAt: now,
-    });
+  // Enforce max cache size by keeping only the newest questions
+  if (cachedQuestions.length > MAX_CACHE_SIZE) {
+    cachedQuestions.sort((a, b) => b.cachedAt - a.cachedAt);
+    cachedQuestions = cachedQuestions.slice(0, MAX_CACHE_SIZE);
   }
-
-  const cachedQuestions = Array.from(questionsMap.values());
 
   // Store questions
   await set(QUESTIONS_KEY, cachedQuestions, questionsStore);
