@@ -135,6 +135,31 @@
   color: var(--error);
 }
 
+.caseStudyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: rgba(138, 180, 248, 0.15);
+  border: 1px solid rgba(138, 180, 248, 0.4);
+  border-radius: var(--border-radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: #8ab4f8;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.caseStudyBadge:hover {
+  background: rgba(138, 180, 248, 0.25);
+  border-color: rgba(138, 180, 248, 0.6);
+  transform: translateY(-1px);
+}
+
+.caseStudyIcon {
+  font-size: 14px;
+}
+
 .flagBtn {
   background: none;
   border: 1px solid var(--border-color);
