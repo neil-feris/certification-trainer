@@ -33,6 +33,8 @@ export function useSyncQueue(): UseSyncQueueReturn {
 
   // Use ref to track sync-in-progress to avoid stale closure issues
   const isSyncingRef = useRef(false);
+  // Track whether auto-sync has been triggered for current online session
+  const hasAutoSyncedRef = useRef(false);
 
   // Refresh pending count from IndexedDB
   const refreshPendingCount = useCallback(async () => {
@@ -92,23 +94,33 @@ export function useSyncQueue(): UseSyncQueueReturn {
     refreshPendingCount();
   }, [refreshPendingCount]);
 
-  // Auto-sync when coming back online
+  // Auto-sync when coming back online (only once per online session)
   useEffect(() => {
-    // Use ref for isSyncing check to avoid re-running effect when sync state changes
-    if (isOnline && state.pendingCount > 0 && !isSyncingRef.current) {
-      // Delay slightly to ensure connection is stable
-      const timeoutId = setTimeout(() => {
-        manualSync().then((result) => {
-          if (result.synced > 0) {
-            // Show toast notification for successful sync
-            showSyncToast(result.synced, result.failed);
-          }
-        });
-      }, 1500);
-
-      return () => clearTimeout(timeoutId);
+    // Reset auto-sync flag when going offline
+    if (!isOnline) {
+      hasAutoSyncedRef.current = false;
+      return;
     }
-  }, [isOnline, state.pendingCount, manualSync]);
+
+    // Only auto-sync once per online session, and only if not already syncing
+    if (hasAutoSyncedRef.current || isSyncingRef.current) {
+      return;
+    }
+
+    // Mark as synced immediately to prevent race conditions
+    hasAutoSyncedRef.current = true;
+
+    // Delay slightly to ensure connection is stable
+    const timeoutId = setTimeout(() => {
+      manualSync().then((result) => {
+        if (result.synced > 0) {
+          showSyncToast(result.synced, result.failed);
+        }
+      });
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [isOnline, manualSync]);
 
   // Periodically refresh pending count (every 10 seconds)
   useEffect(() => {
