@@ -12,6 +12,11 @@ const questionsStore = createStore('ace-prep-db', 'ace-prep-questions');
 const QUESTIONS_KEY = 'cached-questions';
 const CACHE_METADATA_KEY = 'cache-metadata';
 
+// Maximum allowed string length for text fields (prevent XSS with huge payloads)
+const MAX_TEXT_LENGTH = 10000;
+const MAX_OPTION_LENGTH = 2000;
+const MAX_OPTIONS_COUNT = 10;
+
 interface CacheMetadata {
   lastUpdated: number;
   questionCount: number;
@@ -23,11 +28,72 @@ interface CachedQuestion extends Question {
 }
 
 /**
+ * Validate a question object to prevent storing malformed or malicious data
+ * Returns true if valid, false otherwise
+ */
+function isValidQuestion(q: unknown): q is Question {
+  if (!q || typeof q !== 'object') return false;
+
+  const question = q as Record<string, unknown>;
+
+  // Required fields with type checks
+  if (typeof question.id !== 'number' || !Number.isFinite(question.id)) return false;
+  if (typeof question.questionText !== 'string') return false;
+  if (question.questionText.length > MAX_TEXT_LENGTH) return false;
+
+  if (question.questionType !== 'single' && question.questionType !== 'multiple') return false;
+
+  // Validate options array
+  if (!Array.isArray(question.options)) return false;
+  if (question.options.length > MAX_OPTIONS_COUNT) return false;
+  for (const opt of question.options) {
+    if (typeof opt !== 'string' || opt.length > MAX_OPTION_LENGTH) return false;
+  }
+
+  // Validate correctAnswers array
+  if (!Array.isArray(question.correctAnswers)) return false;
+  for (const ans of question.correctAnswers) {
+    if (typeof ans !== 'number' || !Number.isFinite(ans)) return false;
+  }
+
+  // Validate optional string fields
+  if (question.explanation !== undefined) {
+    if (typeof question.explanation !== 'string' || question.explanation.length > MAX_TEXT_LENGTH) {
+      return false;
+    }
+  }
+
+  if (question.difficulty !== undefined && typeof question.difficulty !== 'string') {
+    return false;
+  }
+
+  // Validate numeric IDs
+  if (question.topicId !== undefined && typeof question.topicId !== 'number') return false;
+  if (question.domainId !== undefined && typeof question.domainId !== 'number') return false;
+
+  return true;
+}
+
+/**
+ * Validate a cached question (has cachedAt field)
+ */
+function isValidCachedQuestion(q: unknown): q is CachedQuestion {
+  if (!isValidQuestion(q)) return false;
+  const cached = q as unknown as Record<string, unknown>;
+  return typeof cached.cachedAt === 'number' && Number.isFinite(cached.cachedAt);
+}
+
+/**
  * Cache an array of questions for offline use
  * Merges with existing cache, updates existing questions by ID
+ * Invalid questions are silently skipped to prevent cache corruption
  */
 export async function cacheQuestions(questions: Question[]): Promise<void> {
   if (!questions.length) return;
+
+  // Filter out invalid questions before caching
+  const validQuestions = questions.filter((q) => isValidQuestion(q));
+  if (!validQuestions.length) return;
 
   const existingQuestions = await getCachedQuestionsInternal();
   const now = Date.now();
@@ -38,8 +104,8 @@ export async function cacheQuestions(questions: Question[]): Promise<void> {
     questionsMap.set(q.id, q);
   }
 
-  // Add/update with new questions
-  for (const question of questions) {
+  // Add/update with new validated questions
+  for (const question of validQuestions) {
     questionsMap.set(question.id, {
       ...question,
       cachedAt: now,
@@ -137,9 +203,13 @@ export async function pruneCache(maxCount: number = 500): Promise<number> {
 }
 
 /**
- * Internal helper to get cached questions with type safety
+ * Internal helper to get cached questions with type safety and validation
+ * Filters out any corrupted or invalid questions from the cache
  */
 async function getCachedQuestionsInternal(): Promise<CachedQuestion[]> {
-  const questions = await get<CachedQuestion[]>(QUESTIONS_KEY, questionsStore);
-  return questions ?? [];
+  const questions = await get<unknown[]>(QUESTIONS_KEY, questionsStore);
+  if (!Array.isArray(questions)) return [];
+
+  // Validate each question on retrieval to protect against cache tampering
+  return questions.filter((q): q is CachedQuestion => isValidCachedQuestion(q));
 }
