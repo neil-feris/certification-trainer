@@ -13,6 +13,7 @@ import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
 import { QuestionBrowser } from './components/questions';
 import { ProgressPage } from './components/progress/ProgressPage';
+import { CaseStudiesPage, CaseStudyDetail } from './components/case-studies';
 import { LoginPage, AuthCallbackPage } from './pages';
 import { useAuthStore } from './stores/authStore';
 
@@ -200,6 +201,30 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <ProgressPage />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/case-studies"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <CaseStudiesPage />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/case-studies/:id"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <CaseStudyDetail />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>
