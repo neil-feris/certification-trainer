@@ -201,9 +201,10 @@ export async function drillRoutes(fastify: FastifyInstance) {
     // The unique constraint on (sessionId, questionId) also prevents duplicates
     let addedToSR = false;
 
-    await db.transaction(async (tx) => {
+    // Note: better-sqlite3 is synchronous, so no async/await inside transaction
+    addedToSR = db.transaction((tx) => {
       // Check if response already exists
-      const [existingResponse] = await tx
+      const [existingResponse] = tx
         .select()
         .from(studySessionResponses)
         .where(
@@ -211,77 +212,88 @@ export async function drillRoutes(fastify: FastifyInstance) {
             eq(studySessionResponses.sessionId, drillId),
             eq(studySessionResponses.questionId, questionId)
           )
-        );
+        )
+        .all();
+
+      let wasAddedToSR = false;
 
       if (existingResponse) {
         // Update existing response
-        await tx
-          .update(studySessionResponses)
+        tx.update(studySessionResponses)
           .set({
             selectedAnswers: JSON.stringify(selectedAnswers),
             isCorrect,
             timeSpentSeconds,
           })
-          .where(eq(studySessionResponses.id, existingResponse.id));
-        addedToSR = existingResponse.addedToSR || false;
+          .where(eq(studySessionResponses.id, existingResponse.id))
+          .run();
+        wasAddedToSR = existingResponse.addedToSR || false;
       } else {
         // Get next order index
-        const existingCount = await tx
+        const existingCount = tx
           .select({ count: sql<number>`count(*)` })
           .from(studySessionResponses)
-          .where(eq(studySessionResponses.sessionId, drillId));
+          .where(eq(studySessionResponses.sessionId, drillId))
+          .all();
 
         // Create new response
-        await tx.insert(studySessionResponses).values({
-          userId,
-          sessionId: drillId,
-          questionId,
-          selectedAnswers: JSON.stringify(selectedAnswers),
-          isCorrect,
-          timeSpentSeconds,
-          orderIndex: (existingCount[0]?.count || 0) + 1,
-          addedToSR: false,
-        });
+        tx.insert(studySessionResponses)
+          .values({
+            userId,
+            sessionId: drillId,
+            questionId,
+            selectedAnswers: JSON.stringify(selectedAnswers),
+            isCorrect,
+            timeSpentSeconds,
+            orderIndex: (existingCount[0]?.count || 0) + 1,
+            addedToSR: false,
+          })
+          .run();
 
         // If incorrect, add to spaced repetition queue for this user
         if (!isCorrect) {
-          const [existingSR] = await tx
+          const [existingSR] = tx
             .select()
             .from(spacedRepetition)
             .where(
               and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
-            );
+            )
+            .all();
 
           if (!existingSR) {
-            await tx.insert(spacedRepetition).values({
-              userId,
-              questionId,
-              easeFactor: 2.5,
-              interval: 1,
-              repetitions: 0,
-              nextReviewAt: new Date(),
-            });
-            addedToSR = true;
+            tx.insert(spacedRepetition)
+              .values({
+                userId,
+                questionId,
+                easeFactor: 2.5,
+                interval: 1,
+                repetitions: 0,
+                nextReviewAt: new Date(),
+              })
+              .run();
+            wasAddedToSR = true;
 
             // Update the response to mark it
-            await tx
-              .update(studySessionResponses)
+            tx.update(studySessionResponses)
               .set({ addedToSR: true })
               .where(
                 and(
                   eq(studySessionResponses.sessionId, drillId),
                   eq(studySessionResponses.questionId, questionId)
                 )
-              );
+              )
+              .run();
           }
         }
       }
 
       // Update session sync time
-      await tx
-        .update(studySessions)
+      tx.update(studySessions)
         .set({ syncedAt: new Date() })
-        .where(eq(studySessions.id, drillId));
+        .where(eq(studySessions.id, drillId))
+        .run();
+
+      return wasAddedToSR;
     });
 
     // Return correctAnswers and explanation ONLY after user has submitted
@@ -312,11 +324,13 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const { totalTimeSeconds, timedOut } = bodyResult.data;
 
     // Use transaction to ensure consistent read and update of session state
-    const txResult = await db.transaction(async (tx) => {
-      const [session] = await tx
+    // Note: better-sqlite3 is synchronous, so no async/await inside transaction
+    const txResult = db.transaction((tx) => {
+      const [session] = tx
         .select()
         .from(studySessions)
-        .where(and(eq(studySessions.id, drillId), eq(studySessions.userId, userId)));
+        .where(and(eq(studySessions.id, drillId), eq(studySessions.userId, userId)))
+        .all();
       if (!session) {
         return { error: 'not_found' as const };
       }
@@ -325,11 +339,12 @@ export async function drillRoutes(fastify: FastifyInstance) {
       }
 
       // Get all responses for this drill
-      const responses = await tx
+      const responses = tx
         .select()
         .from(studySessionResponses)
         .where(eq(studySessionResponses.sessionId, drillId))
-        .orderBy(studySessionResponses.orderIndex);
+        .orderBy(studySessionResponses.orderIndex)
+        .all();
 
       // Calculate stats
       const correctCount = responses.filter((r) => r.isCorrect).length;
@@ -337,8 +352,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       const addedToSRCount = responses.filter((r) => r.addedToSR).length;
 
       // Complete the session atomically
-      await tx
-        .update(studySessions)
+      tx.update(studySessions)
         .set({
           status: timedOut ? 'abandoned' : 'completed',
           completedAt: new Date(),
@@ -346,7 +360,8 @@ export async function drillRoutes(fastify: FastifyInstance) {
           correctAnswers: correctCount,
           totalQuestions: totalCount,
         })
-        .where(eq(studySessions.id, drillId));
+        .where(eq(studySessions.id, drillId))
+        .run();
 
       return { responses, correctCount, totalCount, addedToSRCount };
     });
