@@ -4,6 +4,28 @@ import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
 import styles from './Dashboard.module.css';
 
+// Dashboard data types
+interface DomainStat {
+  domain: { id: number; name: string };
+  accuracy: number;
+  totalAttempts: number;
+  correctAttempts: number;
+}
+
+interface WeakArea {
+  accuracy: number;
+  topic: { id: number; name: string };
+  domain: { id: number; name: string };
+}
+
+interface RecentExam {
+  id: number;
+  completedAt: string;
+  score: number;
+  correctAnswers: number;
+  totalQuestions: number;
+}
+
 // SVG icons for quick actions
 const ReviewIcon = () => (
   <svg
@@ -83,13 +105,21 @@ export function Dashboard() {
   const passingScore = selectedCert?.passingScorePercent ?? 70;
   const reviewDueCount = reviewQueue?.length ?? 0;
 
+  // Type assertions for dashboard data
+  const domainStats = dashboard?.domainStats as DomainStat[] | undefined;
+  const weakAreas = dashboard?.weakAreas as WeakArea[] | undefined;
+  const recentExams = dashboard?.recentExams as RecentExam[] | undefined;
+
   // Find weakest domain for "Continue" button
-  const weakestDomain = dashboard?.domainStats?.reduce((weakest: any, stat: any) => {
-    if (!weakest || stat.accuracy < weakest.accuracy) {
-      return stat;
-    }
-    return weakest;
-  }, null);
+  const weakestDomain = domainStats?.reduce(
+    (weakest: DomainStat | null, stat: DomainStat) => {
+      if (!weakest || stat.accuracy < weakest.accuracy) {
+        return stat;
+      }
+      return weakest;
+    },
+    null as DomainStat | null
+  );
 
   return (
     <div className={styles.dashboard}>
@@ -167,7 +197,7 @@ export function Dashboard() {
         <div className={`card ${styles.domainCard}`}>
           <h2 className={styles.sectionTitle}>Domain Performance</h2>
           <div className={styles.domainList}>
-            {dashboard?.domainStats?.map((stat: any) => (
+            {domainStats?.map((stat) => (
               <div key={stat.domain.id} className={styles.domainItem}>
                 <div className={styles.domainHeader}>
                   <span className={styles.domainName}>{stat.domain.name}</span>
@@ -202,10 +232,10 @@ export function Dashboard() {
         {/* Weak Areas */}
         <div className={`card ${styles.weakAreasCard}`}>
           <h2 className={styles.sectionTitle}>Areas to Improve</h2>
-          {dashboard?.weakAreas?.length > 0 ? (
+          {weakAreas && weakAreas.length > 0 ? (
             <div className={styles.weakAreasList}>
-              {dashboard.weakAreas.map((area: any, i: number) => (
-                <div key={i} className={styles.weakAreaItem}>
+              {weakAreas.map((area) => (
+                <div key={`${area.domain.id}-${area.topic.id}`} className={styles.weakAreaItem}>
                   <div className={styles.weakAreaBadge}>
                     <span
                       className={`badge ${area.accuracy < 50 ? 'badge-error' : 'badge-warning'}`}
@@ -230,9 +260,9 @@ export function Dashboard() {
         {/* Recent Exams */}
         <div className={`card ${styles.recentCard}`}>
           <h2 className={styles.sectionTitle}>Recent Exams</h2>
-          {dashboard?.recentExams?.length > 0 ? (
+          {recentExams && recentExams.length > 0 ? (
             <div className={styles.recentList}>
-              {dashboard.recentExams.map((exam: any) => (
+              {recentExams.map((exam) => (
                 <div
                   key={exam.id}
                   className={styles.recentItem}
