@@ -306,14 +306,5 @@ async function getQueue(): Promise<QueuedResponse[]> {
   return queue ?? [];
 }
 
-// Auto-flush when coming back online
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    // Delay slightly to ensure connection is stable
-    setTimeout(() => {
-      flushQueue().catch((err) => {
-        console.error('Failed to flush sync queue:', err);
-      });
-    }, 1000);
-  });
-}
+// NOTE: Auto-flush on 'online' event is handled by the useSyncQueue hook
+// to avoid duplicate flush attempts. Do not add a global listener here.
