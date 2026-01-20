@@ -26,9 +26,9 @@ export default defineConfig({
             },
           },
           {
-            // Cache-first for the app shell (HTML)
+            // StaleWhileRevalidate for the app shell (HTML) - ensures fresh content
             urlPattern: /^https?:\/\/[^/]+\/(?:index\.html)?$/,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'ace-prep-app-shell',
               expiration: {
@@ -37,22 +37,9 @@ export default defineConfig({
               },
             },
           },
-          {
-            // Network-first for API calls with offline fallback
-            urlPattern: /\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'ace-prep-api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24, // 24 hours
-              },
-              networkTimeoutSeconds: 10,
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
+          // NOTE: API responses are NOT cached by the service worker.
+          // Offline data is managed by IndexedDB via offlineStorage service.
+          // This prevents stale data issues and data leakage on shared devices.
         ],
         // Pre-cache important app files
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
