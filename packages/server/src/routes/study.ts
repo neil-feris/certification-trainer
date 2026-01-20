@@ -356,21 +356,22 @@ export async function studyRoutes(fastify: FastifyInstance) {
           }
 
           // Use transaction for atomic delete + insert to prevent race conditions
-          const inserted = await db.transaction(async (tx) => {
+          // Note: better-sqlite3 is synchronous, so no async/await inside transaction
+          const inserted = db.transaction((tx) => {
             // Delete existing summary if regenerating
             if (regenerate) {
-              await tx
-                .delete(learningPathSummaries)
+              tx.delete(learningPathSummaries)
                 .where(
                   and(
                     eq(learningPathSummaries.certificationId, certId),
                     eq(learningPathSummaries.pathItemOrder, order)
                   )
-                );
+                )
+                .run();
             }
 
             // Insert new summary - use onConflictDoUpdate to handle concurrent generation
-            const [result] = await tx
+            const [result] = tx
               .insert(learningPathSummaries)
               .values({
                 certificationId: certId,
@@ -398,7 +399,8 @@ export async function studyRoutes(fastify: FastifyInstance) {
                   isEnhanced: generated.isEnhanced,
                 },
               })
-              .returning();
+              .returning()
+              .all();
 
             return result;
           });
@@ -863,9 +865,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
     // Use transaction to prevent TOCTOU race condition
     // The unique constraint on (sessionId, questionId) also prevents duplicates
-    const addedToSR = await db.transaction(async (tx) => {
+    // Note: better-sqlite3 is synchronous, so no async/await inside transaction
+    const addedToSR = db.transaction((tx) => {
       // Check if response already exists
-      const [existingResponse] = await tx
+      const [existingResponse] = tx
         .select()
         .from(studySessionResponses)
         .where(
@@ -873,79 +876,86 @@ export async function studyRoutes(fastify: FastifyInstance) {
             eq(studySessionResponses.sessionId, sessionId),
             eq(studySessionResponses.questionId, questionId)
           )
-        );
+        )
+        .all();
 
       let wasAddedToSR = false;
 
       if (existingResponse) {
         // Update existing response
-        await tx
-          .update(studySessionResponses)
+        tx.update(studySessionResponses)
           .set({
             selectedAnswers: JSON.stringify(selectedAnswers),
             isCorrect,
             timeSpentSeconds,
           })
-          .where(eq(studySessionResponses.id, existingResponse.id));
+          .where(eq(studySessionResponses.id, existingResponse.id))
+          .run();
         wasAddedToSR = existingResponse.addedToSR || false;
       } else {
         // Get next order index
-        const existingCount = await tx
+        const existingCount = tx
           .select({ count: sql<number>`count(*)` })
           .from(studySessionResponses)
-          .where(eq(studySessionResponses.sessionId, sessionId));
+          .where(eq(studySessionResponses.sessionId, sessionId))
+          .all();
 
         // Create new response
-        await tx.insert(studySessionResponses).values({
-          userId,
-          sessionId,
-          questionId,
-          selectedAnswers: JSON.stringify(selectedAnswers),
-          isCorrect,
-          timeSpentSeconds,
-          orderIndex: (existingCount[0]?.count || 0) + 1,
-          addedToSR: false,
-        });
+        tx.insert(studySessionResponses)
+          .values({
+            userId,
+            sessionId,
+            questionId,
+            selectedAnswers: JSON.stringify(selectedAnswers),
+            isCorrect,
+            timeSpentSeconds,
+            orderIndex: (existingCount[0]?.count || 0) + 1,
+            addedToSR: false,
+          })
+          .run();
 
         // If incorrect, add to spaced repetition queue for this user
         if (!isCorrect) {
-          const [existingSR] = await tx
+          const [existingSR] = tx
             .select()
             .from(spacedRepetition)
             .where(
               and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
-            );
+            )
+            .all();
 
           if (!existingSR) {
-            await tx.insert(spacedRepetition).values({
-              userId,
-              questionId,
-              easeFactor: 2.5,
-              interval: 1,
-              repetitions: 0,
-              nextReviewAt: new Date(),
-            });
+            tx.insert(spacedRepetition)
+              .values({
+                userId,
+                questionId,
+                easeFactor: 2.5,
+                interval: 1,
+                repetitions: 0,
+                nextReviewAt: new Date(),
+              })
+              .run();
             wasAddedToSR = true;
 
             // Update the response to mark it
-            await tx
-              .update(studySessionResponses)
+            tx.update(studySessionResponses)
               .set({ addedToSR: true })
               .where(
                 and(
                   eq(studySessionResponses.sessionId, sessionId),
                   eq(studySessionResponses.questionId, questionId)
                 )
-              );
+              )
+              .run();
           }
         }
       }
 
       // Update session sync time
-      await tx
-        .update(studySessions)
+      tx.update(studySessions)
         .set({ syncedAt: new Date() })
-        .where(eq(studySessions.id, sessionId));
+        .where(eq(studySessions.id, sessionId))
+        .run();
 
       return wasAddedToSR;
     });
@@ -1019,87 +1029,89 @@ export async function studyRoutes(fastify: FastifyInstance) {
     const existingSRMap = new Set(existingSREntries.map((sr) => sr.questionId));
 
     // Use transaction for atomic operations
-    const result = await db.transaction(async (tx) => {
-      let currentOrderIndex = existingResponses.length;
-      const responsesToInsert: Array<{
-        userId: number;
-        sessionId: number;
-        questionId: number;
-        selectedAnswers: string;
-        isCorrect: boolean;
-        timeSpentSeconds: number;
-        orderIndex: number;
-        addedToSR: boolean;
-      }> = [];
-      const srToInsert: Array<{
-        userId: number;
-        questionId: number;
-        easeFactor: number;
-        interval: number;
-        repetitions: number;
-        nextReviewAt: Date;
-      }> = [];
+    // Note: better-sqlite3 is synchronous, so no async/await inside transaction
+    // Prepare data outside transaction, then execute inserts synchronously
+    let currentOrderIndex = existingResponses.length;
+    const responsesToInsert: Array<{
+      userId: number;
+      sessionId: number;
+      questionId: number;
+      selectedAnswers: string;
+      isCorrect: boolean;
+      timeSpentSeconds: number;
+      orderIndex: number;
+      addedToSR: boolean;
+    }> = [];
+    const srToInsert: Array<{
+      userId: number;
+      questionId: number;
+      easeFactor: number;
+      interval: number;
+      repetitions: number;
+      nextReviewAt: Date;
+    }> = [];
 
-      for (const response of responses) {
-        const question = questionsMap.get(response.questionId);
-        if (!question) continue;
+    for (const response of responses) {
+      const question = questionsMap.get(response.questionId);
+      if (!question) continue;
 
-        const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
-        const isCorrect =
-          response.selectedAnswers.length === correctAnswers.length &&
-          response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
-          correctAnswers.every((a) => response.selectedAnswers.includes(a));
+      const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+      const isCorrect =
+        response.selectedAnswers.length === correctAnswers.length &&
+        response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => response.selectedAnswers.includes(a));
 
-        // Only insert if not already exists
-        if (!existingResponsesMap.has(response.questionId)) {
-          currentOrderIndex++;
-          let addedToSR = false;
+      // Only insert if not already exists
+      if (!existingResponsesMap.has(response.questionId)) {
+        currentOrderIndex++;
+        let addedToSR = false;
 
-          if (!isCorrect && !existingSRMap.has(response.questionId)) {
-            srToInsert.push({
-              userId,
-              questionId: response.questionId,
-              easeFactor: 2.5,
-              interval: 1,
-              repetitions: 0,
-              nextReviewAt: new Date(),
-            });
-            existingSRMap.add(response.questionId); // Prevent duplicates within batch
-            addedToSR = true;
-          }
-
-          responsesToInsert.push({
+        if (!isCorrect && !existingSRMap.has(response.questionId)) {
+          srToInsert.push({
             userId,
-            sessionId,
             questionId: response.questionId,
-            selectedAnswers: JSON.stringify(response.selectedAnswers),
-            isCorrect,
-            timeSpentSeconds: response.timeSpentSeconds,
-            orderIndex: currentOrderIndex,
-            addedToSR,
+            easeFactor: 2.5,
+            interval: 1,
+            repetitions: 0,
+            nextReviewAt: new Date(),
           });
+          existingSRMap.add(response.questionId); // Prevent duplicates within batch
+          addedToSR = true;
         }
-      }
 
+        responsesToInsert.push({
+          userId,
+          sessionId,
+          questionId: response.questionId,
+          selectedAnswers: JSON.stringify(response.selectedAnswers),
+          isCorrect,
+          timeSpentSeconds: response.timeSpentSeconds,
+          orderIndex: currentOrderIndex,
+          addedToSR,
+        });
+      }
+    }
+
+    // Count actual correct answers from combined data (computed before transaction)
+    const allResponsesData = [...existingResponses, ...responsesToInsert];
+    const actualCorrect = allResponsesData.filter((r) => r.isCorrect).length;
+    const actualTotal = allResponsesData.length;
+    const actualAddedToSR = allResponsesData.filter((r) => r.addedToSR).length;
+
+    // Execute all inserts and update in a synchronous transaction
+    db.transaction((tx) => {
       // Bulk insert responses
       if (responsesToInsert.length > 0) {
-        await tx.insert(studySessionResponses).values(responsesToInsert);
+        tx.insert(studySessionResponses).values(responsesToInsert).run();
       }
 
       // Bulk insert SR entries
       if (srToInsert.length > 0) {
-        await tx.insert(spacedRepetition).values(srToInsert);
+        tx.insert(spacedRepetition).values(srToInsert).run();
       }
 
-      // Count actual correct answers from combined data
-      const allResponsesData = [...existingResponses, ...responsesToInsert];
-      const actualCorrect = allResponsesData.filter((r) => r.isCorrect).length;
-      const actualTotal = allResponsesData.length;
-      const actualAddedToSR = allResponsesData.filter((r) => r.addedToSR).length;
-
       // Complete the session
-      await tx
-        .update(studySessions)
+      tx.update(studySessions)
         .set({
           status: 'completed',
           completedAt: new Date(),
@@ -1107,15 +1119,16 @@ export async function studyRoutes(fastify: FastifyInstance) {
           correctAnswers: actualCorrect,
           totalQuestions: actualTotal,
         })
-        .where(eq(studySessions.id, sessionId));
-
-      return {
-        score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
-        correctCount: actualCorrect,
-        totalCount: actualTotal,
-        addedToSRCount: actualAddedToSR,
-      };
+        .where(eq(studySessions.id, sessionId))
+        .run();
     });
+
+    const result = {
+      score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
+      correctCount: actualCorrect,
+      totalCount: actualTotal,
+      addedToSRCount: actualAddedToSR,
+    };
 
     return result;
   });
