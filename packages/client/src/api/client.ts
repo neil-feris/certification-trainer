@@ -276,6 +276,7 @@ export interface QuestionListParams {
   certificationId?: number;
   domainId?: number;
   topicId?: number;
+  caseStudyId?: number;
   difficulty?: Difficulty;
   search?: string;
   sortBy?: 'createdAt' | 'difficulty' | 'domain';
@@ -296,6 +297,8 @@ export const questionApi = {
       searchParams.set('certificationId', String(params.certificationId));
     if (params?.domainId) searchParams.set('domainId', String(params.domainId));
     if (params?.topicId) searchParams.set('topicId', String(params.topicId));
+    if (params?.caseStudyId !== undefined)
+      searchParams.set('caseStudyId', String(params.caseStudyId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
     if (params?.search) searchParams.set('search', params.search);
     if (params?.sortBy) searchParams.set('sortBy', params.sortBy);

@@ -34,10 +34,12 @@ export function QuestionBrowser() {
   // Parse URL params - URL is sole source of truth for all filters
   const difficultyParam = searchParams.get('difficulty');
   const certIdParam = searchParams.get('certificationId');
+  const caseStudyIdParam = searchParams.get('caseStudyId');
   const params = {
     certificationId: certIdParam ? Number(certIdParam) : undefined,
     domainId: searchParams.get('domainId') ? Number(searchParams.get('domainId')) : undefined,
     topicId: searchParams.get('topicId') ? Number(searchParams.get('topicId')) : undefined,
+    caseStudyId: caseStudyIdParam !== null ? Number(caseStudyIdParam) : undefined,
     difficulty: (difficultyParam === 'easy' ||
     difficultyParam === 'medium' ||
     difficultyParam === 'hard'

@@ -603,6 +603,7 @@ export interface QuestionFilterOptions {
   certifications: Pick<Certification, 'id' | 'code' | 'name'>[];
   domains: Pick<Domain, 'id' | 'name' | 'certificationId'>[];
   topics: Pick<Topic, 'id' | 'name' | 'domainId'>[];
+  caseStudies: Pick<CaseStudy, 'id' | 'code' | 'name' | 'certificationId'>[];
   difficulties: Difficulty[];
   totalQuestions: number;
 }

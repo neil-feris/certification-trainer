@@ -7,6 +7,7 @@ interface QuestionFiltersProps {
     certificationId?: number;
     domainId?: number;
     topicId?: number;
+    caseStudyId?: number;
     difficulty?: string;
     search?: string;
     sortBy?: string;
@@ -48,6 +49,15 @@ export function QuestionFilters({
   const filteredTopics =
     filterOptions?.topics.filter((t) => !params.domainId || t.domainId === params.domainId) ?? [];
 
+  // Filter case studies by selected certification
+  const filteredCaseStudies =
+    filterOptions?.caseStudies?.filter(
+      (cs) => !params.certificationId || cs.certificationId === params.certificationId
+    ) ?? [];
+
+  // Only show case study filter when certification has case studies
+  const showCaseStudyFilter = filteredCaseStudies.length > 0;
+
   return (
     <div className={styles.filters}>
       <input
@@ -65,6 +75,7 @@ export function QuestionFilters({
             certificationId: e.target.value || undefined,
             domainId: undefined,
             topicId: undefined,
+            caseStudyId: undefined,
           });
         }}
       >
@@ -114,6 +125,21 @@ export function QuestionFilters({
         <option value="medium">Medium</option>
         <option value="hard">Hard</option>
       </select>
+
+      {showCaseStudyFilter && (
+        <select
+          value={params.caseStudyId !== undefined ? String(params.caseStudyId) : ''}
+          onChange={(e) => onFilterChange('caseStudyId', e.target.value || undefined)}
+        >
+          <option value="">All Questions</option>
+          <option value="0">No Case Study</option>
+          {filteredCaseStudies.map((cs) => (
+            <option key={cs.id} value={cs.id}>
+              {cs.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       <select
         value={`${params.sortBy || 'createdAt'}-${params.sortOrder || 'desc'}`}

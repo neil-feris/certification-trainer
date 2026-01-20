@@ -227,6 +227,23 @@ export async function questionRoutes(fastify: FastifyInstance) {
     }
     const tops = topicsQuery.all();
 
+    // Fetch case studies for the selected certification (or all if none selected)
+    let caseStudiesQuery = db
+      .select({
+        id: caseStudies.id,
+        code: caseStudies.code,
+        name: caseStudies.name,
+        certificationId: caseStudies.certificationId,
+      })
+      .from(caseStudies);
+
+    if (certId) {
+      caseStudiesQuery = caseStudiesQuery.where(
+        eq(caseStudies.certificationId, certId)
+      ) as typeof caseStudiesQuery;
+    }
+    const cases = caseStudiesQuery.all();
+
     const [countResult] = db
       .select({ count: sql<number>`count(*)` })
       .from(questions)
@@ -238,6 +255,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       certifications: certs,
       domains: doms,
       topics: tops,
+      caseStudies: cases,
       difficulties: ['easy', 'medium', 'hard'],
       totalQuestions: Number(countResult?.count ?? 0),
     };
