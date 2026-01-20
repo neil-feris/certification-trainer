@@ -117,22 +117,14 @@ export function Review() {
 
     // In offline mode, queue the response for later sync
     if (isOfflineMode) {
-      // Queue the review response (using negative session ID to indicate review mode)
-      // Map quality to a numeric representation for the sync queue
-      const qualityMap: Record<Quality, number> = {
-        again: 0,
-        hard: 1,
-        good: 2,
-        easy: 3,
-      };
-
       try {
         await queueResponse({
           sessionId: 0, // Not used for review responses
           questionId: currentQuestion.id,
-          selectedAnswers: [qualityMap[quality]], // Encode quality as answer
+          selectedAnswers: [], // Not used for review responses
           timeSpentSeconds: 0, // Not tracking time for reviews
-          responseType: 'review', // Mark as review response for proper routing in flushQueue
+          responseType: 'review',
+          quality, // Store quality string directly for API submission
         });
       } catch (err) {
         console.error('Failed to queue offline review response:', err);

@@ -29,6 +29,8 @@ export interface QueuedResponse {
   offlineSessionContext?: OfflineSessionContext;
   // Type of response: 'session' for study sessions, 'review' for spaced repetition
   responseType: 'session' | 'review';
+  // Quality rating for review responses (again/hard/good/easy)
+  quality?: 'again' | 'hard' | 'good' | 'easy';
 }
 
 /**
@@ -41,6 +43,7 @@ export async function queueResponse(response: {
   timeSpentSeconds: number;
   offlineSessionContext?: OfflineSessionContext;
   responseType?: 'session' | 'review';
+  quality?: 'again' | 'hard' | 'good' | 'easy';
 }): Promise<void> {
   const queue = await getQueue();
 
@@ -54,6 +57,7 @@ export async function queueResponse(response: {
     retryCount: 0,
     offlineSessionContext: response.offlineSessionContext,
     responseType: response.responseType ?? 'session',
+    quality: response.quality,
   };
 
   queue.push(queuedItem);
@@ -113,15 +117,18 @@ async function createServerSession(context: OfflineSessionContext): Promise<numb
  * Submit a review response (spaced repetition)
  */
 async function submitReviewResponse(item: QueuedResponse): Promise<boolean> {
+  if (!item.quality) {
+    console.error('Review response missing quality rating');
+    return false;
+  }
   try {
-    const response = await fetch('/api/review/submit', {
+    const response = await fetch('/api/questions/review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
         questionId: item.questionId,
-        selectedAnswers: item.selectedAnswers,
-        timeSpentSeconds: item.timeSpentSeconds,
+        quality: item.quality,
       }),
     });
     return response.ok;
