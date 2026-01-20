@@ -83,9 +83,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Map to track offline session ID -> server session ID mapping during flush
-const offlineToServerSessionMap = new Map<number, number>();
-
 /**
  * Create a server session for offline responses
  */
@@ -180,8 +177,9 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
   let failed = 0;
   const remainingItems: QueuedResponse[] = [];
 
-  // Clear the session map for this flush
-  offlineToServerSessionMap.clear();
+  // Local map to track offline session ID -> server session ID mapping
+  // Scoped to this flush to prevent cross-tab/concurrent flush corruption
+  const offlineToServerSessionMap = new Map<number, number>();
 
   // Group offline session items by their offline session ID
   const offlineSessionItems = new Map<number, QueuedResponse[]>();
