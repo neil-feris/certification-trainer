@@ -135,10 +135,12 @@ export const useStudyStore = create<StudySessionState>()(
                 });
               });
 
-              // Generate unique negative ID combining timestamp with random bits
-              // to prevent collision when sessions start in same millisecond
-              const randomBits = Math.floor(Math.random() * 0xffff);
-              const offlineSessionId = -(Date.now() * 0x10000 + randomBits);
+              // Generate unique negative ID using cryptographic randomness
+              // Uses 40 bits of timestamp (~35 years) + 12 bits crypto random = 52 bits
+              // Stays safely within Number.MAX_SAFE_INTEGER (53 bits)
+              const timestamp = Date.now() & 0xffffffffff; // 40 bits
+              const randomBits = crypto.getRandomValues(new Uint16Array(1))[0] & 0xfff; // 12 bits
+              const offlineSessionId = -(timestamp * 0x1000 + randomBits);
 
               set({
                 sessionId: offlineSessionId,
