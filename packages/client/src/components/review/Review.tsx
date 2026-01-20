@@ -6,6 +6,7 @@ import { questionApi } from '../../api/client';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { getCachedQuestions } from '../../services/offlineStorage';
 import { queueResponse } from '../../services/syncQueue';
+import { showToast } from '../common/Toast';
 import styles from './Review.module.css';
 
 type Quality = 'again' | 'hard' | 'good' | 'easy';
@@ -125,15 +126,22 @@ export function Review() {
         easy: 3,
       };
 
-      queueResponse({
-        sessionId: 0, // Not used for review responses
-        questionId: currentQuestion.id,
-        selectedAnswers: [qualityMap[quality]], // Encode quality as answer
-        timeSpentSeconds: 0, // Not tracking time for reviews
-        responseType: 'review', // Mark as review response for proper routing in flushQueue
-      }).catch((err) => {
+      try {
+        await queueResponse({
+          sessionId: 0, // Not used for review responses
+          questionId: currentQuestion.id,
+          selectedAnswers: [qualityMap[quality]], // Encode quality as answer
+          timeSpentSeconds: 0, // Not tracking time for reviews
+          responseType: 'review', // Mark as review response for proper routing in flushQueue
+        });
+      } catch (err) {
         console.error('Failed to queue offline review response:', err);
-      });
+        showToast({
+          message: 'Failed to save response. Please try again.',
+          type: 'error',
+        });
+        return; // Don't proceed to next question if save failed
+      }
     } else {
       await submitMutation.mutateAsync({ questionId: currentQuestion.id, quality });
     }

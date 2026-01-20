@@ -274,16 +274,20 @@ export const useStudyStore = create<StudySessionState>()(
             : undefined;
 
           // Queue the response for sync when back online
-          queueResponse({
-            sessionId: sessionId,
-            questionId: question.id,
-            selectedAnswers: response.selectedAnswers,
-            timeSpentSeconds: timeSpent,
-            offlineSessionContext: offlineContext,
-            responseType: 'session',
-          }).catch((err) => {
+          // Await to ensure it's saved before proceeding - throws on failure
+          try {
+            await queueResponse({
+              sessionId: sessionId,
+              questionId: question.id,
+              selectedAnswers: response.selectedAnswers,
+              timeSpentSeconds: timeSpent,
+              offlineSessionContext: offlineContext,
+              responseType: 'session',
+            });
+          } catch (err) {
             console.error('Failed to queue offline response:', err);
-          });
+            throw new Error('Failed to save response for offline sync');
+          }
 
           set({
             responses: newResponses,

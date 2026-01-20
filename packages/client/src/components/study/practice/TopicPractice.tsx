@@ -1,5 +1,6 @@
 import { useStudyStore } from '../../../stores/studyStore';
 import { useSwipeNavigation } from '../../../hooks/useSwipeNavigation';
+import { showToast } from '../../common/Toast';
 import { PracticeQuestion } from './PracticeQuestion';
 import { PracticeSummary } from './PracticeSummary';
 import styles from './Practice.module.css';
@@ -62,6 +63,10 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
       await revealAnswer();
     } catch (error) {
       console.error('Failed to reveal answer:', error);
+      showToast({
+        message: 'Failed to save response. Please try again.',
+        type: 'error',
+      });
     }
   };
 
