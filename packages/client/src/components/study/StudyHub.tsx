@@ -32,6 +32,9 @@ export function StudyHub() {
   } = useStudyStore();
 
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
+  const drillId = useDrillStore((s) => s.drillId);
+  const isDrillActive = useDrillStore((s) => s.isActive);
+  const showDrillSummary = useDrillStore((s) => s.showSummary);
   const { isOnline } = useOnlineStatus();
   const { cacheQuestionsForTopics } = useQuestionCache();
 
@@ -115,11 +118,6 @@ export function StudyHub() {
   }
 
   // If in drills mode with active drill, show full-screen
-  const {
-    drillId,
-    isActive: isDrillActive,
-    showSummary: showDrillSummary,
-  } = useDrillStore.getState();
   if (activeTab === 'drills' && drillId && (isDrillActive || showDrillSummary)) {
     return <DrillHub />;
   }
