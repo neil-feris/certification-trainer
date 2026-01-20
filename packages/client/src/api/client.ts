@@ -31,6 +31,8 @@ import type {
   Granularity,
   TrendDataPoint,
   TrendsResponse,
+  GetCaseStudiesResponse,
+  GetCaseStudyResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -156,6 +158,15 @@ async function retryWithToken<T>(
 export const certificationApi = {
   list: () => request<CertificationWithCount[]>('/certifications', {}, false),
   get: (id: number) => request<CertificationWithCount>(`/certifications/${id}`, {}, false),
+};
+
+// Case Studies
+export const caseStudyApi = {
+  getAll: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<GetCaseStudiesResponse>(`/case-studies${params}`);
+  },
+  getById: (id: number) => request<GetCaseStudyResponse>(`/case-studies/${id}`),
 };
 
 async function request<T>(
