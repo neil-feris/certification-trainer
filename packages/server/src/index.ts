@@ -23,6 +23,7 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 
 import { certificationRoutes } from './routes/certifications.js';
+import { caseStudyRoutes } from './routes/caseStudies.js';
 import { examRoutes } from './routes/exams.js';
 import { questionRoutes } from './routes/questions.js';
 import { progressRoutes } from './routes/progress.js';
@@ -78,6 +79,7 @@ await fastify.register(rateLimit, {
 // API routes
 fastify.register(authRoutes, { prefix: '/api/auth' });
 fastify.register(certificationRoutes, { prefix: '/api/certifications' });
+fastify.register(caseStudyRoutes, { prefix: '/api/case-studies' });
 fastify.register(examRoutes, { prefix: '/api/exams' });
 fastify.register(questionRoutes, { prefix: '/api/questions' });
 fastify.register(progressRoutes, { prefix: '/api/progress' });
@@ -122,6 +124,8 @@ const start = async () => {
     console.log('   POST /api/auth/refresh');
     console.log('   POST /api/auth/logout');
     console.log('   GET  /api/auth/me (protected)');
+    console.log('   GET  /api/case-studies');
+    console.log('   GET  /api/case-studies/:id');
     console.log('   GET  /api/exams');
     console.log('   POST /api/exams');
     console.log('   GET  /api/questions');
