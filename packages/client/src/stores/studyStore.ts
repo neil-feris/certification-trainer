@@ -135,8 +135,13 @@ export const useStudyStore = create<StudySessionState>()(
                 });
               });
 
+              // Generate unique negative ID combining timestamp with random bits
+              // to prevent collision when sessions start in same millisecond
+              const randomBits = Math.floor(Math.random() * 0xffff);
+              const offlineSessionId = -(Date.now() * 0x10000 + randomBits);
+
               set({
-                sessionId: -Date.now(), // Negative ID to indicate offline session
+                sessionId: offlineSessionId,
                 sessionType: type,
                 topicId: topicId || null,
                 domainId: domainId || null,
