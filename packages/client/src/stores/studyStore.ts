@@ -477,7 +477,19 @@ export const useStudyStore = create<StudySessionState>()(
         sessionType: state.sessionType,
         topicId: state.topicId,
         domainId: state.domainId,
-        questions: state.questions,
+        // Strip sensitive fields (correctAnswers, explanation) before persisting
+        // to prevent cheating and reduce localStorage size
+        questions: state.questions.map((q) => ({
+          id: q.id,
+          questionText: q.questionText,
+          questionType: q.questionType,
+          options: q.options,
+          difficulty: q.difficulty,
+          gcpServices: q.gcpServices,
+          domain: q.domain,
+          topic: q.topic,
+          // correctAnswers and explanation intentionally omitted
+        })),
         responses: Array.from(state.responses.entries()),
         currentQuestionIndex: state.currentQuestionIndex,
         startTime: state.startTime,
