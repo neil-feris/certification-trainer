@@ -126,10 +126,11 @@ export function Review() {
       };
 
       queueResponse({
-        sessionId: -1, // Special marker for review responses
+        sessionId: 0, // Not used for review responses
         questionId: currentQuestion.id,
         selectedAnswers: [qualityMap[quality]], // Encode quality as answer
         timeSpentSeconds: 0, // Not tracking time for reviews
+        responseType: 'review', // Mark as review response for proper routing in flushQueue
       }).catch((err) => {
         console.error('Failed to queue offline review response:', err);
       });

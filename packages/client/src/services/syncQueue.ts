@@ -10,6 +10,13 @@ const syncStore = createStore('ace-prep-db', 'ace-prep-sync-queue');
 // Key for the queue
 const QUEUE_KEY = 'pending-responses';
 
+export interface OfflineSessionContext {
+  sessionType: 'topic_practice' | 'learning_path';
+  topicId?: number;
+  domainId?: number;
+  questionCount: number;
+}
+
 export interface QueuedResponse {
   id: string;
   sessionId: number;
@@ -18,6 +25,10 @@ export interface QueuedResponse {
   timeSpentSeconds: number;
   queuedAt: number;
   retryCount: number;
+  // For offline sessions, we need context to create the server session
+  offlineSessionContext?: OfflineSessionContext;
+  // Type of response: 'session' for study sessions, 'review' for spaced repetition
+  responseType: 'session' | 'review';
 }
 
 /**
@@ -28,6 +39,8 @@ export async function queueResponse(response: {
   questionId: number;
   selectedAnswers: number[];
   timeSpentSeconds: number;
+  offlineSessionContext?: OfflineSessionContext;
+  responseType?: 'session' | 'review';
 }): Promise<void> {
   const queue = await getQueue();
 
@@ -39,6 +52,8 @@ export async function queueResponse(response: {
     timeSpentSeconds: response.timeSpentSeconds,
     queuedAt: Date.now(),
     retryCount: 0,
+    offlineSessionContext: response.offlineSessionContext,
+    responseType: response.responseType ?? 'session',
   };
 
   queue.push(queuedItem);
@@ -64,8 +79,84 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Map to track offline session ID -> server session ID mapping during flush
+const offlineToServerSessionMap = new Map<number, number>();
+
+/**
+ * Create a server session for offline responses
+ */
+async function createServerSession(context: OfflineSessionContext): Promise<number | null> {
+  try {
+    const response = await fetch('/api/study/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        sessionType: context.sessionType,
+        topicId: context.topicId,
+        domainId: context.domainId,
+        questionCount: context.questionCount,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.sessionId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Submit a review response (spaced repetition)
+ */
+async function submitReviewResponse(item: QueuedResponse): Promise<boolean> {
+  try {
+    const response = await fetch('/api/review/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        questionId: item.questionId,
+        selectedAnswers: item.selectedAnswers,
+        timeSpentSeconds: item.timeSpentSeconds,
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Submit a session response
+ */
+async function submitSessionResponse(
+  sessionId: number,
+  item: QueuedResponse
+): Promise<{ ok: boolean; status: number }> {
+  try {
+    const response = await fetch(`/api/study/sessions/${sessionId}/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        questionId: item.questionId,
+        selectedAnswers: item.selectedAnswers,
+        timeSpentSeconds: item.timeSpentSeconds,
+      }),
+    });
+    return { ok: response.ok, status: response.status };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
 /**
  * Flush the queue by POSTing all queued items when online
+ * Handles offline sessions by creating server sessions first
  * Uses exponential backoff on failure
  */
 export async function flushQueue(): Promise<{ synced: number; failed: number }> {
@@ -82,33 +173,43 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
   let failed = 0;
   const remainingItems: QueuedResponse[] = [];
 
+  // Clear the session map for this flush
+  offlineToServerSessionMap.clear();
+
+  // Group offline session items by their offline session ID
+  const offlineSessionItems = new Map<number, QueuedResponse[]>();
+  const regularItems: QueuedResponse[] = [];
+
   for (const item of queue) {
-    // Apply exponential backoff delay if this is a retry
-    if (item.retryCount > 0) {
-      await sleep(getBackoffDelay(item.retryCount - 1));
+    if (item.sessionId < 0 && item.responseType === 'session') {
+      // Offline session response
+      const items = offlineSessionItems.get(item.sessionId) || [];
+      items.push(item);
+      offlineSessionItems.set(item.sessionId, items);
+    } else {
+      regularItems.push(item);
+    }
+  }
+
+  // Process offline sessions first - create server session, then sync responses
+  for (const [offlineSessionId, items] of offlineSessionItems) {
+    // Check if we already have a server session ID mapped
+    let serverSessionId = offlineToServerSessionMap.get(offlineSessionId);
+
+    // Create server session if we don't have one yet
+    if (!serverSessionId) {
+      const context = items[0]?.offlineSessionContext;
+      if (context) {
+        serverSessionId = (await createServerSession(context)) ?? undefined;
+        if (serverSessionId) {
+          offlineToServerSessionMap.set(offlineSessionId, serverSessionId);
+        }
+      }
     }
 
-    try {
-      const response = await fetch(`/api/study/sessions/${item.sessionId}/answer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          questionId: item.questionId,
-          selectedAnswers: item.selectedAnswers,
-          timeSpentSeconds: item.timeSpentSeconds,
-        }),
-      });
-
-      if (response.ok) {
-        synced++;
-      } else if (response.status >= 400 && response.status < 500) {
-        // Client error (4xx) - don't retry, discard the item
-        failed++;
-      } else {
-        // Server error (5xx) - retry with backoff
+    // If we couldn't create a server session, keep items for retry
+    if (!serverSessionId) {
+      for (const item of items) {
         item.retryCount++;
         if (item.retryCount < 5) {
           remainingItems.push(item);
@@ -116,8 +217,57 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
           failed++;
         }
       }
-    } catch {
-      // Network error - keep in queue for retry
+      continue;
+    }
+
+    // Submit all responses for this offline session
+    for (const item of items) {
+      if (item.retryCount > 0) {
+        await sleep(getBackoffDelay(item.retryCount - 1));
+      }
+
+      const result = await submitSessionResponse(serverSessionId, item);
+
+      if (result.ok) {
+        synced++;
+      } else if (result.status >= 400 && result.status < 500) {
+        failed++;
+      } else {
+        item.retryCount++;
+        if (item.retryCount < 5) {
+          remainingItems.push(item);
+        } else {
+          failed++;
+        }
+      }
+    }
+  }
+
+  // Process regular items (online sessions and review responses)
+  for (const item of regularItems) {
+    if (item.retryCount > 0) {
+      await sleep(getBackoffDelay(item.retryCount - 1));
+    }
+
+    let success = false;
+    let status = 0;
+
+    if (item.responseType === 'review') {
+      // Review response - use review endpoint
+      success = await submitReviewResponse(item);
+      status = success ? 200 : 500;
+    } else {
+      // Regular session response
+      const result = await submitSessionResponse(item.sessionId, item);
+      success = result.ok;
+      status = result.status;
+    }
+
+    if (success) {
+      synced++;
+    } else if (status >= 400 && status < 500) {
+      failed++;
+    } else {
       item.retryCount++;
       if (item.retryCount < 5) {
         remainingItems.push(item);
