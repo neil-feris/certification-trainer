@@ -66,6 +66,11 @@
   color: var(--text-muted);
 }
 
+.offlineIndicator {
+  color: var(--warning);
+  font-weight: 500;
+}
+
 .main {
   flex: 1;
   display: flex;
@@ -323,7 +328,58 @@
   transition: width 0.3s ease;
 }
 
+/* Mobile header styles */
+.mobileHeader {
+  display: none;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  padding: 12px;
+  cursor: pointer;
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.backBtn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.backBtnText {
+  display: inline;
+}
+
+.mobileProgress {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
 @media (max-width: 768px) {
+  .header {
+    display: none;
+  }
+
+  .mobileHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .backBtnText {
+    display: none;
+  }
+
   .main {
     padding: 16px;
   }
@@ -332,13 +388,57 @@
     padding: 20px;
   }
 
+  .questionText {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* Touch-friendly options */
+  .option {
+    min-height: 56px;
+    padding: 14px 16px;
+  }
+
   .ratingButtons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
     width: 100%;
   }
 
   .ratingBtn {
-    flex: 1;
-    min-width: 80px;
+    min-height: 48px;
     padding: 12px 16px;
+  }
+
+  /* Prominent Show Answer button */
+  .revealBtn {
+    width: 100%;
+    padding: 16px 24px;
+    font-size: 17px;
+    min-height: 56px;
+  }
+
+  /* Tap feedback for touch devices */
+  @media (hover: none) {
+    .option:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .ratingBtn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    .revealBtn:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .backBtn:active {
+      transform: scale(0.95);
+    }
+  }
+
+  .progressBar {
+    margin-top: 24px;
   }
 }

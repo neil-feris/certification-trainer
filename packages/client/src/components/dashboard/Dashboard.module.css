@@ -216,9 +216,76 @@
   color: var(--text-muted);
 }
 
+/* Quick Actions - mobile only */
+.quickActions {
+  display: none;
+}
+
+.quickActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-height: 56px;
+}
+
+.quickActionBtn:active {
+  transform: scale(0.98);
+}
+
+.quickActionBtn.primary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.quickActionBtn.primary:hover {
+  background: var(--accent-hover);
+}
+
+.quickActionIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.quickActionText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.quickActionLabel {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.quickActionMeta {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 @media (max-width: 768px) {
   .statsGrid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .statCard {
+    padding: 16px;
+  }
+
+  .statValue {
+    font-size: 28px;
   }
 
   .mainGrid {
@@ -229,5 +296,23 @@
     flex-direction: column;
     gap: 16px;
     align-items: flex-start;
+  }
+
+  /* Hide Start Practice Exam button on mobile - use quick actions instead */
+  .header .btn {
+    display: none;
+  }
+
+  /* Quick actions visible on mobile */
+  .quickActions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  /* Hide recent exams on mobile - available in More menu */
+  .recentCard {
+    display: none;
   }
 }

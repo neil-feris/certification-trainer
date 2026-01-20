@@ -1,0 +1,25 @@
+{
+  "name": "ACE Prep - Google Cloud Certification",
+  "short_name": "ACE Prep",
+  "description": "Master your Google Cloud Associate Cloud Engineer certification with spaced repetition and practice exams",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0f1419",
+  "background_color": "#0f1419",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "orientation": "portrait-primary"
+}

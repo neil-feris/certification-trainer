@@ -188,10 +188,59 @@
 }
 
 @media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+
   .header {
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  .header h1 {
+    font-size: 22px;
+  }
+
+  /* Tabs - scrollable horizontally on mobile */
+  .tabs {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tab buttons - 48px touch targets */
+  .tab {
+    padding: 12px 14px;
+    font-size: 13px;
+    min-height: 44px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Tap feedback on touch devices */
+  @media (hover: none) {
+    .tab {
+      transition:
+        transform var(--transition-fast),
+        background var(--transition-fast);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tab:active {
+      transform: scale(0.95);
+    }
+  }
+
+  .content {
+    margin-top: 16px;
   }
 
   .pathItem {

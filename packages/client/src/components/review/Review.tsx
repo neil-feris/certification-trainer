@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSwipeable } from 'react-swipeable';
 import { questionApi } from '../../api/client';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { getCachedQuestions } from '../../services/offlineStorage';
+import { queueResponse } from '../../services/syncQueue';
+import { showToast } from '../common/Toast';
 import styles from './Review.module.css';
 
 type Quality = 'again' | 'hard' | 'good' | 'easy';
@@ -23,18 +28,64 @@ interface ReviewQuestion {
 
 export function Review() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isRevealed, setIsRevealed] = useState(false);
+  const [offlineQuestions, setOfflineQuestions] = useState<ReviewQuestion[]>([]);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+
+  const { isOnline } = useOnlineStatus();
+
+  // Swipe up to reveal answer (optional gesture)
+  const swipeHandlers = useSwipeable({
+    onSwipedUp: () => {
+      if (!isRevealed && selectedAnswers.length > 0) {
+        setIsRevealed(true);
+      }
+    },
+    delta: 50,
+    preventScrollOnSwipe: false,
+    trackTouch: true,
+    trackMouse: false,
+  });
 
   const {
-    data: questions = [],
+    data: onlineQuestions = [],
     isLoading,
     error,
   } = useQuery<ReviewQuestion[]>({
     queryKey: ['reviewQueue'],
     queryFn: questionApi.getReviewQueue,
+    enabled: isOnline,
   });
+
+  // Load cached questions when offline
+  useEffect(() => {
+    const loadOfflineQuestions = async () => {
+      if (!isOnline) {
+        const cached = await getCachedQuestions();
+        // Convert cached questions to review format and take up to 10
+        const reviewQuestions: ReviewQuestion[] = cached.slice(0, 10).map((q) => ({
+          id: q.id,
+          questionText: q.questionText,
+          questionType: q.questionType,
+          options: q.options,
+          correctAnswers: q.correctAnswers,
+          explanation: q.explanation,
+          domain: { name: '' }, // Domain info not available in cached data
+        }));
+        setOfflineQuestions(reviewQuestions);
+        setIsOfflineMode(true);
+      } else {
+        setIsOfflineMode(false);
+      }
+    };
+    loadOfflineQuestions();
+  }, [isOnline]);
+
+  // Use online questions when available, fall back to offline
+  const questions = isOnline ? onlineQuestions : offlineQuestions;
 
   const submitMutation = useMutation({
     mutationFn: ({ questionId, quality }: { questionId: number; quality: Quality }) =>
@@ -63,7 +114,29 @@ export function Review() {
 
   const handleRate = async (quality: Quality) => {
     const currentQuestion = questions[currentIndex];
-    await submitMutation.mutateAsync({ questionId: currentQuestion.id, quality });
+
+    // In offline mode, queue the response for later sync
+    if (isOfflineMode) {
+      try {
+        await queueResponse({
+          sessionId: 0, // Not used for review responses
+          questionId: currentQuestion.id,
+          selectedAnswers: [], // Not used for review responses
+          timeSpentSeconds: 0, // Not tracking time for reviews
+          responseType: 'review',
+          quality, // Store quality string directly for API submission
+        });
+      } catch (err) {
+        console.error('Failed to queue offline review response:', err);
+        showToast({
+          message: 'Failed to save response. Please try again.',
+          type: 'error',
+        });
+        return; // Don't proceed to next question if save failed
+      }
+    } else {
+      await submitMutation.mutateAsync({ questionId: currentQuestion.id, quality });
+    }
 
     // Move to next question
     if (currentIndex < questions.length - 1) {
@@ -71,15 +144,20 @@ export function Review() {
       setSelectedAnswers([]);
       setIsRevealed(false);
     } else {
-      // Refetch to get any remaining questions
-      queryClient.invalidateQueries({ queryKey: ['reviewQueue'] });
-      setCurrentIndex(0);
-      setSelectedAnswers([]);
-      setIsRevealed(false);
+      if (isOfflineMode) {
+        // In offline mode, just navigate back when done
+        navigate('/dashboard');
+      } else {
+        // Refetch to get any remaining questions
+        queryClient.invalidateQueries({ queryKey: ['reviewQueue'] });
+        setCurrentIndex(0);
+        setSelectedAnswers([]);
+        setIsRevealed(false);
+      }
     }
   };
 
-  if (isLoading) {
+  if (isLoading && isOnline) {
     return (
       <div className={styles.loading}>
         <div className="animate-pulse">Loading review queue...</div>
@@ -87,7 +165,7 @@ export function Review() {
     );
   }
 
-  if (error) {
+  if (error && isOnline) {
     return (
       <div className={styles.error}>
         <p>Failed to load review queue</p>
@@ -102,8 +180,12 @@ export function Review() {
     return (
       <div className={styles.empty}>
         <div className={styles.emptyIcon}>✓</div>
-        <h2>All caught up!</h2>
-        <p>No questions due for review. Check back later or practice more questions.</p>
+        <h2>{isOfflineMode ? 'No cached questions' : 'All caught up!'}</h2>
+        <p>
+          {isOfflineMode
+            ? 'No questions have been cached for offline use. Go to the Study Hub while online to cache questions.'
+            : 'No questions due for review. Check back later or practice more questions.'}
+        </p>
         <Link to="/dashboard" className="btn btn-primary">
           Back to Dashboard
         </Link>
@@ -116,17 +198,35 @@ export function Review() {
   const isSelected = (index: number) => selectedAnswers.includes(index);
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} {...swipeHandlers}>
+      {/* Desktop header */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
-          <h1 className={styles.title}>Spaced Repetition Review</h1>
+          <h1 className={styles.title}>
+            {isOfflineMode ? 'Offline Practice' : 'Spaced Repetition Review'}
+          </h1>
           <div className={styles.progress}>
             Question {currentIndex + 1} of {questions.length}
+            {isOfflineMode && <span className={styles.offlineIndicator}> (Offline)</span>}
           </div>
         </div>
         <Link to="/dashboard" className="btn btn-ghost">
           Exit Review
         </Link>
+      </header>
+
+      {/* Mobile header */}
+      <header className={styles.mobileHeader}>
+        <button className={styles.backBtn} onClick={() => navigate('/dashboard')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          <span className={styles.backBtnText}>Exit</span>
+        </button>
+        <span className={styles.mobileProgress}>
+          {currentIndex + 1} of {questions.length}
+          {isOfflineMode && ' ⚡'}
+        </span>
       </header>
 
       <div className={styles.main}>

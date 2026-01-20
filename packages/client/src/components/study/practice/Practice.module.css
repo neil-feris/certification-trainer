@@ -418,34 +418,117 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .container {
+    gap: 16px;
+  }
+
+  /* Mobile minimal header */
   .header {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    padding: 12px 16px;
     gap: 12px;
   }
 
   .exitBtn {
-    align-self: flex-start;
+    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Hide "Exit Practice" text on mobile, show only back arrow */
+  .exitBtnText {
+    display: none;
   }
 
   .progressInfo {
+    flex: 1;
     max-width: none;
   }
 
+  .questionNumber {
+    font-size: 0.8125rem;
+  }
+
   .stats {
-    text-align: left;
+    text-align: right;
+  }
+
+  .correctCount {
+    font-size: 0.8125rem;
+  }
+
+  /* Question area mobile */
+  .questionArea {
+    padding: 0 16px;
   }
 
   .questionCard {
-    padding: 24px;
+    padding: 20px;
   }
 
+  .questionText {
+    font-size: 1rem;
+    margin-bottom: 20px;
+  }
+
+  /* Touch-optimized options - 56px minimum height */
+  .option {
+    min-height: 56px;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  /* Mobile actions - touch targets */
   .actions {
-    flex-direction: column;
+    padding: 16px;
     gap: 12px;
   }
 
   .actions .btn {
     width: 100%;
+    min-height: 48px;
+  }
+
+  /* Summary mobile adjustments */
+  .summaryContainer {
+    padding: 24px 16px;
+  }
+
+  .summaryCard {
+    padding: 24px;
+  }
+
+  .scoreCircle {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 24px;
+  }
+
+  .scoreValue {
+    font-size: 2rem;
+  }
+
+  .summaryStats {
+    gap: 16px;
+  }
+
+  .statValue {
+    font-size: 1.25rem;
+  }
+}
+
+/* Tap feedback for touch devices */
+@media (hover: none) {
+  .option:active:not(:disabled) {
+    transform: scale(0.98);
+    background: var(--bg-elevated);
+  }
+
+  .actions .btn:active {
+    transform: scale(0.98);
   }
 }

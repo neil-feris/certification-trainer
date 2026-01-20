@@ -1,6 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStudyStore } from '../../stores/studyStore';
 import { useDrillStore } from '../../stores/drillStore';
+import { useCertificationStore } from '../../stores/certificationStore';
+import { studyApi } from '../../api/client';
+import { useQuestionCache } from '../../hooks/useQuestionCache';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { LearningPathList } from './learning-path/LearningPathList';
 import { DomainList } from './domains/DomainList';
 import { TopicPractice } from './practice/TopicPractice';
@@ -14,6 +19,7 @@ type Tab = 'path' | 'domains' | 'practice' | 'drills' | 'summaries';
 export function StudyHub() {
   const [activeTab, setActiveTab] = useState<Tab>('path');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const hasCachedRef = useRef(false);
 
   const {
     sessionId,
@@ -24,6 +30,42 @@ export function StudyHub() {
     resetSession,
     setNeedsRecovery,
   } = useStudyStore();
+
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
+  const drillId = useDrillStore((s) => s.drillId);
+  const isDrillActive = useDrillStore((s) => s.isActive);
+  const showDrillSummary = useDrillStore((s) => s.showSummary);
+  const { isOnline } = useOnlineStatus();
+  const { cacheQuestionsForTopics } = useQuestionCache();
+
+  // Fetch domains to get topic IDs for caching
+  const { data: domains = [] } = useQuery({
+    queryKey: ['studyDomains', selectedCertificationId],
+    queryFn: () => studyApi.getDomains(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null && isOnline,
+  });
+
+  // Cache questions when domains load (only once per session)
+  useEffect(() => {
+    if (domains.length > 0 && isOnline && !hasCachedRef.current) {
+      hasCachedRef.current = true;
+
+      // Extract all topic IDs from domains
+      const topicIds: number[] = [];
+      for (const domain of domains) {
+        if (domain.topics) {
+          for (const topic of domain.topics) {
+            topicIds.push(topic.id);
+          }
+        }
+      }
+
+      // Cache questions for all topics (limited by MAX_CACHE_SIZE in the hook)
+      if (topicIds.length > 0) {
+        cacheQuestionsForTopics(topicIds);
+      }
+    }
+  }, [domains, isOnline, cacheQuestionsForTopics]);
 
   // Check for session recovery on mount
   useEffect(() => {
@@ -76,11 +118,6 @@ export function StudyHub() {
   }
 
   // If in drills mode with active drill, show full-screen
-  const {
-    drillId,
-    isActive: isDrillActive,
-    showSummary: showDrillSummary,
-  } = useDrillStore.getState();
   if (activeTab === 'drills' && drillId && (isDrillActive || showDrillSummary)) {
     return <DrillHub />;
   }
