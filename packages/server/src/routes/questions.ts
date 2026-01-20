@@ -123,6 +123,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
 
     const items: QuestionWithDomain[] = results.map((r) => ({
       ...r.question,
+      caseStudyId: r.question.caseStudyId ?? undefined,
       questionType: r.question.questionType as 'single' | 'multiple',
       difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
       options: JSON.parse(r.question.options as string),
