@@ -78,6 +78,7 @@ export const questionQuerySchema = z.object({
 
 export const questionBrowseQuerySchema = questionQuerySchema.extend({
   search: z.string().max(200).optional(),
+  caseStudyId: z.string().regex(/^\d+$/).transform(Number).optional(),
   sortBy: z.enum(['createdAt', 'difficulty', 'domain']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });

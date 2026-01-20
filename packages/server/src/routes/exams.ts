@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { exams, examResponses, questions, domains, topics } from '../db/schema.js';
+import { exams, examResponses, questions, domains, topics, caseStudies } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
@@ -53,11 +53,13 @@ export async function examRoutes(fastify: FastifyInstance) {
         question: questions,
         domain: domains,
         topic: topics,
+        caseStudy: caseStudies,
       })
       .from(examResponses)
       .innerJoin(questions, eq(examResponses.questionId, questions.id))
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
+      .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
       .where(eq(examResponses.examId, examId))
       .orderBy(examResponses.orderIndex);
 
@@ -68,11 +70,28 @@ export async function examRoutes(fastify: FastifyInstance) {
         selectedAnswers: JSON.parse(r.response.selectedAnswers as string),
         question: {
           ...r.question,
+          caseStudyId: r.question.caseStudyId ?? undefined,
           options: JSON.parse(r.question.options as string),
           correctAnswers: JSON.parse(r.question.correctAnswers as string),
           gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
           domain: r.domain,
           topic: r.topic,
+          caseStudy: r.caseStudy
+            ? {
+                id: r.caseStudy.id,
+                certificationId: r.caseStudy.certificationId,
+                code: r.caseStudy.code,
+                name: r.caseStudy.name,
+                companyOverview: r.caseStudy.companyOverview,
+                solutionConcept: r.caseStudy.solutionConcept,
+                existingTechnicalEnvironment: r.caseStudy.existingTechnicalEnvironment,
+                businessRequirements: JSON.parse(r.caseStudy.businessRequirements),
+                technicalRequirements: JSON.parse(r.caseStudy.technicalRequirements),
+                executiveStatement: r.caseStudy.executiveStatement,
+                orderIndex: r.caseStudy.orderIndex,
+                createdAt: r.caseStudy.createdAt,
+              }
+            : undefined,
         },
       })),
     };
@@ -334,11 +353,13 @@ export async function examRoutes(fastify: FastifyInstance) {
         question: questions,
         domain: domains,
         topic: topics,
+        caseStudy: caseStudies,
       })
       .from(examResponses)
       .innerJoin(questions, eq(examResponses.questionId, questions.id))
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
+      .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
       .where(eq(examResponses.examId, examId))
       .orderBy(examResponses.orderIndex);
 
@@ -365,11 +386,28 @@ export async function examRoutes(fastify: FastifyInstance) {
         selectedAnswers: JSON.parse(r.response.selectedAnswers as string),
         question: {
           ...r.question,
+          caseStudyId: r.question.caseStudyId ?? undefined,
           options: JSON.parse(r.question.options as string),
           correctAnswers: JSON.parse(r.question.correctAnswers as string),
           gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
           domain: r.domain,
           topic: r.topic,
+          caseStudy: r.caseStudy
+            ? {
+                id: r.caseStudy.id,
+                certificationId: r.caseStudy.certificationId,
+                code: r.caseStudy.code,
+                name: r.caseStudy.name,
+                companyOverview: r.caseStudy.companyOverview,
+                solutionConcept: r.caseStudy.solutionConcept,
+                existingTechnicalEnvironment: r.caseStudy.existingTechnicalEnvironment,
+                businessRequirements: JSON.parse(r.caseStudy.businessRequirements),
+                technicalRequirements: JSON.parse(r.caseStudy.technicalRequirements),
+                executiveStatement: r.caseStudy.executiveStatement,
+                orderIndex: r.caseStudy.orderIndex,
+                createdAt: r.caseStudy.createdAt,
+              }
+            : undefined,
         },
       })),
       domainPerformance: Object.values(domainStats).map((s) => ({

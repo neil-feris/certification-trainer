@@ -1,7 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { questions, domains, topics, spacedRepetition, certifications } from '../db/schema.js';
-import { eq, lte, and, count, like, desc, asc, inArray, sql } from 'drizzle-orm';
+import {
+  questions,
+  domains,
+  topics,
+  spacedRepetition,
+  certifications,
+  caseStudies,
+} from '../db/schema.js';
+import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull } from 'drizzle-orm';
 import { generateQuestions } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
@@ -38,6 +45,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       domainId?: string;
       topicId?: string;
       difficulty?: string;
+      caseStudyId?: string;
       search?: string;
       sortBy?: string;
       sortOrder?: string;
@@ -54,6 +62,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       domainId,
       topicId,
       difficulty,
+      caseStudyId,
       search,
       sortBy = 'createdAt',
       sortOrder = 'desc',
@@ -75,6 +84,14 @@ export async function questionRoutes(fastify: FastifyInstance) {
     }
     if (difficulty) {
       conditions.push(eq(questions.difficulty, difficulty));
+    }
+    if (caseStudyId !== undefined) {
+      // caseStudyId=0 means "no case study", otherwise filter by specific case study
+      if (caseStudyId === 0) {
+        conditions.push(isNull(questions.caseStudyId));
+      } else {
+        conditions.push(eq(questions.caseStudyId, caseStudyId));
+      }
     }
     if (search) {
       const escaped = escapeLikePattern(search);
@@ -107,15 +124,18 @@ export async function questionRoutes(fastify: FastifyInstance) {
     const total = countResult?.total ?? 0;
 
     // Get paginated results with filters applied in SQL
+    // Left join case studies to include case study data when present
     const results = await db
       .select({
         question: questions,
         domain: domains,
         topic: topics,
+        caseStudy: caseStudies,
       })
       .from(questions)
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
+      .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
       .where(whereClause)
       .orderBy(orderByClause)
       .limit(limit)
@@ -132,6 +152,22 @@ export async function questionRoutes(fastify: FastifyInstance) {
       isGenerated: r.question.isGenerated ?? false,
       domain: r.domain,
       topic: r.topic,
+      caseStudy: r.caseStudy
+        ? {
+            id: r.caseStudy.id,
+            certificationId: r.caseStudy.certificationId,
+            code: r.caseStudy.code,
+            name: r.caseStudy.name,
+            companyOverview: r.caseStudy.companyOverview,
+            solutionConcept: r.caseStudy.solutionConcept,
+            existingTechnicalEnvironment: r.caseStudy.existingTechnicalEnvironment,
+            businessRequirements: JSON.parse(r.caseStudy.businessRequirements),
+            technicalRequirements: JSON.parse(r.caseStudy.technicalRequirements),
+            executiveStatement: r.caseStudy.executiveStatement,
+            orderIndex: r.caseStudy.orderIndex,
+            createdAt: r.caseStudy.createdAt,
+          }
+        : undefined,
     }));
 
     const response: PaginatedResponse<QuestionWithDomain> = {
