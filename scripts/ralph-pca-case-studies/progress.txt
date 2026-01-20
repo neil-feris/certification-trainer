@@ -1,0 +1,334 @@
+## Codebase Patterns
+- Shared types are in `packages/shared/src/index.ts` - all interfaces auto-export
+- Build order: shared → server → client (critical)
+- Use `Pick<Interface, 'field1' | 'field2'>` pattern for API responses with partial data
+- Types extend base types using `extends` (e.g., QuestionWithDomain extends Question)
+- Optional foreign keys use `caseStudyId?: number` pattern (TS) but `number | null` (DB)
+- API response types follow `Get<Entity>Response` / `Get<Entity>sResponse` naming
+- **DB null → TS undefined**: Map `null` to `undefined` in route handlers (e.g., `caseStudyId: r.question.caseStudyId ?? undefined`)
+- Drizzle table types: use `Record` suffix to avoid conflicts (e.g., `CaseStudyRecord`)
+- Migrations: Always check for existing tables/columns before creating (idempotent)
+- Seed scripts: Check for existing data before inserting (idempotent pattern)
+- Seed scripts: Run migrations first to ensure tables exist before seeding
+- Use double quotes `"..."` for strings containing apostrophes to avoid TS parse errors
+- Server routes: import from `../db/index.js`, `../db/schema.js`, `../validation/schemas.js`, `../middleware/auth.js`
+- JSON text columns: use `JSON.parse()` in route responses to convert stored strings to arrays/objects
+- Use `leftJoin` for optional FK relations (e.g., caseStudy on questions) to include main records even when related record is null
+- Use `isNull()` from drizzle-orm to filter for NULL values in WHERE clauses
+- Client components: use React Router `Link` for navigation, CSS Modules for styling
+- Card components use CSS variables: `--bg-secondary`, `--border-color`, `--radius-lg`, `--transition-fast`
+- Conditional nav items: Use `requiresCaseStudies?: boolean` in NavItem interface and filter with `visibleNavItems`
+- Certification-specific features: Check `selectedCert?.code === 'PCA'` to conditionally show features
+- Store interfaces (ExamQuestion, StudyQuestion) are local to stores - import types from `@ace-prep/shared` as needed
+- External links: use `target="_blank" rel="noopener noreferrer"` for security
+
+---
+
+# Progress Log
+
+## 2026-01-20 - US-001
+- **Story**: Add CaseStudy Type to Shared Package
+- **What was implemented**:
+  - CaseStudy interface with all required fields (id, certificationId, code, name, companyOverview, solutionConcept, existingTechnicalEnvironment, businessRequirements, technicalRequirements, executiveStatement, orderIndex, createdAt)
+  - CaseStudyWithCertification interface extending CaseStudy with certification details
+  - Added caseStudyId optional field to Question interface
+  - Added caseStudy optional field to QuestionWithDomain interface
+  - GetCaseStudiesResponse and GetCaseStudyResponse API types
+  - Added caseStudyId to GenerateQuestionsRequest
+- **Files changed**:
+  - `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - JSON arrays in types (businessRequirements, technicalRequirements) should use `string[]` - DB will store as JSON
+  - All shared types auto-export; no need for explicit export statements
+  - TypeScript compiler validates interface references (CaseStudy must be defined before QuestionWithDomain can reference it)
+---
+
+## 2026-01-20 - US-002
+- **Story**: Add CaseStudies Database Schema
+- **What was implemented**:
+  - Added `caseStudies` table to schema.ts with all required fields
+  - Added nullable `caseStudyId` column to `questions` table with FK reference
+  - Created migration `0003_add_case_studies.ts` (idempotent, checks existing tables/columns)
+  - Exported Drizzle types: `CaseStudyRecord` and `NewCaseStudy`
+  - Fixed null-to-undefined mapping in questions route response
+- **Files changed**:
+  - `packages/server/src/db/schema.ts`
+  - `packages/server/src/db/migrations/0003_add_case_studies.ts`
+  - `packages/server/src/routes/questions.ts`
+- **Learnings for future iterations:**
+  - DB columns return `null`, but TS interfaces use `undefined` for optional fields - must map with `?? undefined`
+  - Drizzle type exports should use `Record` suffix to avoid naming conflicts with shared types
+  - Migration must use `PRAGMA table_info()` to check for existing columns
+  - Foreign key with `onDelete: 'set null'` requires nullable column
+---
+
+## 2026-01-20 - US-003
+- **Story**: Seed PCA Case Study Data
+- **What was implemented**:
+  - Created `packages/server/src/db/seedCaseStudies.ts` with all 4 case studies
+  - Cymbal Retail, EHR Healthcare, Altostrat Media, KnightMotives Automotive
+  - Each includes: companyOverview, solutionConcept, existingTechnicalEnvironment, businessRequirements (JSON), technicalRequirements (JSON), executiveStatement
+  - Idempotent: checks if case studies exist before inserting
+  - Added `db:seed-case-studies` npm script
+  - Updated `db:setup` to call case study seeding after main setup
+- **Files changed**:
+  - `packages/server/src/db/seedCaseStudies.ts` (new)
+  - `packages/server/package.json`
+- **Learnings for future iterations:**
+  - Apostrophes in single-quoted strings cause TS parse errors - use double quotes for strings containing apostrophes
+  - Run migration before seed script to ensure table exists
+  - Seed scripts should check certification exists before inserting related data
+---
+
+## 2026-01-20 - US-004
+- **Story**: Create Case Studies API Routes
+- **What was implemented**:
+  - Created `packages/server/src/routes/caseStudies.ts` with GET endpoints
+  - GET `/api/case-studies` - returns all case studies (optionally filtered by certificationId)
+  - GET `/api/case-studies/:id` - returns single case study by ID
+  - Routes include certification info (id, code, name) in response
+  - Uses `authenticate` middleware for protected routes
+  - Registered routes in `packages/server/src/index.ts`
+  - Added endpoint logging to server startup
+- **Files changed**:
+  - `packages/server/src/routes/caseStudies.ts` (new)
+  - `packages/server/src/index.ts`
+- **Learnings for future iterations:**
+  - Route files follow pattern: import db, schema, validation; apply auth hook; define GET/POST handlers
+  - JSON fields from DB need `JSON.parse()` before returning in response
+  - Use `idParamSchema` from validation/schemas.js for route params
+  - Import types from `@ace-prep/shared` for response typing
+---
+
+## 2026-01-20 - US-005
+- **Story**: Update Questions API for Case Study Support
+- **What was implemented**:
+  - Added `caseStudyId` query param to GET `/api/questions` for filtering
+  - `caseStudyId=0` filters to questions without case studies
+  - `caseStudyId=N` filters to questions with that specific case study
+  - Added `caseStudy` field to question responses (full case study object when present)
+  - Updated exam routes (`exams.ts`) to include case study data in responses
+  - Updated study routes (`study.ts`) to include case study data in:
+    - Active session recovery (`/sessions/active`)
+    - Learning path related questions
+    - Topic practice questions (`/topics/:topicId/questions`)
+  - Updated validation schema (`schemas.ts`) to accept caseStudyId query param
+- **Files changed**:
+  - `packages/server/src/routes/questions.ts`
+  - `packages/server/src/routes/exams.ts`
+  - `packages/server/src/routes/study.ts`
+  - `packages/server/src/validation/schemas.ts`
+- **Learnings for future iterations:**
+  - Use `leftJoin` for optional relations (case study may not exist for all questions)
+  - When joining caseStudies, parse JSON fields (businessRequirements, technicalRequirements) before returning
+  - Use `isNull()` from drizzle-orm to filter for NULL values in queries
+  - Backward compatibility is maintained - existing questions without caseStudyId continue to work
+---
+
+## 2026-01-20 - US-006
+- **Story**: Create Case Studies API Client
+- **What was implemented**:
+  - Added `caseStudyApi` object to `packages/client/src/api/client.ts`
+  - `getAll(certificationId?)` - fetches all case studies, optionally filtered by certification
+  - `getById(id)` - fetches single case study by ID
+  - Uses existing `request()` helper which handles auth headers and error handling
+  - Imported `GetCaseStudiesResponse` and `GetCaseStudyResponse` types from `@ace-prep/shared`
+- **Files changed**:
+  - `packages/client/src/api/client.ts`
+- **Learnings for future iterations:**
+  - API client follows pattern: export named object with methods calling `request<ResponseType>(endpoint)`
+  - `request()` accepts third parameter `requiresAuth` (default true) - case studies use auth
+  - Response types come from shared package (GetXResponse pattern)
+  - URL params built with template strings for simple cases, or URLSearchParams for complex ones
+---
+
+## 2026-01-20 - US-007
+- **Story**: Create CaseStudyCard Component
+- **What was implemented**:
+  - Created `packages/client/src/components/case-studies/CaseStudyCard.tsx`
+  - Created `packages/client/src/components/case-studies/CaseStudyCard.module.css`
+  - Card displays: code badge, certification badge, name, industry hint, key themes (first 3 business requirements)
+  - Clickable card links to `/case-studies/:id`
+  - Responsive design with mobile touch feedback
+  - Uses existing CSS variables (--bg-secondary, --accent-primary, --radius-lg, etc.)
+- **Files changed**:
+  - `packages/client/src/components/case-studies/CaseStudyCard.tsx` (new)
+  - `packages/client/src/components/case-studies/CaseStudyCard.module.css` (new)
+- **Learnings for future iterations:**
+  - Component directory pattern: `components/<feature>/<Component>.tsx` + `<Component>.module.css`
+  - Use React Router's `Link` for navigation (not onClick handlers)
+  - Use CSS variables for consistent styling (--bg-secondary, --border-color, --radius-lg, etc.)
+  - Use `-webkit-line-clamp` for text truncation with ellipsis
+  - Touch feedback uses nested `@media (hover: none)` inside mobile breakpoint
+---
+
+## 2026-01-20 - US-008
+- **Story**: Create CaseStudyDetail Component
+- **What was implemented**:
+  - Created `packages/client/src/components/case-studies/CaseStudyDetail.tsx`
+  - Created `packages/client/src/components/case-studies/CaseStudyDetail.module.css`
+  - Full detail view displaying all case study sections:
+    - Company Overview
+    - Solution Concept
+    - Existing Technical Environment (with accent border styling)
+    - Business Requirements (bulleted list)
+    - Technical Requirements (bulleted list with distinct styling)
+    - Executive Statement (quote-styled card)
+  - Practice Questions callout with link to `/questions?caseStudyId=N`
+  - Back navigation to `/case-studies`
+  - Loading skeleton with shimmer animation
+  - Error state with retry button
+  - Responsive design with mobile support and touch feedback
+- **Files changed**:
+  - `packages/client/src/components/case-studies/CaseStudyDetail.tsx` (new)
+  - `packages/client/src/components/case-studies/CaseStudyDetail.module.css` (new)
+- **Learnings for future iterations:**
+  - Follow LearningPathDetail.tsx as pattern for detail pages (skeleton, error state, sections)
+  - Use TanStack Query with `enabled: id > 0` to prevent fetching with invalid IDs
+  - Section icons use inline SVG for simple icons in section titles
+  - Gradient backgrounds create visual distinction between section types (tech vs business)
+  - Quote styling with positioned absolute character works well for executive statements
+---
+
+## 2026-01-20 - US-009
+- **Story**: Create CaseStudies Page
+- **What was implemented**:
+  - Created `packages/client/src/components/case-studies/CaseStudiesPage.tsx`
+  - Created `packages/client/src/components/case-studies/CaseStudiesPage.module.css`
+  - Page lists all case studies for selected certification using TanStack Query
+  - Skeleton loading state with shimmer animation (4 card skeletons)
+  - Error state with retry button
+  - Empty state when certification has no case studies
+  - Header shows title, subtitle with certification name, and case study count
+  - Responsive grid layout (auto-fill with min 320px cards)
+  - Created barrel export `packages/client/src/components/case-studies/index.ts`
+- **Files changed**:
+  - `packages/client/src/components/case-studies/CaseStudiesPage.tsx` (new)
+  - `packages/client/src/components/case-studies/CaseStudiesPage.module.css` (new)
+  - `packages/client/src/components/case-studies/index.ts` (new)
+- **Learnings for future iterations:**
+  - Page components follow pattern: get certification from store, query with certificationId
+  - Use `caseStudyApi.getAll(certificationId)` for fetching filtered case studies
+  - Grid layout with `grid-template-columns: repeat(auto-fill, minmax(320px, 1fr))` for responsive cards
+  - Skeleton cards should match the card component structure (header, title, text, tags)
+  - Barrel exports allow clean imports: `import { CaseStudiesPage } from './case-studies'`
+---
+
+## 2026-01-20 - US-010
+- **Story**: Add Case Studies Route and Navigation
+- **What was implemented**:
+  - Added `/case-studies` and `/case-studies/:id` routes to App.tsx
+  - Imported CaseStudiesPage and CaseStudyDetail from barrel export
+  - Added Case Studies nav item to NAV_ITEMS in AppShell.tsx with 📋 icon
+  - Made nav item conditional using `requiresCaseStudies` flag
+  - Added Case Studies link to mobile bottom sheet (conditionally shown)
+  - Filtering based on `selectedCert?.code === 'PCA'` to show only for PCA
+- **Files changed**:
+  - `packages/client/src/App.tsx`
+  - `packages/client/src/components/layout/AppShell.tsx`
+- **Learnings for future iterations:**
+  - Use typed `NavItem` interface with optional `requiresCaseStudies` flag for conditional nav items
+  - Filter `NAV_ITEMS` using `visibleNavItems` pattern to conditionally show routes
+  - Mobile bottom sheet links also need conditional rendering (`{condition && <Link .../>}`)
+  - Check certification `code` field (e.g., 'PCA') for certification-specific features
+---
+
+## 2026-01-20 - US-011
+- **Story**: Add Case Study Link During Exams
+- **What was implemented**:
+  - Updated `ExamContainer.tsx` to display case study badge when question has caseStudy
+  - Badge shows case study name with 📋 icon, links to `/case-studies/:id` in new tab
+  - Added corresponding CSS styles in `ExamContainer.module.css` (blue-tinted badge with hover effect)
+  - Updated `TopicPractice.tsx` to show case study badge for study session questions
+  - Added matching CSS styles in `Practice.module.css`
+  - Updated `examStore.ts` and `studyStore.ts` interfaces to include optional `caseStudy?: CaseStudy` field
+  - Imported CaseStudy type from `@ace-prep/shared` in both stores
+- **Files changed**:
+  - `packages/client/src/components/exam/ExamContainer.tsx`
+  - `packages/client/src/components/exam/ExamContainer.module.css`
+  - `packages/client/src/components/study/practice/TopicPractice.tsx`
+  - `packages/client/src/components/study/practice/Practice.module.css`
+  - `packages/client/src/stores/examStore.ts`
+  - `packages/client/src/stores/studyStore.ts`
+- **Learnings for future iterations:**
+  - Store interfaces (ExamQuestion, StudyQuestion) are local types, not from shared - need to add fields there
+  - Use `target="_blank" rel="noopener noreferrer"` for external links that open in new tab
+  - Badge styling: blue-tinted (#8ab4f8) provides good contrast without being distracting
+  - Both exam and study session question displays need to be updated for consistent UX
+---
+
+## 2026-01-20 - US-012
+- **Story**: Update Question Generation for Case Studies
+- **What was implemented**:
+  - Updated `questionGenerator.ts` to accept optional `caseStudyId` parameter via `caseStudy?: CaseStudy` in params
+  - Added PCA-specific system prompt (`SYSTEM_PROMPT_PCA`) focused on architectural decision-making
+  - Extended `createUserPrompt()` to include full case study context when provided
+  - Created `fetchCaseStudyById()` helper to retrieve case study by ID and parse JSON fields
+  - Updated POST `/questions/generate` route to accept `caseStudyId`, fetch case study, and pass to generator
+  - Added certification code lookup to select appropriate system prompt
+  - Generated questions now store `caseStudyId` in database insert
+  - Added `caseStudyId` to validation schema in `schemas.ts`
+  - Updated API client `questionApi.generate()` to accept `caseStudyId`
+  - Added case study dropdown to Settings.tsx (visible only for PCA certification)
+- **Files changed**:
+  - `packages/server/src/services/questionGenerator.ts`
+  - `packages/server/src/routes/questions.ts`
+  - `packages/server/src/validation/schemas.ts`
+  - `packages/client/src/api/client.ts`
+  - `packages/client/src/components/settings/Settings.tsx`
+- **Learnings for future iterations:**
+  - LLM prompts can be certification-specific (ACE vs PCA have different focuses)
+  - Case study content should be fully expanded in prompt, not just referenced
+  - Use `caseStudyApi.getAll(certificationId)` to fetch case studies for a certification
+  - Settings UI needs to reset case study selection when certification changes
+  - Domain lookup gives certification code via `domain.certificationId -> certifications.code`
+---
+
+## 2026-01-20 - US-013
+- **Story**: Add Case Study Filter to Question Browser
+- **What was implemented**:
+  - Added `caseStudies` array to `QuestionFilterOptions` type in shared package
+  - Updated `/api/questions/filters` endpoint to return case studies for selected certification
+  - Added `caseStudyId` to `QuestionListParams` in API client
+  - Updated `QuestionBrowser.tsx` to parse `caseStudyId` from URL params
+  - Added case study filter dropdown to `QuestionFilters.tsx` component
+  - Filter conditionally shows only when certification has case studies
+  - Options include: "All Questions", "No Case Study" (value=0), and each case study name
+  - Certification change resets `caseStudyId` filter along with domain/topic filters
+- **Files changed**:
+  - `packages/shared/src/index.ts` (added caseStudies to QuestionFilterOptions)
+  - `packages/server/src/routes/questions.ts` (updated /filters endpoint)
+  - `packages/client/src/api/client.ts` (added caseStudyId to QuestionListParams)
+  - `packages/client/src/components/questions/QuestionBrowser.tsx`
+  - `packages/client/src/components/questions/QuestionFilters.tsx`
+- **Learnings for future iterations:**
+  - Filter options endpoint pattern: fetch related data with optional certificationId filter
+  - Use `showXFilter = filteredX.length > 0` pattern for conditional filter visibility
+  - When parent filter changes (certification), clear child filters (caseStudyId) in onFiltersChange
+  - Use `params.x !== undefined ? String(params.x) : ''` for select value to handle 0 as valid value
+---
+
+## 2026-01-20 - US-014
+- **Story**: Run Migration and Verify
+- **What was verified**:
+  - Migration already applied - case_studies table exists with correct schema (12 columns)
+  - 4 case studies seeded: Cymbal Retail, EHR Healthcare, Altostrat Media, KnightMotives Automotive
+  - 395 existing questions still accessible with NULL case_study_id (backward compatible)
+  - 6 existing exams still accessible with correct status/scores
+  - 2 certifications (ACE, PCA), 11 domains, 43 topics unchanged
+  - questions.case_study_id column added and nullable
+  - `npm run build` succeeds (shared → server → client)
+  - Lint passes with only warnings (pre-existing issues)
+- **Verification results**:
+  - case_studies table: 4 rows
+  - questions table: 395 rows (all case_study_id = NULL as expected)
+  - exams table: 6 rows
+  - certifications table: 2 rows
+  - domains table: 11 rows
+  - topics table: 43 rows
+- **Learnings for future iterations:**
+  - Run migration scripts directly with `npx tsx <migration-file.ts>` when Drizzle migrator has issues
+  - Use sqlite3 CLI for quick database verification: `sqlite3 <db-path> "<SQL>"`
+  - Final verification story should confirm both schema changes AND data integrity
+---
+
