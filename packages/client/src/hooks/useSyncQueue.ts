@@ -2,7 +2,7 @@
  * useSyncQueue Hook
  * Manages sync queue state and provides auto-flush functionality with notifications
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useOnlineStatus } from './useOnlineStatus';
 import { getQueueLength, flushQueue, queueResponse } from '../services/syncQueue';
 
@@ -31,6 +31,9 @@ export function useSyncQueue(): UseSyncQueueReturn {
     lastSyncResult: null,
   });
 
+  // Use ref to track sync-in-progress to avoid stale closure issues
+  const isSyncingRef = useRef(false);
+
   // Refresh pending count from IndexedDB
   const refreshPendingCount = useCallback(async () => {
     try {
@@ -57,14 +60,18 @@ export function useSyncQueue(): UseSyncQueueReturn {
 
   // Manually trigger a sync
   const manualSync = useCallback(async () => {
-    if (!isOnline || state.isSyncing) {
+    // Use ref for guard check to avoid stale closure and prevent race conditions
+    if (!isOnline || isSyncingRef.current) {
       return { synced: 0, failed: 0 };
     }
 
+    // Set ref immediately to prevent concurrent calls
+    isSyncingRef.current = true;
     setState((prev) => ({ ...prev, isSyncing: true }));
 
     try {
       const result = await flushQueue();
+      isSyncingRef.current = false;
       setState((prev) => ({
         ...prev,
         isSyncing: false,
@@ -74,10 +81,11 @@ export function useSyncQueue(): UseSyncQueueReturn {
       return result;
     } catch (error) {
       console.error('Failed to flush sync queue:', error);
+      isSyncingRef.current = false;
       setState((prev) => ({ ...prev, isSyncing: false }));
       return { synced: 0, failed: 0 };
     }
-  }, [isOnline, state.isSyncing, refreshPendingCount]);
+  }, [isOnline, refreshPendingCount]);
 
   // Load initial pending count on mount
   useEffect(() => {
@@ -86,7 +94,8 @@ export function useSyncQueue(): UseSyncQueueReturn {
 
   // Auto-sync when coming back online
   useEffect(() => {
-    if (isOnline && state.pendingCount > 0 && !state.isSyncing) {
+    // Use ref for isSyncing check to avoid re-running effect when sync state changes
+    if (isOnline && state.pendingCount > 0 && !isSyncingRef.current) {
       // Delay slightly to ensure connection is stable
       const timeoutId = setTimeout(() => {
         manualSync().then((result) => {
@@ -99,7 +108,7 @@ export function useSyncQueue(): UseSyncQueueReturn {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [isOnline, state.pendingCount, state.isSyncing, manualSync]);
+  }, [isOnline, state.pendingCount, manualSync]);
 
   // Periodically refresh pending count (every 10 seconds)
   useEffect(() => {
