@@ -123,6 +123,7 @@ export interface Question {
   id: number;
   topicId: number;
   domainId: number;
+  caseStudyId?: number;
   questionText: string;
   questionType: QuestionType;
   options: string[];
@@ -137,6 +138,7 @@ export interface Question {
 export interface QuestionWithDomain extends Question {
   domain: Domain;
   topic: Topic;
+  caseStudy?: CaseStudy;
 }
 
 // Exam types
@@ -291,6 +293,26 @@ export interface TopicPracticeStats {
   recommendedAction: 'practice' | 'review' | 'mastered';
 }
 
+// Case Study types
+export interface CaseStudy {
+  id: number;
+  certificationId: number;
+  code: string;
+  name: string;
+  companyOverview: string;
+  solutionConcept: string;
+  existingTechnicalEnvironment: string;
+  businessRequirements: string[];
+  technicalRequirements: string[];
+  executiveStatement: string;
+  orderIndex: number;
+  createdAt: Date;
+}
+
+export interface CaseStudyWithCertification extends CaseStudy {
+  certification: Pick<Certification, 'id' | 'code' | 'name'>;
+}
+
 // Pagination types
 export interface PaginatedResponse<T> {
   items: T[];
@@ -325,6 +347,7 @@ export interface CompleteExamRequest {
 export interface GenerateQuestionsRequest {
   domainId: number;
   topicId?: number;
+  caseStudyId?: number;
   difficulty: DifficultyOption;
   count: number;
   model?: LLMModel; // Optional: override the default model for this generation
@@ -582,6 +605,16 @@ export interface QuestionFilterOptions {
   topics: Pick<Topic, 'id' | 'name' | 'domainId'>[];
   difficulties: Difficulty[];
   totalQuestions: number;
+}
+
+// ============ CASE STUDY API TYPES ============
+
+export interface GetCaseStudiesResponse {
+  caseStudies: CaseStudyWithCertification[];
+}
+
+export interface GetCaseStudyResponse {
+  caseStudy: CaseStudyWithCertification;
 }
 
 // ============ AUTHENTICATION TYPES ============
