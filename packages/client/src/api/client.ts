@@ -337,6 +337,7 @@ export const questionApi = {
   generate: (data: {
     domainId: number;
     topicId?: number;
+    caseStudyId?: number;
     difficulty: DifficultyOption;
     count: number;
     model?: LLMModel;

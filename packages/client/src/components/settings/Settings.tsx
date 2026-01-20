@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { settingsApi, questionApi, progressApi, studyApi } from '../../api/client';
+import { settingsApi, questionApi, progressApi, studyApi, caseStudyApi } from '../../api/client';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useCertificationStore } from '../../stores/certificationStore';
 import {
@@ -34,6 +34,7 @@ export function Settings() {
   const [openaiModel, setOpenaiModel] = useState<OpenAIModel>(DEFAULT_OPENAI_MODEL);
   const [generateDifficulty, setGenerateDifficulty] = useState<DifficultyOption>('mixed');
   const [generateCount, setGenerateCount] = useState<number>(50);
+  const [selectedCaseStudyId, setSelectedCaseStudyId] = useState<number | undefined>(undefined);
   const [testStatus, setTestStatus] = useState<{ success?: boolean; message?: string } | null>(
     null
   );
@@ -67,6 +68,20 @@ export function Settings() {
     queryFn: () => studyApi.getDomains(selectedCertificationId ?? undefined),
     enabled: selectedCertificationId !== null,
   });
+
+  // Fetch case studies for PCA certification
+  const isPCA = selectedCert?.code === 'PCA';
+  const { data: caseStudiesData } = useQuery({
+    queryKey: ['caseStudies', selectedCertificationId],
+    queryFn: () => caseStudyApi.getAll(selectedCertificationId ?? undefined),
+    enabled: isPCA && selectedCertificationId !== null,
+  });
+  const caseStudies = caseStudiesData?.caseStudies ?? [];
+
+  // Reset case study selection when certification changes
+  useEffect(() => {
+    setSelectedCaseStudyId(undefined);
+  }, [selectedCertificationId]);
 
   // Sync local state with loaded settings
   useEffect(() => {
@@ -153,6 +168,7 @@ export function Settings() {
             difficulty: generateDifficulty,
             count: questionsPerDomain,
             model: currentModel,
+            caseStudyId: selectedCaseStudyId,
           });
           // Increment progress after each domain completes (order-independent)
           incrementGenerationProgress(result.generated);
@@ -309,6 +325,30 @@ export function Settings() {
             "Mixed" generates a balanced distribution of easy, medium, and hard questions
           </span>
         </div>
+
+        {/* Case Study Selection (PCA only) */}
+        {isPCA && caseStudies.length > 0 && (
+          <div className={styles.formGroup}>
+            <label>Case Study (Optional)</label>
+            <select
+              className={styles.modelSelect}
+              value={selectedCaseStudyId ?? ''}
+              onChange={(e) =>
+                setSelectedCaseStudyId(e.target.value ? Number(e.target.value) : undefined)
+              }
+            >
+              <option value="">No case study (general questions)</option>
+              {caseStudies.map((cs) => (
+                <option key={cs.id} value={cs.id}>
+                  {cs.name}
+                </option>
+              ))}
+            </select>
+            <span className={styles.hint}>
+              Select a case study to generate scenario-based questions referencing that company
+            </span>
+          </div>
+        )}
 
         <div className={styles.generateInfo}>
           <span className={styles.infoLabel}>Model:</span>

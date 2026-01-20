@@ -9,7 +9,7 @@ import {
   caseStudies,
 } from '../db/schema.js';
 import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull } from 'drizzle-orm';
-import { generateQuestions } from '../services/questionGenerator.js';
+import { generateQuestions, fetchCaseStudyById } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
 import {
@@ -286,6 +286,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
     Body: {
       domainId: number;
       topicId?: number;
+      caseStudyId?: number;
       difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
       count: number;
       model?: string;
@@ -305,13 +306,20 @@ export async function questionRoutes(fastify: FastifyInstance) {
       if (!parseResult.success) {
         return reply.status(400).send(formatZodError(parseResult.error));
       }
-      const { domainId, topicId, difficulty, count, model } = parseResult.data;
+      const { domainId, topicId, caseStudyId, difficulty, count, model } = parseResult.data;
 
       // Get domain and topic info
       const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
       if (!domain) {
         return reply.status(404).send({ error: 'Domain not found' });
       }
+
+      // Get certification code for the domain
+      const [certification] = await db
+        .select({ code: certifications.code })
+        .from(certifications)
+        .where(eq(certifications.id, domain.certificationId));
+      const certificationCode = certification?.code;
 
       let topic = null;
       if (topicId) {
@@ -327,6 +335,15 @@ export async function questionRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Topic not found' });
       }
 
+      // Fetch case study if provided
+      let caseStudy = undefined;
+      if (caseStudyId) {
+        caseStudy = await fetchCaseStudyById(caseStudyId);
+        if (!caseStudy) {
+          return reply.status(404).send({ error: 'Case study not found' });
+        }
+      }
+
       try {
         const userId = parseInt(request.user!.id, 10);
         const generatedQuestions = await generateQuestions({
@@ -336,6 +353,8 @@ export async function questionRoutes(fastify: FastifyInstance) {
           count,
           model: model as any,
           userId,
+          caseStudy: caseStudy ?? undefined,
+          certificationCode,
         });
 
         // Fetch existing questions for this topic to check for duplicates
@@ -388,6 +407,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
               toInsert.map((q) => ({
                 domainId: domain.id,
                 topicId: topic.id,
+                caseStudyId: caseStudyId ?? null,
                 questionText: q.questionText,
                 questionType: q.questionType,
                 options: JSON.stringify(q.options),

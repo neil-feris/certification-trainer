@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { db } from '../db/index.js';
-import { userSettings } from '../db/schema.js';
+import { userSettings, caseStudies } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import type {
   GeneratedQuestion,
@@ -10,15 +10,36 @@ import type {
   LLMModel,
   AnthropicModel,
   OpenAIModel,
+  CaseStudy,
 } from '@ace-prep/shared';
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from '@ace-prep/shared';
+
+// Helper to fetch case study by ID and convert to shared type
+export async function fetchCaseStudyById(caseStudyId: number): Promise<CaseStudy | null> {
+  const [result] = await db.select().from(caseStudies).where(eq(caseStudies.id, caseStudyId));
+  if (!result) return null;
+  return {
+    id: result.id,
+    certificationId: result.certificationId,
+    code: result.code,
+    name: result.name,
+    companyOverview: result.companyOverview,
+    solutionConcept: result.solutionConcept,
+    existingTechnicalEnvironment: result.existingTechnicalEnvironment,
+    businessRequirements: JSON.parse(result.businessRequirements),
+    technicalRequirements: JSON.parse(result.technicalRequirements),
+    executiveStatement: result.executiveStatement,
+    orderIndex: result.orderIndex,
+    createdAt: result.createdAt,
+  };
+}
 
 // Helper to check if a model is an OpenAI model
 function isOpenAIModel(model: string): model is OpenAIModel {
   return (OPENAI_MODELS as readonly string[]).includes(model);
 }
 
-const SYSTEM_PROMPT = `You are an expert Google Cloud Platform instructor creating practice questions for the Associate Cloud Engineer (ACE) certification exam.
+const SYSTEM_PROMPT_ACE = `You are an expert Google Cloud Platform instructor creating practice questions for the Associate Cloud Engineer (ACE) certification exam.
 
 Your questions must:
 1. Match the difficulty and style of real ACE exam questions
@@ -41,6 +62,30 @@ Each question must include:
 5. Why each incorrect option is wrong
 6. Related GCP services being tested`;
 
+const SYSTEM_PROMPT_PCA = `You are an expert Google Cloud Platform instructor creating practice questions for the Professional Cloud Architect (PCA) certification exam.
+
+Your questions must:
+1. Match the difficulty and style of real PCA exam questions
+2. Test architectural decision-making and design patterns
+3. Reference specific case study details when a case study is provided
+4. Include realistic GCP service configurations and enterprise use cases
+5. Have plausible distractors that test understanding of architectural trade-offs
+
+Question format requirements:
+- Single-select: One correct answer among 4 options
+- Multi-select: 2-3 correct answers among 4-5 options (state how many to select)
+- Options should be similar in length and structure
+- Avoid "all of the above" or "none of the above"
+- Avoid negative phrasing ("Which is NOT...")
+
+Each question must include:
+1. A realistic scenario or context (referencing case study if provided)
+2. Clear options labeled A, B, C, D (and E if multi-select)
+3. The correct answer(s)
+4. A detailed explanation of why the answer is correct
+5. Why each incorrect option is wrong
+6. Related GCP services being tested`;
+
 interface GenerateParams {
   domain: string;
   topic: string;
@@ -49,6 +94,8 @@ interface GenerateParams {
   avoidConcepts?: string[];
   model?: LLMModel;
   userId: number;
+  caseStudy?: CaseStudy;
+  certificationCode?: string;
 }
 
 async function getApiConfig(userId: number) {
@@ -81,10 +128,41 @@ async function getApiConfig(userId: number) {
 function createUserPrompt(
   params: GenerateParams & { resolvedDifficulties?: Difficulty[] }
 ): string {
+  const certName = params.certificationCode === 'PCA' ? 'PCA' : 'ACE';
   const difficultyInstruction =
     params.difficulty === 'mixed'
-      ? `Generate ${params.count} ACE certification practice questions with a balanced mix of easy, medium, and hard difficulty levels.`
-      : `Generate ${params.count} ${params.difficulty} difficulty ACE certification practice question(s).`;
+      ? `Generate ${params.count} ${certName} certification practice questions with a balanced mix of easy, medium, and hard difficulty levels.`
+      : `Generate ${params.count} ${params.difficulty} difficulty ${certName} certification practice question(s).`;
+
+  // Build case study context if provided
+  let caseStudyContext = '';
+  if (params.caseStudy) {
+    const cs = params.caseStudy;
+    caseStudyContext = `
+CASE STUDY CONTEXT: ${cs.name}
+You MUST base your questions on the following case study. Questions should reference specific details from this company's scenario.
+
+Company Overview:
+${cs.companyOverview}
+
+Solution Concept:
+${cs.solutionConcept}
+
+Existing Technical Environment:
+${cs.existingTechnicalEnvironment}
+
+Business Requirements:
+${cs.businessRequirements.map((req, i) => `${i + 1}. ${req}`).join('\n')}
+
+Technical Requirements:
+${cs.technicalRequirements.map((req, i) => `${i + 1}. ${req}`).join('\n')}
+
+Executive Statement:
+"${cs.executiveStatement}"
+
+IMPORTANT: Each question should directly relate to this case study's specific business needs, technical constraints, or requirements. Reference the company name (${cs.name}) and specific details from the scenario.
+`;
+  }
 
   return `${difficultyInstruction}
 
@@ -92,7 +170,7 @@ Domain: ${params.domain}
 Topic: ${params.topic}
 ${params.avoidConcepts?.length ? `Avoid these recently tested concepts: ${params.avoidConcepts.join(', ')}` : ''}
 ${params.difficulty === 'mixed' ? `\nFor mixed difficulty: Generate approximately equal numbers of easy, medium, and hard questions. Mark each question with its actual difficulty in the response.` : ''}
-
+${caseStudyContext}
 Respond with valid JSON matching this exact schema:
 {
   "questions": [
@@ -118,6 +196,9 @@ IMPORTANT:
 export async function generateQuestions(params: GenerateParams): Promise<GeneratedQuestion[]> {
   const config = await getApiConfig(params.userId);
 
+  // Select system prompt based on certification
+  const systemPrompt = params.certificationCode === 'PCA' ? SYSTEM_PROMPT_PCA : SYSTEM_PROMPT_ACE;
+
   // Determine which provider to use: explicit param > settings > default
   // OpenAI models: gpt-*, o3, o4-mini; Anthropic models: claude-*
   const useOpenAIProvider = params.model
@@ -140,7 +221,7 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
     const response = await client.messages.create({
       model,
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',
@@ -176,7 +257,7 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
       max_tokens: 4096,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: createUserPrompt(params) },
       ],
     });

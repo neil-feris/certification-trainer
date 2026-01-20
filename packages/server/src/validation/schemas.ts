@@ -86,6 +86,7 @@ export const questionBrowseQuerySchema = questionQuerySchema.extend({
 export const generateQuestionsSchema = z.object({
   domainId: z.number().int().positive('Domain ID must be a positive integer'),
   topicId: z.number().int().positive('Topic ID must be a positive integer').optional(),
+  caseStudyId: z.number().int().positive('Case Study ID must be a positive integer').optional(),
   difficulty: z.enum(['easy', 'medium', 'hard', 'mixed']),
   count: z.number().int().positive().max(20, 'Cannot generate more than 20 questions at once'),
   model: z.string().optional(),
