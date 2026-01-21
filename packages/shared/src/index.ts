@@ -3,6 +3,14 @@
 // Certification types
 export type CertificationProvider = 'gcp' | 'aws' | 'azure';
 
+export interface CertificationCapabilities {
+  hasCaseStudies: boolean;
+}
+
+export const DEFAULT_CERTIFICATION_CAPABILITIES: CertificationCapabilities = {
+  hasCaseStudies: false,
+};
+
 export interface Certification {
   id: number;
   code: string; // 'ACE', 'PCA', 'PDE', etc.
@@ -14,6 +22,7 @@ export interface Certification {
   totalQuestions: number;
   passingScorePercent: number | null;
   isActive: boolean;
+  capabilities: CertificationCapabilities;
   createdAt: Date;
 }
 

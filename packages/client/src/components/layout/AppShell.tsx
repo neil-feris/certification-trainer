@@ -81,8 +81,8 @@ export function AppShell({ children }: AppShellProps) {
     s.certifications.find((c) => c.id === s.selectedCertificationId)
   );
 
-  // PCA certification has case studies
-  const hasCaseStudies = selectedCert?.code === 'PCA';
+  // Check certification capabilities for feature flags
+  const hasCaseStudies = selectedCert?.capabilities?.hasCaseStudies ?? false;
 
   // Filter nav items based on certification capabilities
   const visibleNavItems = NAV_ITEMS.filter((item) => !item.requiresCaseStudies || hasCaseStudies);

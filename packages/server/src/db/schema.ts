@@ -56,6 +56,7 @@ export const certifications = sqliteTable('certifications', {
   totalQuestions: integer('total_questions').notNull().default(50),
   passingScorePercent: integer('passing_score_percent').default(70),
   isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  capabilities: text('capabilities').notNull().default('{"hasCaseStudies":false}'), // JSON object for feature flags
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 

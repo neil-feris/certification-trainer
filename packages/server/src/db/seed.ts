@@ -1457,6 +1457,7 @@ async function seed() {
       totalQuestions: 50,
       passingScorePercent: 70,
       isActive: true,
+      capabilities: JSON.stringify({ hasCaseStudies: false }),
       createdAt: new Date(),
     })
     .returning();
@@ -1522,6 +1523,7 @@ async function seed() {
       totalQuestions: 50,
       passingScorePercent: 70,
       isActive: true,
+      capabilities: JSON.stringify({ hasCaseStudies: true }),
       createdAt: new Date(),
     })
     .returning();
