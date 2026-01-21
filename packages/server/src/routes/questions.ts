@@ -27,6 +27,7 @@ import type {
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
+import { updateStreak } from '../services/streakService.js';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
@@ -524,10 +525,14 @@ export async function questionRoutes(fastify: FastifyInstance) {
       })
       .where(eq(spacedRepetition.id, sr.id));
 
+    // Update streak after review completion
+    const streakResult = await updateStreak(userId);
+
     return {
       success: true,
       nextReviewAt: result.nextReviewAt,
       interval: result.interval,
+      streakUpdate: streakResult.streakUpdate,
     };
   });
 }
