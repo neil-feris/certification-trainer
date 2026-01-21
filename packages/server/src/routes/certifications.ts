@@ -2,6 +2,23 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { certifications, domains, questions } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
+import { CertificationCapabilities, DEFAULT_CERTIFICATION_CAPABILITIES } from '@ace-prep/shared';
+
+// Helper to parse capabilities JSON with fallback to defaults
+function parseCapabilities(capabilitiesJson: string | null): CertificationCapabilities {
+  if (!capabilitiesJson) {
+    return DEFAULT_CERTIFICATION_CAPABILITIES;
+  }
+  try {
+    const parsed = JSON.parse(capabilitiesJson);
+    return {
+      ...DEFAULT_CERTIFICATION_CAPABILITIES,
+      ...parsed,
+    };
+  } catch {
+    return DEFAULT_CERTIFICATION_CAPABILITIES;
+  }
+}
 
 export async function certificationRoutes(fastify: FastifyInstance) {
   // Get all active certifications with question counts
@@ -18,6 +35,7 @@ export async function certificationRoutes(fastify: FastifyInstance) {
         totalQuestions: certifications.totalQuestions,
         passingScorePercent: certifications.passingScorePercent,
         isActive: certifications.isActive,
+        capabilities: certifications.capabilities,
         createdAt: certifications.createdAt,
       })
       .from(certifications)
@@ -38,6 +56,7 @@ export async function certificationRoutes(fastify: FastifyInstance) {
 
     return certs.map((cert) => ({
       ...cert,
+      capabilities: parseCapabilities(cert.capabilities),
       questionCount: countMap.get(cert.id) || 0,
     }));
   });
@@ -66,6 +85,7 @@ export async function certificationRoutes(fastify: FastifyInstance) {
 
     return {
       ...cert,
+      capabilities: parseCapabilities(cert.capabilities),
       questionCount: countResult?.count || 0,
     };
   });

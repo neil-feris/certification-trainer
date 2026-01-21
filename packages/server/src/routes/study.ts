@@ -11,6 +11,7 @@ import {
   learningPathProgress,
   spacedRepetition,
   learningPathSummaries,
+  caseStudies,
 } from '../db/schema.js';
 import { eq, desc, and, sql, inArray, like, or } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
@@ -38,6 +39,7 @@ import {
   formatZodError,
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
+import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -434,10 +436,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
             question: questions,
             domain: domains,
             topic: topics,
+            caseStudy: caseStudies,
           })
           .from(questions)
           .innerJoin(domains, eq(questions.domainId, domains.id))
           .innerJoin(topics, eq(questions.topicId, topics.id))
+          .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
           .where(inArray(questions.topicId, topicIds))
           .orderBy(sql`RANDOM()`)
           .limit(10);
@@ -446,6 +450,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
           id: q.question.id,
           topicId: q.question.topicId,
           domainId: q.question.domainId,
+          caseStudyId: q.question.caseStudyId ?? undefined,
           questionText: q.question.questionText,
           questionType: q.question.questionType,
           options: JSON.parse(q.question.options as string),
@@ -471,6 +476,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
             name: q.topic.name,
             description: q.topic.description,
           },
+          caseStudy: mapCaseStudyRecord(q.caseStudy),
         }));
       }
 
@@ -773,10 +779,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
             question: questions,
             domain: domains,
             topic: topics,
+            caseStudy: caseStudies,
           })
           .from(questions)
           .innerJoin(domains, eq(questions.domainId, domains.id))
           .innerJoin(topics, eq(questions.topicId, topics.id))
+          .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
           .where(inArray(questions.id, questionIds));
 
         // SECURITY: Only include correctAnswers/explanation for questions that have been answered
@@ -789,8 +797,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
             options: JSON.parse(q.question.options as string),
             difficulty: q.question.difficulty,
             gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+            caseStudyId: q.question.caseStudyId ?? undefined,
             domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
             topic: { id: q.topic.id, name: q.topic.name },
+            caseStudy: mapCaseStudyRecord(q.caseStudy),
           };
           // Only reveal answers for already-answered questions
           if (answeredQuestionIds.has(q.question.id)) {
@@ -1188,10 +1198,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
         question: questions,
         domain: domains,
         topic: topics,
+        caseStudy: caseStudies,
       })
       .from(questions)
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
+      .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
       .where(whereCondition)
       .orderBy(sql`RANDOM()`)
       .limit(count);
@@ -1205,8 +1217,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
       explanation: q.question.explanation,
       difficulty: q.question.difficulty,
       gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+      caseStudyId: q.question.caseStudyId ?? undefined,
       domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
       topic: { id: q.topic.id, name: q.topic.name },
+      caseStudy: mapCaseStudyRecord(q.caseStudy),
     }));
   });
 

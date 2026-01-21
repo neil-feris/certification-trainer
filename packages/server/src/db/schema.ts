@@ -19,6 +19,31 @@ export const users = sqliteTable(
   ]
 );
 
+// Case Studies (for PCA certification)
+export const caseStudies = sqliteTable(
+  'case_studies',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'restrict' }),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    companyOverview: text('company_overview').notNull(),
+    solutionConcept: text('solution_concept').notNull(),
+    existingTechnicalEnvironment: text('existing_technical_environment').notNull(),
+    businessRequirements: text('business_requirements').notNull(), // JSON array
+    technicalRequirements: text('technical_requirements').notNull(), // JSON array
+    executiveStatement: text('executive_statement').notNull(),
+    orderIndex: integer('order_index').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('case_studies_cert_code_idx').on(table.certificationId, table.code),
+    index('case_studies_cert_idx').on(table.certificationId),
+  ]
+);
+
 // Certifications (supports multiple Google Cloud certifications)
 export const certifications = sqliteTable('certifications', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -31,6 +56,7 @@ export const certifications = sqliteTable('certifications', {
   totalQuestions: integer('total_questions').notNull().default(50),
   passingScorePercent: integer('passing_score_percent').default(70),
   isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  capabilities: text('capabilities').notNull().default('{"hasCaseStudies":false}'), // JSON object for feature flags
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
@@ -80,6 +106,9 @@ export const questions = sqliteTable(
     domainId: integer('domain_id')
       .notNull()
       .references(() => domains.id, { onDelete: 'restrict' }),
+    caseStudyId: integer('case_study_id').references(() => caseStudies.id, {
+      onDelete: 'set null',
+    }),
     questionText: text('question_text').notNull(),
     questionType: text('question_type').notNull(), // 'single' | 'multiple'
     options: text('options').notNull(), // JSON array
@@ -93,6 +122,7 @@ export const questions = sqliteTable(
   (table) => [
     index('questions_topic_idx').on(table.topicId),
     index('questions_domain_idx').on(table.domainId),
+    index('questions_case_study_idx').on(table.caseStudyId),
   ]
 );
 
@@ -329,6 +359,8 @@ export const userSettings = sqliteTable(
 // Type exports for Drizzle
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type CaseStudyRecord = typeof caseStudies.$inferSelect;
+export type NewCaseStudy = typeof caseStudies.$inferInsert;
 export type Certification = typeof certifications.$inferSelect;
 export type NewCertification = typeof certifications.$inferInsert;
 export type Domain = typeof domains.$inferSelect;

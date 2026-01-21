@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { studyApi } from '../api/client';
 import { getCachedQuestions } from '../services/offlineStorage';
 import { queueResponse, type OfflineSessionContext } from '../services/syncQueue';
-import type { Question } from '@ace-prep/shared';
+import type { Question, CaseStudy } from '@ace-prep/shared';
 
 interface StudyQuestion {
   id: number;
@@ -18,6 +18,7 @@ interface StudyQuestion {
   gcpServices: string[];
   domain: { id: number; name: string; code: string };
   topic: { id: number; name: string };
+  caseStudy?: CaseStudy;
 }
 
 interface StudyResponse {

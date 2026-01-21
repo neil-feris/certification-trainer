@@ -17,10 +17,18 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-const NAV_ITEMS = [
+interface NavItem {
+  path: string;
+  label: string;
+  icon: string;
+  requiresCaseStudies?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: '◉' },
   { path: '/exam', label: 'Practice Exam', icon: '◈' },
   { path: '/study', label: 'Study', icon: '◎' },
+  { path: '/case-studies', label: 'Case Studies', icon: '📋', requiresCaseStudies: true },
   { path: '/questions', label: 'Question Bank', icon: '☰' },
   { path: '/progress', label: 'Progress', icon: '◔' },
   { path: '/review', label: 'Review', icon: '↻' },
@@ -73,6 +81,12 @@ export function AppShell({ children }: AppShellProps) {
     s.certifications.find((c) => c.id === s.selectedCertificationId)
   );
 
+  // Check certification capabilities for feature flags
+  const hasCaseStudies = selectedCert?.capabilities?.hasCaseStudies ?? false;
+
+  // Filter nav items based on certification capabilities
+  const visibleNavItems = NAV_ITEMS.filter((item) => !item.requiresCaseStudies || hasCaseStudies);
+
   return (
     <div className={styles.shell}>
       {!hideNavigation && (
@@ -87,7 +101,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           <nav className={styles.nav}>
-            {NAV_ITEMS.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
@@ -160,6 +174,16 @@ export function AppShell({ children }: AppShellProps) {
                 <span className={styles.moreNavIcon}>☰</span>
                 <span>Question Bank</span>
               </Link>
+              {hasCaseStudies && (
+                <Link
+                  to="/case-studies"
+                  className={styles.moreNavLink}
+                  onClick={() => setIsMoreSheetOpen(false)}
+                >
+                  <span className={styles.moreNavIcon}>📋</span>
+                  <span>Case Studies</span>
+                </Link>
+              )}
               <Link
                 to="/exam"
                 className={styles.moreNavLink}

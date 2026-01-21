@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { examApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
@@ -298,6 +298,18 @@ export function ExamContainer() {
                 >
                   {currentQuestion.difficulty}
                 </span>
+              )}
+              {currentQuestion.caseStudy && (
+                <Link
+                  to={`/case-studies/${currentQuestion.caseStudy.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.caseStudyBadge}
+                  title={`View ${currentQuestion.caseStudy.name} case study`}
+                >
+                  <span className={styles.caseStudyIcon}>📋</span>
+                  {currentQuestion.caseStudy.name}
+                </Link>
               )}
             </div>
             <button

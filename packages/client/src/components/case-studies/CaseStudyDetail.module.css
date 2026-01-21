@@ -1,0 +1,508 @@
+/* Case Study Detail Page Styles */
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============ HEADER ============ */
+.header {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.headerBadges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.codeBadge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.certBadge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: var(--radius-sm);
+  color: var(--bg-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* ============ SECTIONS ============ */
+.section {
+  margin-bottom: 32px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+}
+
+.sectionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  color: var(--accent-primary);
+}
+
+/* ============ CONTENT CARDS ============ */
+.contentCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.contentText {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* Technical environment has a distinct style */
+.techCard {
+  background: linear-gradient(135deg, rgba(0, 153, 204, 0.04) 0%, rgba(0, 212, 170, 0.04) 100%);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent-secondary);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+/* ============ REQUIREMENTS LISTS ============ */
+.requirementsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.requirementItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  transition: border-color var(--transition-fast);
+}
+
+.requirementItem:hover {
+  border-color: var(--accent-primary);
+}
+
+.requirementItem.technical {
+  border-left: 3px solid var(--accent-primary);
+  background: linear-gradient(135deg, rgba(0, 191, 255, 0.02) 0%, var(--bg-secondary) 100%);
+}
+
+.requirementBullet {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+/* ============ EXECUTIVE STATEMENT ============ */
+.executiveCard {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 171, 0, 0.04) 0%, rgba(255, 171, 0, 0.08) 100%);
+  border: 1px solid rgba(255, 171, 0, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 28px 28px 28px 48px;
+}
+
+.quoteIcon {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--warning);
+  opacity: 0.4;
+  line-height: 1;
+  font-family: Georgia, serif;
+}
+
+.executiveText {
+  font-size: 1rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+  margin: 0;
+  font-style: italic;
+}
+
+/* ============ PRACTICE QUESTIONS CALLOUT ============ */
+.practiceCallout {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(0, 200, 83, 0.06) 0%, rgba(0, 200, 83, 0.12) 100%);
+  border: 1px solid rgba(0, 200, 83, 0.25);
+  border-radius: var(--radius-lg);
+}
+
+.practiceIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--success);
+  border-radius: var(--radius-md);
+  color: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.practiceContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.practiceContent h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.practiceContent p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.practiceBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--success);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--bg-primary);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.practiceBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ============ FOOTER & NAVIGATION ============ */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 32px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.backLink:hover {
+  color: var(--accent-primary);
+}
+
+/* ============ LOADING SKELETON ============ */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.skeletonHeader {
+  height: 120px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-lg);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeletonSectionTitle {
+  width: 200px;
+  height: 28px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonContent {
+  height: 120px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-lg);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeletonListItem {
+  height: 56px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-md);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ============ ERROR STATE ============ */
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.errorIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 82, 82, 0.15);
+  border-radius: 50%;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--error);
+  margin-bottom: 24px;
+}
+
+.errorState h2 {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.errorState p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0 0 24px 0;
+  max-width: 400px;
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--accent-gradient);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: 16px;
+}
+
+.retryBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.retryBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.backLinkError {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.backLinkError:hover {
+  color: var(--accent-primary);
+}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 16px;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .contentCard,
+  .techCard,
+  .executiveCard {
+    padding: 20px;
+  }
+
+  .executiveCard {
+    padding-left: 40px;
+  }
+
+  .quoteIcon {
+    font-size: 2.5rem;
+    left: 12px;
+  }
+
+  .requirementItem {
+    padding: 14px 16px;
+    font-size: 0.85rem;
+  }
+
+  .practiceCallout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    text-align: center;
+  }
+
+  .practiceIcon {
+    align-self: center;
+  }
+
+  .practiceBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Touch feedback */
+  @media (hover: none) {
+    .requirementItem {
+      transition:
+        transform var(--transition-fast),
+        background var(--transition-fast);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .requirementItem:active {
+      transform: scale(0.99);
+      background: var(--bg-tertiary);
+    }
+
+    .practiceBtn:active {
+      transform: scale(0.98);
+    }
+  }
+}

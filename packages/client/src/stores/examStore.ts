@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { examApi } from '../api/client';
+import type { CaseStudy } from '@ace-prep/shared';
 
 interface ExamQuestion {
   id: number;
@@ -12,6 +13,7 @@ interface ExamQuestion {
   difficulty: 'easy' | 'medium' | 'hard';
   domain: { id: number; name: string; code: string };
   topic: { id: number; name: string };
+  caseStudy?: CaseStudy;
 }
 
 interface ExamResponse {

@@ -31,6 +31,8 @@ import type {
   Granularity,
   TrendDataPoint,
   TrendsResponse,
+  GetCaseStudiesResponse,
+  GetCaseStudyResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -158,6 +160,15 @@ export const certificationApi = {
   get: (id: number) => request<CertificationWithCount>(`/certifications/${id}`, {}, false),
 };
 
+// Case Studies
+export const caseStudyApi = {
+  getAll: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<GetCaseStudiesResponse>(`/case-studies${params}`);
+  },
+  getById: (id: number) => request<GetCaseStudyResponse>(`/case-studies/${id}`),
+};
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -265,6 +276,7 @@ export interface QuestionListParams {
   certificationId?: number;
   domainId?: number;
   topicId?: number;
+  caseStudyId?: number;
   difficulty?: Difficulty;
   search?: string;
   sortBy?: 'createdAt' | 'difficulty' | 'domain';
@@ -285,6 +297,8 @@ export const questionApi = {
       searchParams.set('certificationId', String(params.certificationId));
     if (params?.domainId) searchParams.set('domainId', String(params.domainId));
     if (params?.topicId) searchParams.set('topicId', String(params.topicId));
+    if (params?.caseStudyId !== undefined)
+      searchParams.set('caseStudyId', String(params.caseStudyId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
     if (params?.search) searchParams.set('search', params.search);
     if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
@@ -326,6 +340,7 @@ export const questionApi = {
   generate: (data: {
     domainId: number;
     topicId?: number;
+    caseStudyId?: number;
     difficulty: DifficultyOption;
     count: number;
     model?: LLMModel;

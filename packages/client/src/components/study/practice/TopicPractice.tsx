@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useStudyStore } from '../../../stores/studyStore';
 import { useSwipeNavigation } from '../../../hooks/useSwipeNavigation';
 import { showToast } from '../../common/Toast';
@@ -106,6 +107,18 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
       <div className={styles.questionArea}>
         <div className={styles.topicBadge}>
           {currentQuestion.domain.name} → {currentQuestion.topic.name}
+          {currentQuestion.caseStudy && (
+            <Link
+              to={`/case-studies/${currentQuestion.caseStudy.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.caseStudyBadge}
+              title={`View ${currentQuestion.caseStudy.name} case study`}
+            >
+              <span className={styles.caseStudyIcon}>📋</span>
+              {currentQuestion.caseStudy.name}
+            </Link>
+          )}
         </div>
 
         <PracticeQuestion

@@ -1,8 +1,15 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { questions, domains, topics, spacedRepetition, certifications } from '../db/schema.js';
-import { eq, lte, and, count, like, desc, asc, inArray, sql } from 'drizzle-orm';
-import { generateQuestions } from '../services/questionGenerator.js';
+import {
+  questions,
+  domains,
+  topics,
+  spacedRepetition,
+  certifications,
+  caseStudies,
+} from '../db/schema.js';
+import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull } from 'drizzle-orm';
+import { generateQuestions, fetchCaseStudyById } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
 import {
@@ -19,6 +26,7 @@ import type {
   QuestionFilterOptions,
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
+import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
@@ -38,6 +46,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       domainId?: string;
       topicId?: string;
       difficulty?: string;
+      caseStudyId?: string;
       search?: string;
       sortBy?: string;
       sortOrder?: string;
@@ -54,6 +63,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       domainId,
       topicId,
       difficulty,
+      caseStudyId,
       search,
       sortBy = 'createdAt',
       sortOrder = 'desc',
@@ -75,6 +85,15 @@ export async function questionRoutes(fastify: FastifyInstance) {
     }
     if (difficulty) {
       conditions.push(eq(questions.difficulty, difficulty));
+    }
+    if (caseStudyId !== undefined) {
+      // caseStudyId is transformed to number by Zod schema before reaching here
+      // caseStudyId=0 means "no case study" (filter for NULL), positive number filters by ID
+      if (caseStudyId === 0) {
+        conditions.push(isNull(questions.caseStudyId));
+      } else {
+        conditions.push(eq(questions.caseStudyId, caseStudyId));
+      }
     }
     if (search) {
       const escaped = escapeLikePattern(search);
@@ -107,15 +126,18 @@ export async function questionRoutes(fastify: FastifyInstance) {
     const total = countResult?.total ?? 0;
 
     // Get paginated results with filters applied in SQL
+    // Left join case studies to include case study data when present
     const results = await db
       .select({
         question: questions,
         domain: domains,
         topic: topics,
+        caseStudy: caseStudies,
       })
       .from(questions)
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
+      .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
       .where(whereClause)
       .orderBy(orderByClause)
       .limit(limit)
@@ -123,6 +145,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
 
     const items: QuestionWithDomain[] = results.map((r) => ({
       ...r.question,
+      caseStudyId: r.question.caseStudyId ?? undefined,
       questionType: r.question.questionType as 'single' | 'multiple',
       difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
       options: JSON.parse(r.question.options as string),
@@ -131,6 +154,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       isGenerated: r.question.isGenerated ?? false,
       domain: r.domain,
       topic: r.topic,
+      caseStudy: mapCaseStudyRecord(r.caseStudy),
     }));
 
     const response: PaginatedResponse<QuestionWithDomain> = {
@@ -190,6 +214,23 @@ export async function questionRoutes(fastify: FastifyInstance) {
     }
     const tops = topicsQuery.all();
 
+    // Fetch case studies for the selected certification (or all if none selected)
+    let caseStudiesQuery = db
+      .select({
+        id: caseStudies.id,
+        code: caseStudies.code,
+        name: caseStudies.name,
+        certificationId: caseStudies.certificationId,
+      })
+      .from(caseStudies);
+
+    if (certId) {
+      caseStudiesQuery = caseStudiesQuery.where(
+        eq(caseStudies.certificationId, certId)
+      ) as typeof caseStudiesQuery;
+    }
+    const cases = caseStudiesQuery.all();
+
     const [countResult] = db
       .select({ count: sql<number>`count(*)` })
       .from(questions)
@@ -201,6 +242,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       certifications: certs,
       domains: doms,
       topics: tops,
+      caseStudies: cases,
       difficulties: ['easy', 'medium', 'hard'],
       totalQuestions: Number(countResult?.count ?? 0),
     };
@@ -249,6 +291,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
     Body: {
       domainId: number;
       topicId?: number;
+      caseStudyId?: number;
       difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
       count: number;
       model?: string;
@@ -268,13 +311,20 @@ export async function questionRoutes(fastify: FastifyInstance) {
       if (!parseResult.success) {
         return reply.status(400).send(formatZodError(parseResult.error));
       }
-      const { domainId, topicId, difficulty, count, model } = parseResult.data;
+      const { domainId, topicId, caseStudyId, difficulty, count, model } = parseResult.data;
 
       // Get domain and topic info
       const [domain] = await db.select().from(domains).where(eq(domains.id, domainId));
       if (!domain) {
         return reply.status(404).send({ error: 'Domain not found' });
       }
+
+      // Get certification code for the domain
+      const [certification] = await db
+        .select({ code: certifications.code })
+        .from(certifications)
+        .where(eq(certifications.id, domain.certificationId));
+      const certificationCode = certification?.code;
 
       let topic = null;
       if (topicId) {
@@ -290,6 +340,15 @@ export async function questionRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Topic not found' });
       }
 
+      // Fetch case study if provided
+      let caseStudy = undefined;
+      if (caseStudyId) {
+        caseStudy = await fetchCaseStudyById(caseStudyId);
+        if (!caseStudy) {
+          return reply.status(404).send({ error: 'Case study not found' });
+        }
+      }
+
       try {
         const userId = parseInt(request.user!.id, 10);
         const generatedQuestions = await generateQuestions({
@@ -299,6 +358,8 @@ export async function questionRoutes(fastify: FastifyInstance) {
           count,
           model: model as any,
           userId,
+          caseStudy: caseStudy ?? undefined,
+          certificationCode,
         });
 
         // Fetch existing questions for this topic to check for duplicates
@@ -351,6 +412,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
               toInsert.map((q) => ({
                 domainId: domain.id,
                 topicId: topic.id,
+                caseStudyId: caseStudyId ?? null,
                 questionText: q.questionText,
                 questionType: q.questionType,
                 options: JSON.stringify(q.options),
