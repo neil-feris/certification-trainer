@@ -40,6 +40,7 @@ import {
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
+import { updateStreak } from '../services/streakService.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -199,7 +200,31 @@ export async function studyRoutes(fastify: FastifyInstance) {
         pathItemOrder: order,
         completedAt: now,
       });
-      return { isCompleted: true, completedAt: now };
+
+      // Update streak since this is a new completion with error handling
+      let streakUpdate;
+      try {
+        const streakResult = await updateStreak(userId);
+        streakUpdate = streakResult.streakUpdate;
+      } catch (error) {
+        // Log error but don't fail the learning path completion
+        fastify.log.error(
+          {
+            userId,
+            order,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to update streak after learning path completion'
+        );
+        // Graceful degradation - streak update is non-critical
+        streakUpdate = undefined;
+      }
+
+      return {
+        isCompleted: true,
+        completedAt: now,
+        streakUpdate,
+      };
     }
   );
 
@@ -1133,11 +1158,31 @@ export async function studyRoutes(fastify: FastifyInstance) {
         .run();
     });
 
+    // Update streak after session completion with error handling
+    let streakUpdate;
+    try {
+      const streakResult = await updateStreak(userId);
+      streakUpdate = streakResult.streakUpdate;
+    } catch (error) {
+      // Log error but don't fail the study session completion
+      fastify.log.error(
+        {
+          userId,
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to update streak after study session completion'
+      );
+      // Graceful degradation - streak update is non-critical
+      streakUpdate = undefined;
+    }
+
     const result = {
       score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
       correctCount: actualCorrect,
       totalCount: actualTotal,
       addedToSRCount: actualAddedToSR,
+      streakUpdate,
     };
 
     return result;

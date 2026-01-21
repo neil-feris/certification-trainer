@@ -14,6 +14,7 @@ import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import type { Granularity, TrendDataPoint, TrendsResponse } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
+import { getStreak } from '../services/streakService.js';
 
 /**
  * Calculate ISO 8601 week number.
@@ -139,6 +140,13 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     return { data: dataPoints, totalExamCount } satisfies TrendsResponse;
   });
+
+  // Get user's current streak data
+  fastify.get('/streak', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
+    return getStreak(userId);
+  });
+
   // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/dashboard',

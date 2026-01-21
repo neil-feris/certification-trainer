@@ -91,6 +91,12 @@
   gap: 12px;
 }
 
+.footerStreak {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
 .footerText {
   font-size: 11px;
   color: var(--text-muted);

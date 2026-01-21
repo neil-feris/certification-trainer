@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import { studyApi } from '../api/client';
 import { getCachedQuestions } from '../services/offlineStorage';
 import { queueResponse, type OfflineSessionContext } from '../services/syncQueue';
+import { showStreakMilestoneToast } from '../utils/streakNotifications';
+import { queryClient } from '../lib/queryClient';
 import type { Question, CaseStudy } from '@ace-prep/shared';
 
 interface StudyQuestion {
@@ -406,6 +408,12 @@ export const useStudyStore = create<StudySessionState>()(
           responses: responsesArray,
           totalTimeSeconds,
         });
+
+        // Show milestone toast if applicable
+        showStreakMilestoneToast(result.streakUpdate);
+
+        // Invalidate streak query to refresh displays
+        queryClient.invalidateQueries({ queryKey: ['streak'] });
 
         // Reset state after completion
         set(initialState);

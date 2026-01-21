@@ -27,6 +27,7 @@ import type {
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
+import { updateStreak } from '../services/streakService.js';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
@@ -524,10 +525,30 @@ export async function questionRoutes(fastify: FastifyInstance) {
       })
       .where(eq(spacedRepetition.id, sr.id));
 
+    // Update streak after review completion with error handling
+    let streakUpdate;
+    try {
+      const streakResult = await updateStreak(userId);
+      streakUpdate = streakResult.streakUpdate;
+    } catch (error) {
+      // Log error but don't fail the review submission
+      fastify.log.error(
+        {
+          userId,
+          questionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to update streak after review completion'
+      );
+      // Graceful degradation - streak update is non-critical
+      streakUpdate = undefined;
+    }
+
     return {
       success: true,
       nextReviewAt: result.nextReviewAt,
       interval: result.interval,
+      streakUpdate,
     };
   });
 }

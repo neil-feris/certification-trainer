@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studyApi } from '../../../api/client';
 import { useCertificationStore } from '../../../stores/certificationStore';
+import { showStreakMilestoneToast } from '../../../utils/streakNotifications';
 import styles from './LearningPathDetail.module.css';
 
 export function LearningPathDetail() {
@@ -35,11 +36,15 @@ export function LearningPathDetail() {
   const markCompleteMutation = useMutation({
     mutationFn: () =>
       studyApi.markLearningPathComplete(orderNum, selectedCertificationId ?? undefined),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Show milestone toast if applicable
+      showStreakMilestoneToast(data.streakUpdate);
+
       setShowSuccess(true);
       queryClient.invalidateQueries({ queryKey: ['learningPathItem', orderNum] });
       queryClient.invalidateQueries({ queryKey: ['learningPath'] });
       queryClient.invalidateQueries({ queryKey: ['learningPathStats'] });
+      queryClient.invalidateQueries({ queryKey: ['streak'] });
       setTimeout(() => setShowSuccess(false), 3000);
     },
   });

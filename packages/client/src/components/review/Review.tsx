@@ -7,6 +7,7 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { getCachedQuestions } from '../../services/offlineStorage';
 import { queueResponse } from '../../services/syncQueue';
 import { showToast } from '../common/Toast';
+import { showStreakMilestoneToast } from '../../utils/streakNotifications';
 import styles from './Review.module.css';
 
 type Quality = 'again' | 'hard' | 'good' | 'easy';
@@ -90,8 +91,12 @@ export function Review() {
   const submitMutation = useMutation({
     mutationFn: ({ questionId, quality }: { questionId: number; quality: Quality }) =>
       questionApi.submitReview(questionId, quality),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Show milestone toast if applicable
+      showStreakMilestoneToast(data.streakUpdate);
+
       queryClient.invalidateQueries({ queryKey: ['reviewQueue'] });
+      queryClient.invalidateQueries({ queryKey: ['streak'] });
     },
   });
 

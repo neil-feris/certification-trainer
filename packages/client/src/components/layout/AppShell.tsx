@@ -3,13 +3,15 @@ import { NavLink, useLocation, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CertificationSelector } from '../common/CertificationSelector';
 import { OfflineBanner } from '../common/OfflineBanner';
+import { StreakDisplay } from '../common/StreakDisplay';
 import { useCertificationStore } from '../../stores/certificationStore';
 import { useStudyStore } from '../../stores/studyStore';
-import { questionApi } from '../../api/client';
+import { questionApi, progressApi } from '../../api/client';
 import { getCachedQuestionCount } from '../../services/offlineStorage';
 import { useSyncQueue } from '../../hooks/useSyncQueue';
 import { UserProfile } from './UserProfile';
 import { MobileNavBar } from './MobileNavBar';
+import { MobileHeader } from './MobileHeader';
 import { BottomSheet } from './BottomSheet';
 import styles from './AppShell.module.css';
 
@@ -71,6 +73,13 @@ export function AppShell({ children }: AppShellProps) {
     staleTime: 60000, // Consider fresh for 1 minute
   });
 
+  // Fetch streak data for navigation display
+  const { data: streakData } = useQuery({
+    queryKey: ['streak'],
+    queryFn: progressApi.getStreak,
+    staleTime: 60000, // Consider fresh for 1 minute
+  });
+
   // Hide nav during active review session (when on /review page with questions)
   const isReviewActive = location.pathname === '/review' && reviewQueue.length > 0;
 
@@ -116,6 +125,11 @@ export function AppShell({ children }: AppShellProps) {
           </nav>
 
           <div className={styles.footer}>
+            {streakData && (
+              <div className={styles.footerStreak}>
+                <StreakDisplay streak={streakData} variant="compact" />
+              </div>
+            )}
             <UserProfile />
             {selectedCert && (
               <div className={styles.footerText}>
@@ -131,6 +145,8 @@ export function AppShell({ children }: AppShellProps) {
         cachedQuestionCount={cachedQuestionCount}
         pendingSyncCount={pendingSyncCount}
       />
+
+      {!hideNavigation && <MobileHeader streakData={streakData} />}
 
       <main
         className={`${styles.main} ${hideNavigation ? styles.mainFullWidth : styles.mainWithMobileNav}`}

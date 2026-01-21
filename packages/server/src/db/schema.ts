@@ -331,6 +331,22 @@ export const learningPathProgress = sqliteTable(
   ]
 );
 
+// ============ USER STREAKS ============
+export const userStreaks = sqliteTable(
+  'user_streaks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    currentStreak: integer('current_streak').notNull().default(0),
+    longestStreak: integer('longest_streak').notNull().default(0),
+    lastActivityDate: text('last_activity_date'), // YYYY-MM-DD format
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [uniqueIndex('user_streaks_user_id_idx').on(table.userId)]
+);
+
 // Settings (API keys stored encrypted) - global settings for anonymous users
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -386,3 +402,5 @@ export type NewStudySessionResponse = typeof studySessionResponses.$inferInsert;
 export type LearningPathProgressRecord = typeof learningPathProgress.$inferSelect;
 export type LearningPathSummaryRecord = typeof learningPathSummaries.$inferSelect;
 export type NewLearningPathSummary = typeof learningPathSummaries.$inferInsert;
+export type UserStreakRecord = typeof userStreaks.$inferSelect;
+export type NewUserStreak = typeof userStreaks.$inferInsert;

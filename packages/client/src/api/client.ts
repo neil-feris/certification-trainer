@@ -33,6 +33,8 @@ import type {
   TrendsResponse,
   GetCaseStudiesResponse,
   GetCaseStudyResponse,
+  UserStreak,
+  StreakUpdateResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -260,7 +262,7 @@ export const examApi = {
       body: JSON.stringify(data),
     }),
   complete: (examId: number, totalTimeSeconds: number) =>
-    request(`/exams/${examId}/complete`, {
+    request<{ streakUpdate?: StreakUpdateResponse }>(`/exams/${examId}/complete`, {
       method: 'PATCH',
       body: JSON.stringify({ totalTimeSeconds }),
     }),
@@ -351,7 +353,7 @@ export const questionApi = {
     }),
   getReviewQueue: () => request<QuestionWithDomain[]>('/questions/review'),
   submitReview: (questionId: number, quality: string) =>
-    request('/questions/review', {
+    request<{ streakUpdate?: StreakUpdateResponse }>('/questions/review', {
       method: 'POST',
       body: JSON.stringify({ questionId, quality }),
     }),
@@ -382,6 +384,7 @@ export const progressApi = {
     params.set('granularity', granularity);
     return request<TrendsResponse>(`/progress/trends?${params}`);
   },
+  getStreak: () => request<UserStreak>('/progress/streak'),
 };
 
 // Study
@@ -418,12 +421,13 @@ export const studyApi = {
   },
   markLearningPathComplete: (order: number, certificationId?: number) => {
     const params = certificationId ? `?certificationId=${certificationId}` : '';
-    return request<{ isCompleted: boolean; completedAt: Date | null }>(
-      `/study/learning-path/${order}/complete${params}`,
-      {
-        method: 'PATCH',
-      }
-    );
+    return request<{
+      isCompleted: boolean;
+      completedAt: Date | null;
+      streakUpdate?: StreakUpdateResponse;
+    }>(`/study/learning-path/${order}/complete${params}`, {
+      method: 'PATCH',
+    });
   },
   generateSummary: (domainId: number, topicId?: number) =>
     request<{ success: boolean; summary: any }>('/study/summary', {
