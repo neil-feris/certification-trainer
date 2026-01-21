@@ -96,6 +96,7 @@ export function Review() {
       showStreakMilestoneToast(data.streakUpdate);
 
       queryClient.invalidateQueries({ queryKey: ['reviewQueue'] });
+      queryClient.invalidateQueries({ queryKey: ['streak'] });
     },
   });
 

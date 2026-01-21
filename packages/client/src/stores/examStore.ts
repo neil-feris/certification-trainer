@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { examApi } from '../api/client';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
+import { queryClient } from '../lib/queryClient';
 import type { CaseStudy } from '@ace-prep/shared';
 
 interface ExamQuestion {
@@ -160,6 +161,9 @@ export const useExamStore = create<ExamState>()(
 
           // Show milestone toast if applicable
           showStreakMilestoneToast(result.streakUpdate);
+
+          // Invalidate streak query to refresh displays
+          queryClient.invalidateQueries({ queryKey: ['streak'] });
         } finally {
           set({ isSubmitting: false });
         }

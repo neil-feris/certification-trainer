@@ -44,6 +44,7 @@ export function LearningPathDetail() {
       queryClient.invalidateQueries({ queryKey: ['learningPathItem', orderNum] });
       queryClient.invalidateQueries({ queryKey: ['learningPath'] });
       queryClient.invalidateQueries({ queryKey: ['learningPathStats'] });
+      queryClient.invalidateQueries({ queryKey: ['streak'] });
       setTimeout(() => setShowSuccess(false), 3000);
     },
   });
