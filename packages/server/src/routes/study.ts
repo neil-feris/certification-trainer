@@ -40,6 +40,7 @@ import {
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
+import { updateStreak } from '../services/streakService.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -1133,11 +1134,15 @@ export async function studyRoutes(fastify: FastifyInstance) {
         .run();
     });
 
+    // Update streak after session completion
+    const streakResult = await updateStreak(userId);
+
     const result = {
       score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
       correctCount: actualCorrect,
       totalCount: actualTotal,
       addedToSRCount: actualAddedToSR,
+      streakUpdate: streakResult.streakUpdate,
     };
 
     return result;
