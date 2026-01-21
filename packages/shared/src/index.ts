@@ -669,3 +669,19 @@ export interface GoogleCallbackRequest {
   code: string;
   state?: string;
 }
+
+// ============ STREAK TYPES ============
+
+export interface UserStreak {
+  currentStreak: number;
+  longestStreak: number;
+  lastActivityDate: string | null; // ISO date string YYYY-MM-DD
+}
+
+export const STREAK_MILESTONES = [7, 30, 100, 365] as const;
+export type StreakMilestone = (typeof STREAK_MILESTONES)[number];
+
+export interface StreakUpdateResponse {
+  current: number;
+  milestone?: StreakMilestone;
+}
