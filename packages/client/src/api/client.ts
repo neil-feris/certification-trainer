@@ -33,6 +33,7 @@ import type {
   TrendsResponse,
   GetCaseStudiesResponse,
   GetCaseStudyResponse,
+  UserStreak,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -382,6 +383,7 @@ export const progressApi = {
     params.set('granularity', granularity);
     return request<TrendsResponse>(`/progress/trends?${params}`);
   },
+  getStreak: () => request<UserStreak>('/progress/streak'),
 };
 
 // Study
