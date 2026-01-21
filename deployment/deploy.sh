@@ -111,6 +111,64 @@ check_health() {
     return 1
 }
 
+# Run database migrations inside container
+run_migrations() {
+    local max_wait=30
+    local wait_interval=2
+    local attempt=1
+
+    log_info "Preparing to run database migrations..."
+
+    # Wait for container to be running and ready
+    while [ $attempt -le $max_wait ]; do
+        if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+            # Check if container is actually ready (not just created)
+            local status
+            status=$(docker inspect --format='{{.State.Status}}' "${CONTAINER_NAME}" 2>/dev/null || echo "unknown")
+            if [ "$status" = "running" ]; then
+                log_info "Container is running, waiting for process to initialize..."
+                sleep 3  # Brief pause to let Node.js start
+                break
+            fi
+        fi
+
+        if [ $attempt -eq $max_wait ]; then
+            log_error "Container failed to start within ${max_wait} attempts"
+            return 1
+        fi
+
+        echo -n "."
+        sleep $wait_interval
+        ((attempt++))
+    done
+
+    echo ""
+    log_info "Running database migrations..."
+
+    # Execute migrations inside the container
+    # Capture both stdout and stderr, preserve exit code
+    local migration_output
+    local migration_exit_code
+
+    migration_output=$(docker exec "${CONTAINER_NAME}" npm run db:migrate 2>&1) || migration_exit_code=$?
+    migration_exit_code=${migration_exit_code:-0}
+
+    # Log migration output
+    if [ -n "$migration_output" ]; then
+        echo "$migration_output" | while IFS= read -r line; do
+            log_info "[migration] $line"
+        done
+    fi
+
+    if [ $migration_exit_code -ne 0 ]; then
+        log_error "Database migration failed with exit code ${migration_exit_code}"
+        return 1
+    fi
+
+    log_info "Database migrations completed successfully"
+    return 0
+}
+
 # Main deployment
 main() {
     log_info "Starting deployment of version: ${VERSION}"
@@ -134,6 +192,13 @@ main() {
     # Deploy with force-recreate
     log_info "Deploying new version..."
     docker compose -f "${COMPOSE_FILE}" up -d --force-recreate
+
+    # Run database migrations
+    if ! run_migrations; then
+        log_error "Migration failed. Initiating rollback..."
+        "${SCRIPT_DIR}/rollback.sh"
+        exit 1
+    fi
 
     # Health check
     if check_health; then
