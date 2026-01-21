@@ -35,18 +35,18 @@ export type LLMProvider = 'openai' | 'anthropic';
 
 export const ANTHROPIC_MODELS = [
   // Claude 4.5 (Current)
+  'claude-opus-4-5-20251101',
   'claude-sonnet-4-5-20250929',
   'claude-haiku-4-5-20251001',
-  'claude-opus-4-5-20251101',
   // Claude 4.x (Legacy)
-  'claude-opus-4-1-20250805',
   'claude-sonnet-4-20250514',
   'claude-3-7-sonnet-20250219',
-  // Claude 3 (Legacy)
-  'claude-3-haiku-20240307',
 ] as const;
 
 export const OPENAI_MODELS = [
+  // GPT-5 Family (Latest)
+  'gpt-5.2',
+  'gpt-5.2-mini',
   // GPT-4.1 Family
   'gpt-4.1',
   'gpt-4.1-mini',
@@ -56,9 +56,9 @@ export const OPENAI_MODELS = [
   'gpt-4o-mini',
   // Reasoning Models (o-series)
   'o3',
+  'o3-pro',
   'o3-mini',
   'o4-mini',
-  'o1',
 ] as const;
 
 export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
@@ -66,22 +66,22 @@ export type OpenAIModel = (typeof OPENAI_MODELS)[number];
 export type LLMModel = AnthropicModel | OpenAIModel;
 
 export const DEFAULT_ANTHROPIC_MODEL: AnthropicModel = 'claude-sonnet-4-5-20250929';
-export const DEFAULT_OPENAI_MODEL: OpenAIModel = 'gpt-4.1';
+export const DEFAULT_OPENAI_MODEL: OpenAIModel = 'gpt-5.2';
 
 // Model display names for UI
 export const MODEL_DISPLAY_NAMES: Record<LLMModel, string> = {
   // Anthropic Claude 4.5 (Current)
+  'claude-opus-4-5-20251101': 'Claude Opus 4.5 (Flagship)',
   'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5 (Recommended)',
   'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (Fast)',
-  'claude-opus-4-5-20251101': 'Claude Opus 4.5 (Flagship)',
   // Anthropic Claude 4.x (Legacy)
-  'claude-opus-4-1-20250805': 'Claude Opus 4.1',
   'claude-sonnet-4-20250514': 'Claude Sonnet 4',
   'claude-3-7-sonnet-20250219': 'Claude 3.7 Sonnet',
-  // Anthropic Claude 3 (Legacy)
-  'claude-3-haiku-20240307': 'Claude 3 Haiku',
+  // OpenAI GPT-5 Family (Latest)
+  'gpt-5.2': 'GPT-5.2 (Recommended)',
+  'gpt-5.2-mini': 'GPT-5.2 Mini',
   // OpenAI GPT-4.1 Family
-  'gpt-4.1': 'GPT-4.1 (Recommended)',
+  'gpt-4.1': 'GPT-4.1',
   'gpt-4.1-mini': 'GPT-4.1 Mini',
   'gpt-4.1-nano': 'GPT-4.1 Nano (Fast)',
   // OpenAI GPT-4o Family
@@ -89,9 +89,9 @@ export const MODEL_DISPLAY_NAMES: Record<LLMModel, string> = {
   'gpt-4o-mini': 'GPT-4o Mini',
   // OpenAI Reasoning Models (o-series)
   o3: 'o3 (Reasoning)',
+  'o3-pro': 'o3 Pro (Extended Reasoning)',
   'o3-mini': 'o3 Mini (Reasoning)',
   'o4-mini': 'o4-mini (Reasoning)',
-  o1: 'o1 (Reasoning)',
 };
 
 // Difficulty options for question generation
