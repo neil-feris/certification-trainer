@@ -78,7 +78,13 @@ export const questionQuerySchema = z.object({
 
 export const questionBrowseQuerySchema = questionQuerySchema.extend({
   search: z.string().max(200).optional(),
-  caseStudyId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  // caseStudyId: 0 means "no case study" (filters for NULL), positive number filters by ID
+  caseStudyId: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .refine((n) => n >= 0, 'Case Study ID must be non-negative')
+    .optional(),
   sortBy: z.enum(['createdAt', 'difficulty', 'domain']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });

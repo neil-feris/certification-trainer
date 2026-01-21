@@ -87,7 +87,8 @@ export async function questionRoutes(fastify: FastifyInstance) {
       conditions.push(eq(questions.difficulty, difficulty));
     }
     if (caseStudyId !== undefined) {
-      // caseStudyId=0 means "no case study", otherwise filter by specific case study
+      // caseStudyId is transformed to number by Zod schema before reaching here
+      // caseStudyId=0 means "no case study" (filter for NULL), positive number filters by ID
       if (caseStudyId === 0) {
         conditions.push(isNull(questions.caseStudyId));
       } else {
