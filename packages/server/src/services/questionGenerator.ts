@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { Sentry } from '../instrument.js';
 import { db } from '../db/index.js';
 import { userSettings, caseStudies } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
@@ -197,76 +198,139 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
     ? isOpenAIModel(params.model)
     : config.provider === 'openai';
 
-  if (!useOpenAIProvider) {
-    // Anthropic
-    if (!config.anthropicApiKey) {
-      throw new Error('Anthropic API key not configured. Please set it in Settings.');
+  const provider = useOpenAIProvider ? 'openai' : 'anthropic';
+  const model = useOpenAIProvider
+    ? params.model && isOpenAIModel(params.model)
+      ? params.model
+      : config.openaiModel
+    : params.model && !isOpenAIModel(params.model)
+      ? (params.model as AnthropicModel)
+      : config.anthropicModel;
+
+  return Sentry.startSpan(
+    {
+      op: 'ai.generate',
+      name: 'Generate Questions',
+    },
+    async (span) => {
+      // Add generation context attributes
+      span.setAttribute('ai.provider', provider);
+      span.setAttribute('ai.model', model);
+      span.setAttribute('generation.domain', params.domain);
+      span.setAttribute('generation.topic', params.topic);
+      span.setAttribute('generation.difficulty', params.difficulty);
+      span.setAttribute('generation.count', params.count);
+      span.setAttribute('generation.certification', params.certificationCode || 'ACE');
+      if (params.caseStudy) {
+        span.setAttribute('generation.case_study', params.caseStudy.name);
+      }
+
+      try {
+        if (!useOpenAIProvider) {
+          // Anthropic
+          if (!config.anthropicApiKey) {
+            throw new Error('Anthropic API key not configured. Please set it in Settings.');
+          }
+
+          const client = new Anthropic({ apiKey: config.anthropicApiKey });
+
+          const response = await client.messages.create({
+            model,
+            max_tokens: 4096,
+            system: systemPrompt,
+            messages: [
+              {
+                role: 'user',
+                content: createUserPrompt(params),
+              },
+            ],
+          });
+
+          const content = response.content[0];
+          if (content.type !== 'text') {
+            throw new Error('Unexpected response type from Anthropic');
+          }
+
+          try {
+            const parsed = JSON.parse(content.text);
+            const questions = validateQuestions(parsed.questions, params.difficulty);
+            span.setAttribute('generation.questions_generated', questions.length);
+            return questions;
+          } catch (parseError) {
+            console.error('Failed to parse Anthropic response:', content.text);
+            Sentry.captureException(parseError, {
+              extra: {
+                provider: 'anthropic',
+                model,
+                domain: params.domain,
+                topic: params.topic,
+                responseText: content.text.substring(0, 1000),
+              },
+            });
+            throw new Error('Failed to parse generated questions');
+          }
+        } else {
+          // OpenAI
+          if (!config.openaiApiKey) {
+            throw new Error('OpenAI API key not configured. Please set it in Settings.');
+          }
+
+          const client = new OpenAI({ apiKey: config.openaiApiKey });
+
+          const response = await client.chat.completions.create({
+            model,
+            ...(usesMaxCompletionTokens(model as OpenAIModel)
+              ? { max_completion_tokens: 4096 }
+              : { max_tokens: 4096 }),
+            response_format: { type: 'json_object' },
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: createUserPrompt(params) },
+            ],
+          });
+
+          const content = response.choices[0].message.content;
+          if (!content) {
+            throw new Error('Empty response from OpenAI');
+          }
+
+          try {
+            const parsed = JSON.parse(content);
+            const questions = validateQuestions(parsed.questions, params.difficulty);
+            span.setAttribute('generation.questions_generated', questions.length);
+            return questions;
+          } catch (parseError) {
+            console.error('Failed to parse OpenAI response:', content);
+            Sentry.captureException(parseError, {
+              extra: {
+                provider: 'openai',
+                model,
+                domain: params.domain,
+                topic: params.topic,
+                responseText: content.substring(0, 1000),
+              },
+            });
+            throw new Error('Failed to parse generated questions');
+          }
+        }
+      } catch (error) {
+        // Capture the error with full context
+        Sentry.captureException(error, {
+          extra: {
+            provider,
+            model,
+            domain: params.domain,
+            topic: params.topic,
+            difficulty: params.difficulty,
+            count: params.count,
+            certification: params.certificationCode || 'ACE',
+            caseStudy: params.caseStudy?.name,
+          },
+        });
+        throw error;
+      }
     }
-
-    const model =
-      params.model && !isOpenAIModel(params.model)
-        ? (params.model as AnthropicModel)
-        : config.anthropicModel;
-
-    const client = new Anthropic({ apiKey: config.anthropicApiKey });
-
-    const response = await client.messages.create({
-      model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: createUserPrompt(params),
-        },
-      ],
-    });
-
-    const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Anthropic');
-    }
-
-    try {
-      const parsed = JSON.parse(content.text);
-      return validateQuestions(parsed.questions, params.difficulty);
-    } catch {
-      console.error('Failed to parse Anthropic response:', content.text);
-      throw new Error('Failed to parse generated questions');
-    }
-  } else {
-    // OpenAI
-    if (!config.openaiApiKey) {
-      throw new Error('OpenAI API key not configured. Please set it in Settings.');
-    }
-
-    const model = params.model && isOpenAIModel(params.model) ? params.model : config.openaiModel;
-
-    const client = new OpenAI({ apiKey: config.openaiApiKey });
-
-    const response = await client.chat.completions.create({
-      model,
-      ...(usesMaxCompletionTokens(model) ? { max_completion_tokens: 4096 } : { max_tokens: 4096 }),
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: createUserPrompt(params) },
-      ],
-    });
-
-    const content = response.choices[0].message.content;
-    if (!content) {
-      throw new Error('Empty response from OpenAI');
-    }
-
-    try {
-      const parsed = JSON.parse(content);
-      return validateQuestions(parsed.questions, params.difficulty);
-    } catch {
-      console.error('Failed to parse OpenAI response:', content);
-      throw new Error('Failed to parse generated questions');
-    }
-  }
+  );
 }
 
 function validateQuestions(
