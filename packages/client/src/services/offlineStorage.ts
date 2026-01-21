@@ -6,7 +6,7 @@ import { createStore, get, set, del } from 'idb-keyval';
 import type { Question } from '@ace-prep/shared';
 
 // Create a custom store namespaced for ace-prep
-const questionsStore = createStore('ace-prep-db', 'ace-prep-questions');
+const questionsStore = createStore('ace-prep-questions-db', 'ace-prep-questions');
 
 // Key format for stored questions
 const QUESTIONS_KEY = 'cached-questions';

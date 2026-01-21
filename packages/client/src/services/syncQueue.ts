@@ -5,7 +5,7 @@
 import { createStore, get, set } from 'idb-keyval';
 
 // Create a custom store namespaced for sync queue
-const syncStore = createStore('ace-prep-db', 'ace-prep-sync-queue');
+const syncStore = createStore('ace-prep-sync-db', 'ace-prep-sync-queue');
 
 // Key for the queue
 const QUEUE_KEY = 'pending-responses';
