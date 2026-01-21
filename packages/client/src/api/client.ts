@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import type {
   LearningPathItem,
   LearningPathStats,
@@ -176,69 +177,121 @@ async function request<T>(
   options: RequestInit = {},
   requiresAuth: boolean = true
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
-  };
+  const method = options.method || 'GET';
+  const spanName = `${method} ${endpoint}`;
 
-  // Add Authorization header if token exists and route requires auth
-  if (requiresAuth) {
-    const token = useAuthStore.getState().accessToken;
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
+  return Sentry.startSpan(
+    {
+      op: 'http.client',
+      name: spanName,
+    },
+    async (span) => {
+      const headers: Record<string, string> = {
+        ...(options.headers as Record<string, string>),
+      };
 
-  // Only set Content-Type for requests with a body
-  if (options.body) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: 'include', // Always include cookies for refresh token
-    });
-  } catch (err) {
-    // Handle network errors (offline, DNS failure, connection refused, etc.)
-    if (err instanceof TypeError && err.message === 'Failed to fetch') {
-      // Check if browser is offline
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        showToast({
-          message: 'You are offline. Please check your internet connection.',
-          type: 'error',
-          duration: 4000,
-        });
-        throw new Error('Network error: You are offline. Please check your internet connection.');
+      // Add Authorization header if token exists and route requires auth
+      if (requiresAuth) {
+        const token = useAuthStore.getState().accessToken;
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
       }
-      // Generic network error
-      showToast({
-        message: 'Network error. Please check your connection.',
-        type: 'error',
-        duration: 4000,
-      });
-      throw new Error('Network error. Please check your connection and try again.');
+
+      // Only set Content-Type for requests with a body
+      if (options.body) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      // Add span attributes for request details
+      span.setAttribute('http.method', method);
+      span.setAttribute('http.url', `${API_BASE}${endpoint}`);
+
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE}${endpoint}`, {
+          ...options,
+          headers,
+          credentials: 'include', // Always include cookies for refresh token
+        });
+      } catch (err) {
+        // Capture network errors in Sentry
+        Sentry.captureException(err, {
+          extra: {
+            endpoint,
+            method,
+            errorType: 'network_error',
+          },
+        });
+
+        // Handle network errors (offline, DNS failure, connection refused, etc.)
+        if (err instanceof TypeError && err.message === 'Failed to fetch') {
+          // Check if browser is offline
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            showToast({
+              message: 'You are offline. Please check your internet connection.',
+              type: 'error',
+              duration: 4000,
+            });
+            throw new Error(
+              'Network error: You are offline. Please check your internet connection.'
+            );
+          }
+          // Generic network error
+          showToast({
+            message: 'Network error. Please check your connection.',
+            type: 'error',
+            duration: 4000,
+          });
+          throw new Error('Network error. Please check your connection and try again.');
+        }
+        throw err;
+      }
+
+      // Add response status to span
+      span.setAttribute('http.status_code', response.status);
+
+      // Handle 401 Unauthorized - attempt token refresh
+      if (response.status === 401 && requiresAuth) {
+        const result = await handleUnauthorized<T>(endpoint, options);
+        if (result !== null) {
+          return result;
+        }
+        // If handleUnauthorized returned null, throw error
+        const sessionError = new Error('Session expired. Please log in again.');
+        Sentry.captureException(sessionError, {
+          extra: {
+            endpoint,
+            method,
+            statusCode: 401,
+            errorType: 'session_expired',
+          },
+        });
+        throw sessionError;
+      }
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Request failed' }));
+        const errorMessage = errorBody.message || errorBody.error || 'Request failed';
+        const requestError = new Error(errorMessage);
+
+        // Capture HTTP errors in Sentry
+        Sentry.captureException(requestError, {
+          extra: {
+            endpoint,
+            method,
+            statusCode: response.status,
+            errorBody,
+            errorType: 'http_error',
+          },
+        });
+
+        throw requestError;
+      }
+
+      return response.json();
     }
-    throw err;
-  }
-
-  // Handle 401 Unauthorized - attempt token refresh
-  if (response.status === 401 && requiresAuth) {
-    const result = await handleUnauthorized<T>(endpoint, options);
-    if (result !== null) {
-      return result;
-    }
-    // If handleUnauthorized returned null, throw error
-    throw new Error('Session expired. Please log in again.');
-  }
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || error.error || 'Request failed');
-  }
-
-  return response.json();
+  );
 }
 
 // Exams
