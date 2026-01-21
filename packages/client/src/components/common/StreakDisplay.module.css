@@ -1,0 +1,88 @@
+/* Compact variant - for navigation */
+.streakCompact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  transition: all var(--transition-fast);
+}
+
+.streakCompact.inactive {
+  opacity: 0.6;
+  filter: grayscale(100%);
+}
+
+.streakCompact .flameIcon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.streakCompact .streakNumber {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.streakCompact.inactive .streakNumber {
+  color: var(--text-muted);
+}
+
+/* Full variant - for dashboard */
+.streakFull {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all var(--transition-fast);
+}
+
+.streakFull.inactive {
+  opacity: 0.6;
+  filter: grayscale(100%);
+}
+
+.currentStreak {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.streakFull .flameIcon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.streakFull .streakNumber {
+  font-family: var(--font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.streakFull.inactive .streakNumber {
+  color: var(--text-muted);
+}
+
+.streakLabel {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.longestStreak {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding-left: 32px; /* Align with number after flame icon */
+}
+
+@media (max-width: 768px) {
+  .streakFull .flameIcon {
+    font-size: 20px;
+  }
+
+  .streakFull .streakNumber {
+    font-size: 28px;
+  }
+}
