@@ -111,6 +111,184 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 4,
+    name: 'seed_pca_case_studies',
+    up: (db) => {
+      // Get PCA certification ID
+      const pcaCert = db.prepare("SELECT id FROM certifications WHERE code = 'PCA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!pcaCert) {
+        console.log('  [migration] PCA certification not found, skipping case study seed');
+        return;
+      }
+
+      // Check if case studies already exist
+      const existingCount = db
+        .prepare('SELECT COUNT(*) as count FROM case_studies WHERE certification_id = ?')
+        .get(pcaCert.id) as { count: number };
+
+      if (existingCount.count > 0) {
+        console.log(`  [migration] Case studies already seeded (${existingCount.count} found)`);
+        return;
+      }
+
+      // PCA Case Studies data
+      const caseStudies = [
+        {
+          code: 'CYMBAL_RETAIL',
+          name: 'Cymbal Retail',
+          companyOverview:
+            'Cymbal is an online retailer experiencing significant growth. The retailer specializes in a large assortment of products spanning several retail sub-verticals, which makes managing their extensive product catalog a constant challenge.',
+          solutionConcept:
+            'Cymbal wants to modernize its operations and enhance the customer experience in three core areas: Catalog and Content Enrichment, Conversational Commerce with Product Discovery, and Technical Stack Modernization.',
+          existingTechnicalEnvironment:
+            'A mix of on-premises and cloud-based systems. Various databases including MySQL, SQL Server, Redis, MongoDB. Kubernetes clusters, legacy SFTP integrations, custom web application, IVR system, and open source monitoring tools.',
+          businessRequirements: JSON.stringify([
+            'Automate Product Catalog Enrichment',
+            'Improve Product Discoverability',
+            'Increase Customer Engagement',
+            'Drive Sales Conversion',
+            'Reduce costs',
+          ]),
+          technicalRequirements: JSON.stringify([
+            'Attribute Generation from supplier data',
+            'Image Generation and Enhancement',
+            'Automate Product Discovery with natural language',
+            'Scalability and Performance',
+            'Human-in-the-Loop Review UI',
+            'Data Security and Compliance',
+          ]),
+          executiveStatement:
+            'By implementing Google Cloud Generative AI solutions, Cymbal can transform its online retail operations to improve efficiency, enhance customer experience, and drive revenue growth.',
+          orderIndex: 1,
+        },
+        {
+          code: 'EHR_HEALTHCARE',
+          name: 'EHR Healthcare',
+          companyOverview:
+            'EHR Healthcare is a leading provider of electronic health record software to the medical industry, providing software as a service to multi-national medical offices, hospitals, and insurance providers.',
+          solutionConcept:
+            'Due to rapid changes in the healthcare industry, EHR Healthcare needs to scale their environment, adapt disaster recovery, and roll out continuous deployment capabilities. Google Cloud has been chosen to replace their colocation facilities.',
+          existingTechnicalEnvironment:
+            'Software hosted in multiple colocation facilities. Customer-facing apps are containerized on Kubernetes. Data in MySQL, MS SQL Server, Redis, MongoDB. Legacy file and API integrations on-premises. Microsoft Active Directory for users.',
+          businessRequirements: JSON.stringify([
+            'On-board new insurance providers quickly',
+            'Provide minimum 99.9% availability',
+            'Centralized visibility on system performance',
+            'Increase healthcare trend insights',
+            'Reduce latency to all customers',
+            'Maintain regulatory compliance',
+            'Decrease infrastructure costs',
+          ]),
+          technicalRequirements: JSON.stringify([
+            'Maintain legacy interfaces to insurance providers',
+            'Consistent container-based application management',
+            'Secure high-performance connection to Google Cloud',
+            'Consistent logging, monitoring, and alerting',
+            'Manage multiple container environments',
+            'Dynamic scaling and provisioning',
+          ]),
+          executiveStatement:
+            'We want to use Google Cloud to leverage a scalable, resilient platform that can span multiple environments seamlessly and provide a consistent and stable user experience that positions us for future growth.',
+          orderIndex: 2,
+        },
+        {
+          code: 'ALTOSTRAT_MEDIA',
+          name: 'Altostrat Media',
+          companyOverview:
+            'Altostrat is a prominent player in the media industry, with an extensive collection of audio and video content comprising podcasts, interviews, news broadcasts, and documentaries.',
+          solutionConcept:
+            'Altostrat seeks to modernize content management and user engagement using Google Cloud generative AI, empowering customers with personalized recommendations, natural language interactions, and seamless self-service support.',
+          existingTechnicalEnvironment:
+            'GKE for scalability, Cloud Storage for media library, BigQuery for analytics, Cloud Run for serverless tasks. Some legacy on-premises systems for content ingestion. Google Identity and third-party auth providers.',
+          businessRequirements: JSON.stringify([
+            'Accelerate operational workflows',
+            'Simplify infrastructure management',
+            'Optimize cloud storage costs',
+            'Enable natural language interaction',
+            'Auto-generate content summaries',
+            'Extract rich metadata from media',
+            'Detect inappropriate content',
+            'Analyze media for trends and insights',
+          ]),
+          technicalRequirements: JSON.stringify([
+            'Modernize CI/CD for containerized deployments',
+            'Secure hybrid cloud connectivity',
+            'Scalable kubernetes environments',
+            'Optimize storage costs',
+            'AI-powered harmful content detection',
+            'Auditable AI systems',
+            'LLMs for personalized experiences',
+            'Advanced chatbots with NLU',
+          ]),
+          executiveStatement:
+            'We are embracing AI to revolutionize our content strategy, creating an unparalleled user experience with intelligent tools for content discovery, personalized recommendations, and seamless interaction.',
+          orderIndex: 3,
+        },
+        {
+          code: 'KNIGHTMOTIVES_AUTO',
+          name: 'KnightMotives Automotive',
+          companyOverview:
+            'KnightMotives is a car manufacturer specializing in autonomous, self-driving vehicles including BEVs, hybrids, and ICE vehicles. They want to modernize the consumer experience across all vehicles within five years.',
+          solutionConcept:
+            'KnightMotives wants to shift from manufacturing cars to creating a complete "automotive experience" with consistent experience across models, AI-powered features, data monetization, and better tools for mechanics and salespeople.',
+          existingTechnicalEnvironment:
+            'Largely on-premises IT with some cloud. Outdated mainframe for supply chain, outdated ERP. Fragmented vehicle codebases with significant technical debt. Network connectivity challenges to plants and in rural areas.',
+          businessRequirements: JSON.stringify([
+            'Foster personalized driver relationships',
+            'Create better build-to-order model',
+            'Monetize corporate data',
+            'Security is paramount due to past breaches',
+            'EU data protection compliance',
+            'Invest in autonomous driving capabilities',
+            'Employee upskilling and talent attraction',
+          ]),
+          technicalRequirements: JSON.stringify([
+            'Modernize in-vehicle experience with AI',
+            'Network upgrades for data traffic',
+            'Hybrid cloud strategy',
+            'Autonomous vehicle development infrastructure',
+            'Robust data management platform',
+            'Comprehensive security framework',
+            'Improved online build-to-order system',
+          ]),
+          executiveStatement:
+            'KnightMotives is committed to enhancing safety and saving lives by leveraging data to create compelling digital experiences. Our AI consistently outperforms national safety statistics.',
+          orderIndex: 4,
+        },
+      ];
+
+      const insertStmt = db.prepare(`
+        INSERT INTO case_studies (
+          certification_id, code, name, company_overview, solution_concept,
+          existing_technical_environment, business_requirements, technical_requirements,
+          executive_statement, order_index, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const now = Date.now();
+      for (const cs of caseStudies) {
+        insertStmt.run(
+          pcaCert.id,
+          cs.code,
+          cs.name,
+          cs.companyOverview,
+          cs.solutionConcept,
+          cs.existingTechnicalEnvironment,
+          cs.businessRequirements,
+          cs.technicalRequirements,
+          cs.executiveStatement,
+          cs.orderIndex,
+          now
+        );
+      }
+
+      console.log(`  [migration] Seeded ${caseStudies.length} PCA case studies`);
+    },
+  },
 ];
 
 /**
