@@ -51,4 +51,5 @@ scripts/ralph-*/**
 # Task files
 tasks/*.json
 tasks/*.md
+!tasks/feature-backlog.md
 tasks/progress.txt
