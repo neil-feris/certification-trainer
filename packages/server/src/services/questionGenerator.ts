@@ -12,7 +12,12 @@ import type {
   OpenAIModel,
   CaseStudy,
 } from '@ace-prep/shared';
-import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from '@ace-prep/shared';
+import {
+  DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_OPENAI_MODEL,
+  OPENAI_MODELS,
+  usesMaxCompletionTokens,
+} from '@ace-prep/shared';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 // Helper to fetch case study by ID and convert to shared type
@@ -241,7 +246,7 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
 
     const response = await client.chat.completions.create({
       model,
-      max_tokens: 4096,
+      ...(usesMaxCompletionTokens(model) ? { max_completion_tokens: 4096 } : { max_tokens: 4096 }),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },

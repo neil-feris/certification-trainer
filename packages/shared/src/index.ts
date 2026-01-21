@@ -65,6 +65,21 @@ export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
 export type OpenAIModel = (typeof OPENAI_MODELS)[number];
 export type LLMModel = AnthropicModel | OpenAIModel;
 
+// Models that use max_completion_tokens instead of max_tokens
+const MODELS_WITH_COMPLETION_TOKENS = [
+  'gpt-5.2',
+  'gpt-5.2-mini',
+  'o3',
+  'o3-pro',
+  'o3-mini',
+  'o4-mini',
+] as const;
+
+// Helper to check if a model uses max_completion_tokens parameter
+export function usesMaxCompletionTokens(model: string): boolean {
+  return MODELS_WITH_COMPLETION_TOKENS.some((m) => model.startsWith(m) || model === m);
+}
+
 export const DEFAULT_ANTHROPIC_MODEL: AnthropicModel = 'claude-sonnet-4-5-20250929';
 export const DEFAULT_OPENAI_MODEL: OpenAIModel = 'gpt-5.2';
 
