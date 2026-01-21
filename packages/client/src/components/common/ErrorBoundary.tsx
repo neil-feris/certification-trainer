@@ -1,16 +1,19 @@
 import { Component, ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
 import styles from './ErrorBoundary.module.css';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  showUserFeedback?: boolean;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   showDetails: boolean;
+  eventId: string | null;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -20,6 +23,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       hasError: false,
       error: null,
       showDetails: false,
+      eventId: null,
     };
   }
 
@@ -31,6 +35,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error('[ErrorBoundary] Caught error:', error);
     console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
 
+    // Report error to Sentry with component stack as extra context
+    const eventId = Sentry.captureException(error, {
+      extra: {
+        componentStack: errorInfo.componentStack,
+      },
+    });
+
+    this.setState({ eventId });
+
     this.props.onError?.(error, errorInfo);
   }
 
@@ -39,7 +52,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       hasError: false,
       error: null,
       showDetails: false,
+      eventId: null,
     });
+  };
+
+  handleUserFeedback = (): void => {
+    if (this.state.eventId) {
+      Sentry.showReportDialog({ eventId: this.state.eventId });
+    }
   };
 
   toggleDetails = (): void => {
@@ -64,6 +84,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <button className={styles.retryBtn} onClick={this.handleReset}>
               Try Again
             </button>
+            {this.props.showUserFeedback && this.state.eventId && (
+              <button className={styles.feedbackBtn} onClick={this.handleUserFeedback}>
+                Report Feedback
+              </button>
+            )}
           </div>
 
           {this.state.error && (
