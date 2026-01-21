@@ -342,7 +342,7 @@ describe('reviewRatingSchema', () => {
 
 describe('startStudySessionSchema', () => {
   it('should accept valid session types', () => {
-    for (const sessionType of ['practice', 'review', 'weak_areas'] as const) {
+    for (const sessionType of ['topic_practice', 'learning_path'] as const) {
       const result = startStudySessionSchema.safeParse({ sessionType });
       expect(result.success).toBe(true);
     }
@@ -354,7 +354,7 @@ describe('startStudySessionSchema', () => {
   });
 
   it('should apply default questionCount', () => {
-    const result = startStudySessionSchema.safeParse({ sessionType: 'practice' });
+    const result = startStudySessionSchema.safeParse({ sessionType: 'topic_practice' });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.questionCount).toBe(10);
@@ -363,7 +363,7 @@ describe('startStudySessionSchema', () => {
 
   it('should enforce max 50 questions', () => {
     const result = startStudySessionSchema.safeParse({
-      sessionType: 'practice',
+      sessionType: 'topic_practice',
       questionCount: 51,
     });
     expect(result.success).toBe(false);
@@ -371,7 +371,7 @@ describe('startStudySessionSchema', () => {
 
   it('should accept optional topicId and domainId', () => {
     const result = startStudySessionSchema.safeParse({
-      sessionType: 'practice',
+      sessionType: 'topic_practice',
       topicId: 1,
       domainId: 2,
     });
