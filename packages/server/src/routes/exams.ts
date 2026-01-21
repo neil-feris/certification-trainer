@@ -12,6 +12,7 @@ import {
   formatZodError,
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
+import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -76,22 +77,7 @@ export async function examRoutes(fastify: FastifyInstance) {
           gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
           domain: r.domain,
           topic: r.topic,
-          caseStudy: r.caseStudy
-            ? {
-                id: r.caseStudy.id,
-                certificationId: r.caseStudy.certificationId,
-                code: r.caseStudy.code,
-                name: r.caseStudy.name,
-                companyOverview: r.caseStudy.companyOverview,
-                solutionConcept: r.caseStudy.solutionConcept,
-                existingTechnicalEnvironment: r.caseStudy.existingTechnicalEnvironment,
-                businessRequirements: JSON.parse(r.caseStudy.businessRequirements),
-                technicalRequirements: JSON.parse(r.caseStudy.technicalRequirements),
-                executiveStatement: r.caseStudy.executiveStatement,
-                orderIndex: r.caseStudy.orderIndex,
-                createdAt: r.caseStudy.createdAt,
-              }
-            : undefined,
+          caseStudy: mapCaseStudyRecord(r.caseStudy),
         },
       })),
     };
@@ -392,22 +378,7 @@ export async function examRoutes(fastify: FastifyInstance) {
           gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
           domain: r.domain,
           topic: r.topic,
-          caseStudy: r.caseStudy
-            ? {
-                id: r.caseStudy.id,
-                certificationId: r.caseStudy.certificationId,
-                code: r.caseStudy.code,
-                name: r.caseStudy.name,
-                companyOverview: r.caseStudy.companyOverview,
-                solutionConcept: r.caseStudy.solutionConcept,
-                existingTechnicalEnvironment: r.caseStudy.existingTechnicalEnvironment,
-                businessRequirements: JSON.parse(r.caseStudy.businessRequirements),
-                technicalRequirements: JSON.parse(r.caseStudy.technicalRequirements),
-                executiveStatement: r.caseStudy.executiveStatement,
-                orderIndex: r.caseStudy.orderIndex,
-                createdAt: r.caseStudy.createdAt,
-              }
-            : undefined,
+          caseStudy: mapCaseStudyRecord(r.caseStudy),
         },
       })),
       domainPerformance: Object.values(domainStats).map((s) => ({

@@ -13,25 +13,12 @@ import type {
   CaseStudy,
 } from '@ace-prep/shared';
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from '@ace-prep/shared';
+import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 // Helper to fetch case study by ID and convert to shared type
 export async function fetchCaseStudyById(caseStudyId: number): Promise<CaseStudy | null> {
   const [result] = await db.select().from(caseStudies).where(eq(caseStudies.id, caseStudyId));
-  if (!result) return null;
-  return {
-    id: result.id,
-    certificationId: result.certificationId,
-    code: result.code,
-    name: result.name,
-    companyOverview: result.companyOverview,
-    solutionConcept: result.solutionConcept,
-    existingTechnicalEnvironment: result.existingTechnicalEnvironment,
-    businessRequirements: JSON.parse(result.businessRequirements),
-    technicalRequirements: JSON.parse(result.technicalRequirements),
-    executiveStatement: result.executiveStatement,
-    orderIndex: result.orderIndex,
-    createdAt: result.createdAt,
-  };
+  return mapCaseStudyRecord(result ?? null) ?? null;
 }
 
 // Helper to check if a model is an OpenAI model

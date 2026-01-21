@@ -39,6 +39,7 @@ import {
   formatZodError,
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
+import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -475,22 +476,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
             name: q.topic.name,
             description: q.topic.description,
           },
-          caseStudy: q.caseStudy
-            ? {
-                id: q.caseStudy.id,
-                certificationId: q.caseStudy.certificationId,
-                code: q.caseStudy.code,
-                name: q.caseStudy.name,
-                companyOverview: q.caseStudy.companyOverview,
-                solutionConcept: q.caseStudy.solutionConcept,
-                existingTechnicalEnvironment: q.caseStudy.existingTechnicalEnvironment,
-                businessRequirements: JSON.parse(q.caseStudy.businessRequirements),
-                technicalRequirements: JSON.parse(q.caseStudy.technicalRequirements),
-                executiveStatement: q.caseStudy.executiveStatement,
-                orderIndex: q.caseStudy.orderIndex,
-                createdAt: q.caseStudy.createdAt,
-              }
-            : undefined,
+          caseStudy: mapCaseStudyRecord(q.caseStudy),
         }));
       }
 
@@ -814,22 +800,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
             caseStudyId: q.question.caseStudyId ?? undefined,
             domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
             topic: { id: q.topic.id, name: q.topic.name },
-            caseStudy: q.caseStudy
-              ? {
-                  id: q.caseStudy.id,
-                  certificationId: q.caseStudy.certificationId,
-                  code: q.caseStudy.code,
-                  name: q.caseStudy.name,
-                  companyOverview: q.caseStudy.companyOverview,
-                  solutionConcept: q.caseStudy.solutionConcept,
-                  existingTechnicalEnvironment: q.caseStudy.existingTechnicalEnvironment,
-                  businessRequirements: JSON.parse(q.caseStudy.businessRequirements),
-                  technicalRequirements: JSON.parse(q.caseStudy.technicalRequirements),
-                  executiveStatement: q.caseStudy.executiveStatement,
-                  orderIndex: q.caseStudy.orderIndex,
-                  createdAt: q.caseStudy.createdAt,
-                }
-              : undefined,
+            caseStudy: mapCaseStudyRecord(q.caseStudy),
           };
           // Only reveal answers for already-answered questions
           if (answeredQuestionIds.has(q.question.id)) {
@@ -1249,22 +1220,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       caseStudyId: q.question.caseStudyId ?? undefined,
       domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
       topic: { id: q.topic.id, name: q.topic.name },
-      caseStudy: q.caseStudy
-        ? {
-            id: q.caseStudy.id,
-            certificationId: q.caseStudy.certificationId,
-            code: q.caseStudy.code,
-            name: q.caseStudy.name,
-            companyOverview: q.caseStudy.companyOverview,
-            solutionConcept: q.caseStudy.solutionConcept,
-            existingTechnicalEnvironment: q.caseStudy.existingTechnicalEnvironment,
-            businessRequirements: JSON.parse(q.caseStudy.businessRequirements),
-            technicalRequirements: JSON.parse(q.caseStudy.technicalRequirements),
-            executiveStatement: q.caseStudy.executiveStatement,
-            orderIndex: q.caseStudy.orderIndex,
-            createdAt: q.caseStudy.createdAt,
-          }
-        : undefined,
+      caseStudy: mapCaseStudyRecord(q.caseStudy),
     }));
   });
 

@@ -5,6 +5,7 @@ import { eq, asc } from 'drizzle-orm';
 import { idParamSchema, formatZodError } from '../validation/schemas.js';
 import type { GetCaseStudiesResponse, GetCaseStudyResponse } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
+import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 export async function caseStudyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -33,18 +34,7 @@ export async function caseStudyRoutes(fastify: FastifyInstance) {
 
     const response: GetCaseStudiesResponse = {
       caseStudies: results.map((r) => ({
-        id: r.caseStudy.id,
-        certificationId: r.caseStudy.certificationId,
-        code: r.caseStudy.code,
-        name: r.caseStudy.name,
-        companyOverview: r.caseStudy.companyOverview,
-        solutionConcept: r.caseStudy.solutionConcept,
-        existingTechnicalEnvironment: r.caseStudy.existingTechnicalEnvironment,
-        businessRequirements: JSON.parse(r.caseStudy.businessRequirements),
-        technicalRequirements: JSON.parse(r.caseStudy.technicalRequirements),
-        executiveStatement: r.caseStudy.executiveStatement,
-        orderIndex: r.caseStudy.orderIndex,
-        createdAt: r.caseStudy.createdAt,
+        ...mapCaseStudyRecord(r.caseStudy)!,
         certification: r.certification,
       })),
     };
@@ -79,18 +69,7 @@ export async function caseStudyRoutes(fastify: FastifyInstance) {
 
     const response: GetCaseStudyResponse = {
       caseStudy: {
-        id: result.caseStudy.id,
-        certificationId: result.caseStudy.certificationId,
-        code: result.caseStudy.code,
-        name: result.caseStudy.name,
-        companyOverview: result.caseStudy.companyOverview,
-        solutionConcept: result.caseStudy.solutionConcept,
-        existingTechnicalEnvironment: result.caseStudy.existingTechnicalEnvironment,
-        businessRequirements: JSON.parse(result.caseStudy.businessRequirements),
-        technicalRequirements: JSON.parse(result.caseStudy.technicalRequirements),
-        executiveStatement: result.caseStudy.executiveStatement,
-        orderIndex: result.caseStudy.orderIndex,
-        createdAt: result.caseStudy.createdAt,
+        ...mapCaseStudyRecord(result.caseStudy)!,
         certification: result.certification,
       },
     };

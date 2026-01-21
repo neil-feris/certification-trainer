@@ -26,6 +26,7 @@ import type {
   QuestionFilterOptions,
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
+import { mapCaseStudyRecord } from '../utils/mappers.js';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
@@ -152,22 +153,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       isGenerated: r.question.isGenerated ?? false,
       domain: r.domain,
       topic: r.topic,
-      caseStudy: r.caseStudy
-        ? {
-            id: r.caseStudy.id,
-            certificationId: r.caseStudy.certificationId,
-            code: r.caseStudy.code,
-            name: r.caseStudy.name,
-            companyOverview: r.caseStudy.companyOverview,
-            solutionConcept: r.caseStudy.solutionConcept,
-            existingTechnicalEnvironment: r.caseStudy.existingTechnicalEnvironment,
-            businessRequirements: JSON.parse(r.caseStudy.businessRequirements),
-            technicalRequirements: JSON.parse(r.caseStudy.technicalRequirements),
-            executiveStatement: r.caseStudy.executiveStatement,
-            orderIndex: r.caseStudy.orderIndex,
-            createdAt: r.caseStudy.createdAt,
-          }
-        : undefined,
+      caseStudy: mapCaseStudyRecord(r.caseStudy),
     }));
 
     const response: PaginatedResponse<QuestionWithDomain> = {
