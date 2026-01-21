@@ -201,13 +201,29 @@ export async function studyRoutes(fastify: FastifyInstance) {
         completedAt: now,
       });
 
-      // Update streak since this is a new completion
-      const streakResult = await updateStreak(userId);
+      // Update streak since this is a new completion with error handling
+      let streakUpdate;
+      try {
+        const streakResult = await updateStreak(userId);
+        streakUpdate = streakResult.streakUpdate;
+      } catch (error) {
+        // Log error but don't fail the learning path completion
+        fastify.log.error(
+          {
+            userId,
+            order,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to update streak after learning path completion'
+        );
+        // Graceful degradation - streak update is non-critical
+        streakUpdate = undefined;
+      }
 
       return {
         isCompleted: true,
         completedAt: now,
-        streakUpdate: streakResult.streakUpdate,
+        streakUpdate,
       };
     }
   );
@@ -1142,15 +1158,31 @@ export async function studyRoutes(fastify: FastifyInstance) {
         .run();
     });
 
-    // Update streak after session completion
-    const streakResult = await updateStreak(userId);
+    // Update streak after session completion with error handling
+    let streakUpdate;
+    try {
+      const streakResult = await updateStreak(userId);
+      streakUpdate = streakResult.streakUpdate;
+    } catch (error) {
+      // Log error but don't fail the study session completion
+      fastify.log.error(
+        {
+          userId,
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to update streak after study session completion'
+      );
+      // Graceful degradation - streak update is non-critical
+      streakUpdate = undefined;
+    }
 
     const result = {
       score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
       correctCount: actualCorrect,
       totalCount: actualTotal,
       addedToSRCount: actualAddedToSR,
-      streakUpdate: streakResult.streakUpdate,
+      streakUpdate,
     };
 
     return result;

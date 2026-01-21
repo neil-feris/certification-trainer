@@ -41,3 +41,14 @@ coverage/
 
 # Claude settings (local only)
 .claude/settings.local.json
+
+# Documentation PDFs
+docs/**/*.pdf
+
+# Ralph scripts
+scripts/ralph-*/**
+
+# Task files
+tasks/*.json
+tasks/*.md
+tasks/progress.txt
