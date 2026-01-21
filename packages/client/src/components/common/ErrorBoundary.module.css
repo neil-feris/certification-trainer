@@ -77,6 +77,28 @@
   background: var(--bg-elevated);
 }
 
+.feedbackBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.feedbackBtn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .details {
   margin-top: 32px;
   width: 100%;

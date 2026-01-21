@@ -14,6 +14,9 @@
  * 5. Securing API key storage with proper encryption
  */
 
+// IMPORTANT: Sentry must be imported first for proper auto-instrumentation
+import { Sentry } from './instrument.js';
+
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Fastify from 'fastify';
@@ -50,6 +53,10 @@ const fastify = Fastify({
         },
       },
 });
+
+// Setup Sentry error handler for Fastify
+// This captures all unhandled errors and sends them to Sentry
+Sentry.setupFastifyErrorHandler(fastify);
 
 // Register CORS
 const allowedOrigins = isProduction

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import * as Sentry from '@sentry/react';
 import { examApi } from '../api/client';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
 import { queryClient } from '../lib/queryClient';
@@ -66,26 +67,37 @@ export const useExamStore = create<ExamState>()(
       isSubmitting: false,
 
       startExam: (examId, questions) => {
-        const responses = new Map<number, ExamResponse>();
-        questions.forEach((q) => {
-          responses.set(q.id, {
-            questionId: q.id,
-            selectedAnswers: [],
-            isCorrect: null,
-            flagged: false,
-            timeSpentSeconds: 0,
-          });
-        });
+        Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Start Exam',
+          },
+          (span) => {
+            span.setAttribute('exam.id', examId);
+            span.setAttribute('exam.question_count', questions.length);
 
-        set({
-          examId,
-          questions,
-          responses,
-          currentQuestionIndex: 0,
-          startTime: Date.now(),
-          timeRemaining: EXAM_DURATION,
-          isSubmitting: false,
-        });
+            const responses = new Map<number, ExamResponse>();
+            questions.forEach((q) => {
+              responses.set(q.id, {
+                questionId: q.id,
+                selectedAnswers: [],
+                isCorrect: null,
+                flagged: false,
+                timeSpentSeconds: 0,
+              });
+            });
+
+            set({
+              examId,
+              questions,
+              responses,
+              currentQuestionIndex: 0,
+              startTime: Date.now(),
+              timeRemaining: EXAM_DURATION,
+              isSubmitting: false,
+            });
+          }
+        );
       },
 
       setCurrentQuestion: (index) => {
@@ -96,26 +108,44 @@ export const useExamStore = create<ExamState>()(
       },
 
       answerQuestion: (questionId, selectedAnswers) => {
-        const { responses, questions } = get();
-        const question = questions.find((q) => q.id === questionId);
-        if (!question) return;
+        Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Submit Answer',
+          },
+          (span) => {
+            const { responses, questions, examId } = get();
+            const question = questions.find((q) => q.id === questionId);
+            if (!question) return;
 
-        const newResponses = new Map(responses);
-        const existing = newResponses.get(questionId);
+            span.setAttribute('exam.id', examId || 0);
+            span.setAttribute('question.id', questionId);
+            span.setAttribute('question.type', question.questionType);
+            span.setAttribute('question.difficulty', question.difficulty);
+            span.setAttribute('question.domain', question.domain.name);
+            span.setAttribute('question.topic', question.topic.name);
 
-        // Check if answer is correct
-        const isCorrect =
-          selectedAnswers.length === question.correctAnswers.length &&
-          selectedAnswers.every((a) => question.correctAnswers.includes(a)) &&
-          question.correctAnswers.every((a) => selectedAnswers.includes(a));
+            const newResponses = new Map(responses);
+            const existing = newResponses.get(questionId);
 
-        newResponses.set(questionId, {
-          ...existing!,
-          selectedAnswers,
-          isCorrect,
-        });
+            // Check if answer is correct
+            const isCorrect =
+              selectedAnswers.length === question.correctAnswers.length &&
+              selectedAnswers.every((a) => question.correctAnswers.includes(a)) &&
+              question.correctAnswers.every((a) => selectedAnswers.includes(a));
 
-        set({ responses: newResponses });
+            span.setAttribute('answer.is_correct', isCorrect);
+            span.setAttribute('answer.selected_count', selectedAnswers.length);
+
+            newResponses.set(questionId, {
+              ...existing!,
+              selectedAnswers,
+              isCorrect,
+            });
+
+            set({ responses: newResponses });
+          }
+        );
       },
 
       toggleFlag: (questionId) => {
@@ -136,37 +166,61 @@ export const useExamStore = create<ExamState>()(
       },
 
       submitExam: async () => {
-        const { examId, startTime, responses } = get();
+        const { examId, startTime, responses, questions } = get();
         if (!examId || !startTime) return;
 
         set({ isSubmitting: true });
 
-        try {
-          const totalTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+        await Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Complete Exam',
+          },
+          async (span) => {
+            try {
+              const totalTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+              span.setAttribute('exam.id', examId);
+              span.setAttribute('exam.total_time_seconds', totalTimeSeconds);
+              span.setAttribute('exam.question_count', questions.length);
 
-          // Submit answers to API using client
-          const responsesArray = Array.from(responses.values());
-          for (const response of responsesArray) {
-            if (response.selectedAnswers.length > 0) {
-              await examApi.submitAnswer(examId, {
-                questionId: response.questionId,
-                selectedAnswers: response.selectedAnswers,
-                timeSpentSeconds: response.timeSpentSeconds,
-              });
+              // Calculate score from responses
+              const responsesArray = Array.from(responses.values());
+              const answeredCount = responsesArray.filter(
+                (r) => r.selectedAnswers.length > 0
+              ).length;
+              const correctCount = responsesArray.filter((r) => r.isCorrect === true).length;
+
+              span.setAttribute('exam.answered_count', answeredCount);
+              span.setAttribute('exam.correct_count', correctCount);
+              span.setAttribute(
+                'exam.score_percentage',
+                answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0
+              );
+
+              // Submit answers to API using client
+              for (const response of responsesArray) {
+                if (response.selectedAnswers.length > 0) {
+                  await examApi.submitAnswer(examId, {
+                    questionId: response.questionId,
+                    selectedAnswers: response.selectedAnswers,
+                    timeSpentSeconds: response.timeSpentSeconds,
+                  });
+                }
+              }
+
+              // Complete the exam using client
+              const result = await examApi.complete(examId, totalTimeSeconds);
+
+              // Show milestone toast if applicable
+              showStreakMilestoneToast(result.streakUpdate);
+
+              // Invalidate streak query to refresh displays
+              queryClient.invalidateQueries({ queryKey: ['streak'] });
+            } finally {
+              set({ isSubmitting: false });
             }
           }
-
-          // Complete the exam using client
-          const result = await examApi.complete(examId, totalTimeSeconds);
-
-          // Show milestone toast if applicable
-          showStreakMilestoneToast(result.streakUpdate);
-
-          // Invalidate streak query to refresh displays
-          queryClient.invalidateQueries({ queryKey: ['streak'] });
-        } finally {
-          set({ isSubmitting: false });
-        }
+        );
       },
 
       resetExam: () => {

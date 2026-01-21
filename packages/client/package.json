@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ace-prep/shared": "*",
+    "@sentry/react": "^10.36.0",
     "@tanstack/react-query": "^5.64.1",
     "idb-keyval": "^6.2.2",
     "react": "^18.3.1",
