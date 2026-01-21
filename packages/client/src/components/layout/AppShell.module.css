@@ -167,6 +167,10 @@
 }
 
 @media (max-width: 768px) {
+  .shell {
+    flex-direction: column;
+  }
+
   .sidebar {
     display: none;
   }

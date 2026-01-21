@@ -107,7 +107,7 @@ export const reviewRatingSchema = z.object({
 
 export const startStudySessionSchema = z.object({
   certificationId: z.number().int().positive().optional(),
-  sessionType: z.enum(['practice', 'review', 'weak_areas']),
+  sessionType: z.enum(['topic_practice', 'learning_path']),
   topicId: z.number().int().positive().optional(),
   domainId: z.number().int().positive().optional(),
   questionCount: z.number().int().positive().max(50).optional().default(10),

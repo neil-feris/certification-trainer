@@ -35,6 +35,7 @@
 .streakFull {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
   transition: all var(--transition-fast);
 }
@@ -74,7 +75,6 @@
 .longestStreak {
   font-size: 12px;
   color: var(--text-muted);
-  padding-left: 32px; /* Align with number after flame icon */
 }
 
 @media (max-width: 768px) {
