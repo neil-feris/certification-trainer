@@ -10,7 +10,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ## Phase 1: Engagement & Retention
 
 ### FEAT-001: Daily Study Streaks
-- **Status**: `[~]`
+- **Status**: `[x]`
 - **Priority**: P0 (High Impact, Low Effort)
 - **Category**: Gamification
 
