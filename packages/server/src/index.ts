@@ -22,6 +22,7 @@ import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 
+import { runStartupMigrations } from './db/startupMigrations.js';
 import { certificationRoutes } from './routes/certifications.js';
 import { caseStudyRoutes } from './routes/caseStudies.js';
 import { examRoutes } from './routes/exams.js';
@@ -113,6 +114,9 @@ if (isProduction) {
 // Start server
 const start = async () => {
   try {
+    // Run database migrations before starting
+    runStartupMigrations();
+
     const port = parseInt(process.env.PORT || '3001', 10);
     const host = process.env.HOST || '127.0.0.1';
     await fastify.listen({ port, host });
