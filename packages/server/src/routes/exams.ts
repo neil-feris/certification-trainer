@@ -13,6 +13,7 @@ import {
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
+import { updateStreak } from '../services/streakService.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -291,7 +292,13 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Exam already completed or abandoned' });
     }
 
-    return txResult.exam;
+    // Update streak after exam completion
+    const streakResult = await updateStreak(userId);
+
+    return {
+      ...txResult.exam,
+      streakUpdate: streakResult.streakUpdate,
+    };
   });
 
   // Abandon exam
