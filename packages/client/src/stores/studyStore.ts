@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import * as Sentry from '@sentry/react';
 import { studyApi } from '../api/client';
 import { getCachedQuestions } from '../services/offlineStorage';
 import { queueResponse, type OfflineSessionContext } from '../services/syncQueue';
@@ -104,31 +105,101 @@ export const useStudyStore = create<StudySessionState>()(
       ...initialState,
 
       startSession: async (type, topicId, domainId) => {
-        set({ isLoading: true });
+        await Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Start Study Session',
+          },
+          async (span) => {
+            span.setAttribute('session.type', type);
+            if (topicId) span.setAttribute('session.topic_id', topicId);
+            if (domainId) span.setAttribute('session.domain_id', domainId);
 
-        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+            set({ isLoading: true });
 
-        // If offline, try to use cached questions
-        if (isOffline && topicId) {
-          try {
-            const cachedQuestions = await getCachedQuestions(topicId);
-            if (cachedQuestions.length > 0) {
-              // Take up to 10 questions for offline practice
-              const questions = cachedQuestions.slice(0, 10).map((q: Question) => ({
-                id: q.id,
-                questionText: q.questionText,
-                questionType: q.questionType,
-                options: q.options,
-                correctAnswers: q.correctAnswers,
-                explanation: q.explanation,
-                difficulty: q.difficulty,
-                gcpServices: q.gcpServices,
-                domain: { id: q.domainId, name: '', code: '' },
-                topic: { id: q.topicId, name: '' },
-              }));
+            const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+            span.setAttribute('session.is_offline', isOffline);
+
+            // If offline, try to use cached questions
+            if (isOffline && topicId) {
+              try {
+                const cachedQuestions = await getCachedQuestions(topicId);
+                if (cachedQuestions.length > 0) {
+                  // Take up to 10 questions for offline practice
+                  const questions = cachedQuestions.slice(0, 10).map((q: Question) => ({
+                    id: q.id,
+                    questionText: q.questionText,
+                    questionType: q.questionType,
+                    options: q.options,
+                    correctAnswers: q.correctAnswers,
+                    explanation: q.explanation,
+                    difficulty: q.difficulty,
+                    gcpServices: q.gcpServices,
+                    domain: { id: q.domainId, name: '', code: '' },
+                    topic: { id: q.topicId, name: '' },
+                  }));
+
+                  span.setAttribute('session.question_count', questions.length);
+
+                  const responses = new Map<number, StudyResponse>();
+                  questions.forEach((q) => {
+                    responses.set(q.id, {
+                      questionId: q.id,
+                      selectedAnswers: [],
+                      isCorrect: null,
+                      timeSpentSeconds: 0,
+                      addedToSR: false,
+                    });
+                  });
+
+                  // Generate unique negative ID using cryptographic randomness
+                  // Uses 40 bits of timestamp (~35 years) + 12 bits crypto random = 52 bits
+                  // Stays safely within Number.MAX_SAFE_INTEGER (53 bits)
+                  const timestamp = Date.now() & 0xffffffffff; // 40 bits
+                  const randomBits = crypto.getRandomValues(new Uint16Array(1))[0] & 0xfff; // 12 bits
+                  const offlineSessionId = -(timestamp * 0x1000 + randomBits);
+
+                  set({
+                    sessionId: offlineSessionId,
+                    sessionType: type,
+                    topicId: topicId || null,
+                    domainId: domainId || null,
+                    isOfflineMode: true,
+                    questions,
+                    responses,
+                    currentQuestionIndex: 0,
+                    startTime: Date.now(),
+                    questionStartTime: Date.now(),
+                    isRevealed: false,
+                    showSummary: false,
+                    isLoading: false,
+                    needsRecovery: false,
+                  });
+                  return;
+                }
+              } catch (error) {
+                console.error('Failed to load cached questions:', error);
+                Sentry.captureException(error, {
+                  extra: { topicId, type, isOffline: true },
+                });
+              }
+              set({ isLoading: false });
+              throw new Error('No cached questions available for offline practice');
+            }
+
+            try {
+              const result = await studyApi.createSession({
+                sessionType: type,
+                topicId,
+                domainId,
+                questionCount: 10,
+              });
+
+              span.setAttribute('session.id', result.sessionId);
+              span.setAttribute('session.question_count', result.questions.length);
 
               const responses = new Map<number, StudyResponse>();
-              questions.forEach((q) => {
+              result.questions.forEach((q) => {
                 responses.set(q.id, {
                   questionId: q.id,
                   selectedAnswers: [],
@@ -138,20 +209,13 @@ export const useStudyStore = create<StudySessionState>()(
                 });
               });
 
-              // Generate unique negative ID using cryptographic randomness
-              // Uses 40 bits of timestamp (~35 years) + 12 bits crypto random = 52 bits
-              // Stays safely within Number.MAX_SAFE_INTEGER (53 bits)
-              const timestamp = Date.now() & 0xffffffffff; // 40 bits
-              const randomBits = crypto.getRandomValues(new Uint16Array(1))[0] & 0xfff; // 12 bits
-              const offlineSessionId = -(timestamp * 0x1000 + randomBits);
-
               set({
-                sessionId: offlineSessionId,
+                sessionId: result.sessionId,
                 sessionType: type,
                 topicId: topicId || null,
                 domainId: domainId || null,
-                isOfflineMode: true,
-                questions,
+                isOfflineMode: false,
+                questions: result.questions,
                 responses,
                 currentQuestionIndex: 0,
                 startTime: Date.now(),
@@ -161,70 +225,47 @@ export const useStudyStore = create<StudySessionState>()(
                 isLoading: false,
                 needsRecovery: false,
               });
-              return;
+            } catch (error) {
+              set({ isLoading: false });
+              Sentry.captureException(error, {
+                extra: { topicId, domainId, type },
+              });
+              throw error;
             }
-          } catch (error) {
-            console.error('Failed to load cached questions:', error);
           }
-          set({ isLoading: false });
-          throw new Error('No cached questions available for offline practice');
-        }
-
-        try {
-          const result = await studyApi.createSession({
-            sessionType: type,
-            topicId,
-            domainId,
-            questionCount: 10,
-          });
-
-          const responses = new Map<number, StudyResponse>();
-          result.questions.forEach((q) => {
-            responses.set(q.id, {
-              questionId: q.id,
-              selectedAnswers: [],
-              isCorrect: null,
-              timeSpentSeconds: 0,
-              addedToSR: false,
-            });
-          });
-
-          set({
-            sessionId: result.sessionId,
-            sessionType: type,
-            topicId: topicId || null,
-            domainId: domainId || null,
-            isOfflineMode: false,
-            questions: result.questions,
-            responses,
-            currentQuestionIndex: 0,
-            startTime: Date.now(),
-            questionStartTime: Date.now(),
-            isRevealed: false,
-            showSummary: false,
-            isLoading: false,
-            needsRecovery: false,
-          });
-        } catch (error) {
-          set({ isLoading: false });
-          throw error;
-        }
+        );
       },
 
       answerQuestion: (questionId, selectedAnswers) => {
-        const { responses, questions } = get();
-        const question = questions.find((q) => q.id === questionId);
-        if (!question) return;
+        Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Study Answer Question',
+          },
+          (span) => {
+            const { responses, questions, sessionId } = get();
+            const question = questions.find((q) => q.id === questionId);
+            if (!question) return;
 
-        const newResponses = new Map(responses);
-        const existing = newResponses.get(questionId);
+            span.setAttribute('session.id', sessionId || 0);
+            span.setAttribute('question.id', questionId);
+            span.setAttribute('question.type', question.questionType);
+            span.setAttribute('question.difficulty', question.difficulty);
+            span.setAttribute('question.domain', question.domain.name);
+            span.setAttribute('question.topic', question.topic.name);
+            span.setAttribute('answer.selected_count', selectedAnswers.length);
 
-        newResponses.set(questionId, {
-          ...existing!,
-          selectedAnswers,
-        });
+            const newResponses = new Map(responses);
+            const existing = newResponses.get(questionId);
 
-        set({ responses: newResponses });
+            newResponses.set(questionId, {
+              ...existing!,
+              selectedAnswers,
+            });
+
+            set({ responses: newResponses });
+          }
+        );
       },
 
       revealAnswer: async () => {
@@ -373,52 +414,92 @@ export const useStudyStore = create<StudySessionState>()(
       },
 
       completeSession: async () => {
-        const { sessionId, responses, startTime, isOfflineMode, questions } = get();
+        const {
+          sessionId,
+          responses,
+          startTime,
+          isOfflineMode,
+          questions,
+          sessionType,
+          topicId,
+          domainId,
+        } = get();
         if (!sessionId) {
           throw new Error('No active session');
         }
 
-        // In offline mode, calculate results locally
-        if (isOfflineMode) {
-          const responsesArr = Array.from(responses.values());
-          const correctCount = responsesArr.filter((r) => r.isCorrect).length;
-          const totalCount = questions.length;
-          const score = Math.round((correctCount / totalCount) * 100);
+        return await Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Complete Study Session',
+          },
+          async (span) => {
+            span.setAttribute('session.id', sessionId);
+            span.setAttribute('session.type', sessionType || 'unknown');
+            span.setAttribute('session.is_offline', isOfflineMode);
+            if (topicId) span.setAttribute('session.topic_id', topicId);
+            if (domainId) span.setAttribute('session.domain_id', domainId);
 
-          // Reset state after completion
-          set(initialState);
+            // In offline mode, calculate results locally
+            if (isOfflineMode) {
+              const responsesArr = Array.from(responses.values());
+              const correctCount = responsesArr.filter((r) => r.isCorrect).length;
+              const totalCount = questions.length;
+              const score = Math.round((correctCount / totalCount) * 100);
 
-          return {
-            score,
-            correctCount,
-            totalCount,
-            addedToSRCount: 0, // Can't add to SR in offline mode
-          };
-        }
+              span.setAttribute('session.question_count', totalCount);
+              span.setAttribute('session.correct_count', correctCount);
+              span.setAttribute('session.score_percentage', score);
 
-        const totalTimeSeconds = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+              // Reset state after completion
+              set(initialState);
 
-        const responsesArray = Array.from(responses.values()).map((r) => ({
-          questionId: r.questionId,
-          selectedAnswers: r.selectedAnswers,
-          timeSpentSeconds: r.timeSpentSeconds,
-        }));
+              return {
+                score,
+                correctCount,
+                totalCount,
+                addedToSRCount: 0, // Can't add to SR in offline mode
+              };
+            }
 
-        const result = await studyApi.completeSession(sessionId, {
-          responses: responsesArray,
-          totalTimeSeconds,
-        });
+            const totalTimeSeconds = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+            span.setAttribute('session.total_time_seconds', totalTimeSeconds);
+            span.setAttribute('session.question_count', questions.length);
 
-        // Show milestone toast if applicable
-        showStreakMilestoneToast(result.streakUpdate);
+            const responsesArray = Array.from(responses.values()).map((r) => ({
+              questionId: r.questionId,
+              selectedAnswers: r.selectedAnswers,
+              timeSpentSeconds: r.timeSpentSeconds,
+            }));
 
-        // Invalidate streak query to refresh displays
-        queryClient.invalidateQueries({ queryKey: ['streak'] });
+            try {
+              const result = await studyApi.completeSession(sessionId, {
+                responses: responsesArray,
+                totalTimeSeconds,
+              });
 
-        // Reset state after completion
-        set(initialState);
+              span.setAttribute('session.correct_count', result.correctCount);
+              span.setAttribute('session.score_percentage', result.score);
+              span.setAttribute('session.added_to_sr_count', result.addedToSRCount);
 
-        return result;
+              // Show milestone toast if applicable
+              showStreakMilestoneToast(result.streakUpdate);
+
+              // Invalidate streak query to refresh displays
+              queryClient.invalidateQueries({ queryKey: ['streak'] });
+
+              // Reset state after completion
+              set(initialState);
+
+              return result;
+            } catch (error) {
+              Sentry.captureException(error, {
+                extra: { sessionId, totalTimeSeconds, questionCount: questions.length },
+              });
+              throw error;
+            }
+          }
+        );
       },
 
       abandonSession: async () => {
