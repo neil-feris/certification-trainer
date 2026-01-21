@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { examApi } from '../api/client';
+import { showStreakMilestoneToast } from '../utils/streakNotifications';
 import type { CaseStudy } from '@ace-prep/shared';
 
 interface ExamQuestion {
@@ -155,7 +156,10 @@ export const useExamStore = create<ExamState>()(
           }
 
           // Complete the exam using client
-          await examApi.complete(examId, totalTimeSeconds);
+          const result = await examApi.complete(examId, totalTimeSeconds);
+
+          // Show milestone toast if applicable
+          showStreakMilestoneToast(result.streakUpdate);
         } finally {
           set({ isSubmitting: false });
         }

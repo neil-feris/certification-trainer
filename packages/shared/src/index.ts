@@ -447,6 +447,7 @@ export interface CompleteStudySessionResponse {
   correctCount: number;
   totalCount: number;
   addedToSRCount: number;
+  streakUpdate?: StreakUpdateResponse;
 }
 
 export interface ActiveStudySessionResponse {
