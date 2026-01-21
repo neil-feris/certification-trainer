@@ -200,7 +200,15 @@ export async function studyRoutes(fastify: FastifyInstance) {
         pathItemOrder: order,
         completedAt: now,
       });
-      return { isCompleted: true, completedAt: now };
+
+      // Update streak since this is a new completion
+      const streakResult = await updateStreak(userId);
+
+      return {
+        isCompleted: true,
+        completedAt: now,
+        streakUpdate: streakResult.streakUpdate,
+      };
     }
   );
 
