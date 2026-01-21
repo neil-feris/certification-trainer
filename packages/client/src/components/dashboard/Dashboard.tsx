@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { StreakDisplay } from '../common/StreakDisplay';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -81,6 +82,12 @@ export function Dashboard() {
     queryKey: ['reviewQueue'],
     queryFn: () => questionApi.getReviewQueue(),
     staleTime: 60000,
+  });
+
+  // Fetch streak data
+  const { data: streak, isLoading: streakLoading } = useQuery({
+    queryKey: ['streak'],
+    queryFn: () => progressApi.getStreak(),
   });
 
   if (isLoading) {
@@ -189,6 +196,18 @@ export function Dashboard() {
         <div className={styles.statCard}>
           <div className={styles.statValue}>{dashboard?.overallAccuracy?.toFixed(1) || 0}%</div>
           <div className={styles.statLabel}>Overall Accuracy</div>
+        </div>
+        <div className={styles.statCard}>
+          {streakLoading ? (
+            <div className={styles.statValue}>
+              <span className="animate-pulse">...</span>
+            </div>
+          ) : (
+            <StreakDisplay
+              variant="full"
+              streak={streak || { currentStreak: 0, longestStreak: 0, lastActivityDate: null }}
+            />
+          )}
         </div>
       </div>
 
