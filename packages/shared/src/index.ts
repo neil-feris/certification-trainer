@@ -686,3 +686,104 @@ export interface StreakUpdateResponse {
   current: number;
   milestone?: StreakMilestone;
 }
+
+// ============ XP AND LEVELING TYPES ============
+
+export interface UserXP {
+  totalXp: number;
+  currentLevel: number;
+  levelTitle: string;
+  xpToNextLevel: number;
+  xpInCurrentLevel: number;
+  levelProgress: number; // 0-100 percentage
+}
+
+// XP awards by activity type
+export const XP_AWARDS = {
+  // Question-based awards
+  QUESTION_CORRECT: 10,
+  QUESTION_INCORRECT: 2,
+
+  // Exam awards
+  EXAM_COMPLETE: 50,
+  EXAM_PERFECT_SCORE: 100,
+
+  // Study session awards
+  STUDY_SESSION_COMPLETE: 25,
+
+  // Drill awards
+  DRILL_QUESTION: 5,
+  DRILL_COMPLETE: 20,
+  DRILL_PERFECT_SCORE: 50,
+
+  // Spaced repetition awards
+  SR_CARD_REVIEWED: 3,
+} as const;
+
+export type XPAwardType = keyof typeof XP_AWARDS;
+
+// Level thresholds and titles
+export interface LevelThreshold {
+  level: number;
+  minXp: number;
+  title: string;
+}
+
+export const LEVEL_THRESHOLDS: LevelThreshold[] = [
+  { level: 1, minXp: 0, title: 'Novice' },
+  { level: 2, minXp: 100, title: 'Apprentice' },
+  { level: 3, minXp: 300, title: 'Student' },
+  { level: 4, minXp: 600, title: 'Practitioner' },
+  { level: 5, minXp: 1000, title: 'Journeyman' },
+  { level: 6, minXp: 1500, title: 'Expert' },
+  { level: 7, minXp: 2200, title: 'Specialist' },
+  { level: 8, minXp: 3000, title: 'Master' },
+  { level: 9, minXp: 4000, title: 'Grandmaster' },
+  { level: 10, minXp: 5500, title: 'Legend' },
+  { level: 11, minXp: 7500, title: 'Mythic' },
+  { level: 12, minXp: 10000, title: 'Transcendent' },
+];
+
+export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
+
+// Calculate level info from total XP
+export function calculateLevel(totalXp: number): UserXP {
+  // Find the highest level the user qualifies for
+  let currentLevelData = LEVEL_THRESHOLDS[0];
+  let nextLevelData: LevelThreshold | undefined;
+
+  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+    if (totalXp >= LEVEL_THRESHOLDS[i].minXp) {
+      currentLevelData = LEVEL_THRESHOLDS[i];
+      nextLevelData = LEVEL_THRESHOLDS[i + 1];
+    } else {
+      break;
+    }
+  }
+
+  const xpInCurrentLevel = totalXp - currentLevelData.minXp;
+  const xpToNextLevel = nextLevelData ? nextLevelData.minXp - totalXp : 0; // Max level reached
+  const levelRange = nextLevelData ? nextLevelData.minXp - currentLevelData.minXp : 1; // Avoid division by zero
+  const levelProgress = nextLevelData
+    ? Math.min(100, Math.floor((xpInCurrentLevel / levelRange) * 100))
+    : 100; // Max level = 100%
+
+  return {
+    totalXp,
+    currentLevel: currentLevelData.level,
+    levelTitle: currentLevelData.title,
+    xpToNextLevel,
+    xpInCurrentLevel,
+    levelProgress,
+  };
+}
+
+// Response when XP is awarded
+export interface XPAwardResponse {
+  awarded: number;
+  totalXp: number;
+  currentLevel: number;
+  levelTitle: string;
+  newLevel?: number; // Only present if user leveled up
+  newTitle?: string; // Only present if user leveled up
+}
