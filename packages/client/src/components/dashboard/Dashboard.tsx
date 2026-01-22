@@ -4,6 +4,7 @@ import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
+import { XPHistoryPanel } from '../common/XPHistoryPanel';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -99,6 +100,16 @@ export function Dashboard() {
   } = useQuery({
     queryKey: ['xp'],
     queryFn: () => progressApi.getXp(),
+  });
+
+  // Fetch XP history data
+  const {
+    data: xpHistory,
+    isLoading: xpHistoryLoading,
+    error: xpHistoryError,
+  } = useQuery({
+    queryKey: ['xpHistory'],
+    queryFn: () => progressApi.getXpHistory(20),
   });
 
   if (isLoading) {
@@ -234,6 +245,13 @@ export function Dashboard() {
           ) : null}
         </div>
       </div>
+
+      {/* XP History Panel */}
+      <XPHistoryPanel
+        history={xpHistory || []}
+        isLoading={xpHistoryLoading}
+        error={!!xpHistoryError}
+      />
 
       <div className={styles.mainGrid}>
         {/* Domain Performance */}

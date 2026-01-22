@@ -37,6 +37,7 @@ import type {
   UserStreak,
   StreakUpdateResponse,
   UserXP,
+  XPHistoryRecord,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -440,6 +441,10 @@ export const progressApi = {
   },
   getStreak: () => request<UserStreak>('/progress/streak'),
   getXp: () => request<UserXP>('/progress/xp'),
+  getXpHistory: (limit?: number) => {
+    const params = limit ? `?limit=${limit}` : '';
+    return request<XPHistoryRecord[]>(`/progress/xp/history${params}`);
+  },
 };
 
 // Study
