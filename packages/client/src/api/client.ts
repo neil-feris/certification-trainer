@@ -317,6 +317,19 @@ export const examApi = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  submitBatch: (
+    examId: number,
+    responses: Array<{
+      questionId: number;
+      selectedAnswers: number[];
+      timeSpentSeconds?: number;
+      flagged?: boolean;
+    }>
+  ) =>
+    request<{ success: boolean; processedCount: number }>(`/exams/${examId}/submit-batch`, {
+      method: 'POST',
+      body: JSON.stringify({ responses }),
+    }),
   complete: (examId: number, totalTimeSeconds: number) =>
     request<{ streakUpdate?: StreakUpdateResponse; xpUpdate?: XPAwardResponse }>(
       `/exams/${examId}/complete`,

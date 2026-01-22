@@ -197,15 +197,18 @@ export const useExamStore = create<ExamState>()(
                 answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0
               );
 
-              // Submit answers to API using client
-              for (const response of responsesArray) {
-                if (response.selectedAnswers.length > 0) {
-                  await examApi.submitAnswer(examId, {
-                    questionId: response.questionId,
-                    selectedAnswers: response.selectedAnswers,
-                    timeSpentSeconds: response.timeSpentSeconds,
-                  });
-                }
+              // Submit all answers in one batch request (performance optimization)
+              const answeredResponses = responsesArray.filter((r) => r.selectedAnswers.length > 0);
+              if (answeredResponses.length > 0) {
+                await examApi.submitBatch(
+                  examId,
+                  answeredResponses.map((r) => ({
+                    questionId: r.questionId,
+                    selectedAnswers: r.selectedAnswers,
+                    timeSpentSeconds: r.timeSpentSeconds,
+                    flagged: r.flagged,
+                  }))
+                );
               }
 
               // Complete the exam using client

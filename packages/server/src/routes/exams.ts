@@ -168,6 +168,77 @@ export async function examRoutes(fastify: FastifyInstance) {
     return { examId: newExam.id, totalQuestions: selectedQuestions.length };
   });
 
+  // Batch submit answers for all questions (performance optimization)
+  fastify.post<{
+    Params: { id: string };
+    Body: {
+      responses: Array<{
+        questionId: number;
+        selectedAnswers: number[];
+        timeSpentSeconds?: number;
+        flagged?: boolean;
+      }>;
+    };
+  }>('/:id/submit-batch', async (request, reply) => {
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Verify exam ownership
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
+    if (!exam) {
+      return reply.status(404).send({ error: 'Exam not found' });
+    }
+
+    const { responses: submittedResponses } = request.body;
+
+    // Get all questions for this exam in one query
+    const questionIds = submittedResponses.map((r) => r.questionId);
+    const examQuestions = await db
+      .select()
+      .from(questions)
+      .where(sql`${questions.id} IN ${sql.raw(`(${questionIds.join(',')})`)}`)
+      .all();
+
+    const questionMap = new Map(examQuestions.map((q) => [q.id, q]));
+
+    // Process all responses and prepare batch update
+    const updatePromises = submittedResponses.map(async (response) => {
+      const question = questionMap.get(response.questionId);
+      if (!question) {
+        throw new Error(`Question ${response.questionId} not found`);
+      }
+
+      const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+      const isCorrect =
+        response.selectedAnswers.length === correctAnswers.length &&
+        response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => response.selectedAnswers.includes(a));
+
+      return db
+        .update(examResponses)
+        .set({
+          selectedAnswers: JSON.stringify(response.selectedAnswers),
+          isCorrect,
+          timeSpentSeconds: response.timeSpentSeconds,
+          flagged: response.flagged ?? false,
+        })
+        .where(
+          and(eq(examResponses.examId, examId), eq(examResponses.questionId, response.questionId))
+        );
+    });
+
+    await Promise.all(updatePromises);
+
+    return { success: true, processedCount: submittedResponses.length };
+  });
+
   // Submit answer for a question
   fastify.patch<{
     Params: { id: string };
