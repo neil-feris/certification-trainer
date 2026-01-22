@@ -38,6 +38,7 @@ import type {
   StreakUpdateResponse,
   UserXP,
   XPHistoryRecord,
+  XPAwardResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -317,10 +318,13 @@ export const examApi = {
       body: JSON.stringify(data),
     }),
   complete: (examId: number, totalTimeSeconds: number) =>
-    request<{ streakUpdate?: StreakUpdateResponse }>(`/exams/${examId}/complete`, {
-      method: 'PATCH',
-      body: JSON.stringify({ totalTimeSeconds }),
-    }),
+    request<{ streakUpdate?: StreakUpdateResponse; xpUpdate?: XPAwardResponse }>(
+      `/exams/${examId}/complete`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ totalTimeSeconds }),
+      }
+    ),
   getReview: (id: number) => request<any>(`/exams/${id}/review`),
   abandon: (id: number) =>
     request<{ success: boolean }>(`/exams/${id}`, {

@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/react';
 import { examApi } from '../api/client';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
 import { queryClient } from '../lib/queryClient';
-import type { CaseStudy } from '@ace-prep/shared';
+import type { CaseStudy, XPAwardResponse } from '@ace-prep/shared';
 
 interface ExamQuestion {
   id: number;
@@ -42,7 +42,7 @@ interface ExamState {
   answerQuestion: (questionId: number, selectedAnswers: number[]) => void;
   toggleFlag: (questionId: number) => void;
   updateTimeRemaining: (seconds: number) => void;
-  submitExam: () => Promise<void>;
+  submitExam: () => Promise<{ xpUpdate?: XPAwardResponse } | undefined>;
   resetExam: () => void;
   abandonExam: () => Promise<void>;
   hasIncompleteExam: () => boolean;
@@ -167,11 +167,11 @@ export const useExamStore = create<ExamState>()(
 
       submitExam: async () => {
         const { examId, startTime, responses, questions } = get();
-        if (!examId || !startTime) return;
+        if (!examId || !startTime) return undefined;
 
         set({ isSubmitting: true });
 
-        await Sentry.startSpan(
+        return await Sentry.startSpan(
           {
             op: 'ui.action',
             name: 'Complete Exam',
@@ -216,6 +216,9 @@ export const useExamStore = create<ExamState>()(
 
               // Invalidate streak query to refresh displays
               queryClient.invalidateQueries({ queryKey: ['streak'] });
+
+              // Return xpUpdate for level-up modal handling
+              return { xpUpdate: result.xpUpdate };
             } finally {
               set({ isSubmitting: false });
             }

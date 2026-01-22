@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStudyStore } from '../../../stores/studyStore';
+import { LevelUpModal } from '../../common/LevelUpModal';
+import type { XPAwardResponse } from '@ace-prep/shared';
 import styles from './Practice.module.css';
 
 interface PracticeSummaryProps {
@@ -9,12 +12,14 @@ interface PracticeSummaryProps {
     correctCount: number;
     totalCount: number;
     addedToSRCount: number;
+    xpUpdate?: XPAwardResponse;
   }>;
   onExit: () => void;
 }
 
 export function PracticeSummary({ onComplete, onExit }: PracticeSummaryProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { getProgress } = useStudyStore();
   const progress = getProgress();
 
@@ -24,18 +29,36 @@ export function PracticeSummary({ onComplete, onExit }: PracticeSummaryProps) {
     correctCount: number;
     totalCount: number;
     addedToSRCount: number;
+    xpUpdate?: XPAwardResponse;
   } | null>(null);
+  const [levelUpInfo, setLevelUpInfo] = useState<{ oldLevel: number; newLevel: number } | null>(
+    null
+  );
 
   const handleComplete = async () => {
     setIsSubmitting(true);
     try {
       const res = await onComplete();
       setResult(res);
+      // Check for level-up
+      if (res.xpUpdate?.newLevel) {
+        setLevelUpInfo({
+          oldLevel: res.xpUpdate.currentLevel - 1,
+          newLevel: res.xpUpdate.newLevel,
+        });
+      }
     } catch (error) {
       console.error('Failed to complete session:', error);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleLevelUpClose = () => {
+    setLevelUpInfo(null);
+    // Invalidate XP queries to refresh displays
+    queryClient.invalidateQueries({ queryKey: ['xp'] });
+    queryClient.invalidateQueries({ queryKey: ['xpHistory'] });
   };
 
   if (result) {
@@ -98,6 +121,15 @@ export function PracticeSummary({ onComplete, onExit }: PracticeSummaryProps) {
             )}
           </div>
         </div>
+
+        {/* Level-Up Celebration Modal */}
+        {levelUpInfo && (
+          <LevelUpModal
+            oldLevel={levelUpInfo.oldLevel}
+            newLevel={levelUpInfo.newLevel}
+            onClose={handleLevelUpClose}
+          />
+        )}
       </div>
     );
   }

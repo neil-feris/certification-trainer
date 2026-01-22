@@ -448,6 +448,7 @@ export interface CompleteStudySessionResponse {
   totalCount: number;
   addedToSRCount: number;
   streakUpdate?: StreakUpdateResponse;
+  xpUpdate?: XPAwardResponse;
 }
 
 export interface ActiveStudySessionResponse {
@@ -566,6 +567,7 @@ export interface CompleteDrillResponse {
   avgTimePerQuestion: number;
   addedToSRCount: number;
   results: DrillResult[];
+  xpUpdate?: XPAwardResponse;
 }
 
 export interface ActiveDrillResponse {

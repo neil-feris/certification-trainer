@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { examApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { ExamRecoveryModal } from './ExamRecoveryModal';
+import { LevelUpModal } from '../common/LevelUpModal';
 import styles from './ExamContainer.module.css';
 
 const DIFFICULTY_STYLES: Record<string, string> = {
@@ -16,10 +17,14 @@ const DIFFICULTY_STYLES: Record<string, string> = {
 export function ExamContainer() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [recoveryChecked, setRecoveryChecked] = useState(false);
+  const [levelUpInfo, setLevelUpInfo] = useState<{ oldLevel: number; newLevel: number } | null>(
+    null
+  );
 
   const {
     examId,
@@ -86,9 +91,26 @@ export function ExamContainer() {
 
   // Memoize handleSubmit to prevent stale closures
   const handleSubmit = useCallback(async () => {
-    await submitExam();
-    navigate(`/exam/${id}/review`);
+    const result = await submitExam();
+    // Check for level-up and show modal before navigating
+    if (result?.xpUpdate?.newLevel) {
+      setLevelUpInfo({
+        oldLevel: result.xpUpdate.currentLevel - 1, // Previous level
+        newLevel: result.xpUpdate.newLevel,
+      });
+    } else {
+      navigate(`/exam/${id}/review`);
+    }
   }, [submitExam, navigate, id]);
+
+  // Handle level-up modal close
+  const handleLevelUpClose = useCallback(() => {
+    setLevelUpInfo(null);
+    // Invalidate XP query to refresh displays
+    queryClient.invalidateQueries({ queryKey: ['xp'] });
+    queryClient.invalidateQueries({ queryKey: ['xpHistory'] });
+    navigate(`/exam/${id}/review`);
+  }, [queryClient, navigate, id]);
 
   // Timer
   useEffect(() => {
@@ -502,6 +524,15 @@ export function ExamContainer() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Level-Up Celebration Modal */}
+      {levelUpInfo && (
+        <LevelUpModal
+          oldLevel={levelUpInfo.oldLevel}
+          newLevel={levelUpInfo.newLevel}
+          onClose={handleLevelUpClose}
+        />
       )}
     </div>
   );
