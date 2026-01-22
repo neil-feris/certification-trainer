@@ -15,6 +15,7 @@ import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import type { Granularity, TrendDataPoint, TrendsResponse } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { getStreak } from '../services/streakService.js';
+import { getXP } from '../services/xpService.js';
 
 /**
  * Calculate ISO 8601 week number.
@@ -145,6 +146,12 @@ export async function progressRoutes(fastify: FastifyInstance) {
   fastify.get('/streak', async (request) => {
     const userId = parseInt(request.user!.id, 10);
     return getStreak(userId);
+  });
+
+  // Get user's XP and level data
+  fastify.get('/xp', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
+    return getXP(userId);
   });
 
   // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)
