@@ -1,0 +1,141 @@
+# Ralph Progress Log
+Started: Thu 22 Jan 2026 12:59:56 SAST
+
+## Codebase Patterns
+- Shared types are in `packages/shared/src/index.ts` - all new types should be added there
+- Use `as const` for constant arrays that need literal types
+- Export helper functions alongside their related types for consistency
+- Build order: shared → server → client (shared must build first)
+- Use `export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" --no-use && nvm exec default` prefix for npm commands to avoid nvm loading issues
+- Schema tables: follow existing pattern with `sqliteTable()`, indexes defined in callback, types exported at bottom
+- Migration naming: check existing migrations with `ls` - 0007 was already taken, use 0008
+- Spaced repetition review submission is POST /review in questions.ts, NOT in study.ts
+
+---
+
+## Wed 22 Jan 2026 - US-001
+- Implemented XP and leveling type definitions in shared package
+- Files changed: `packages/shared/src/index.ts`
+- Added:
+  - `UserXP` interface with totalXp, currentLevel, levelTitle, xpToNextLevel, xpInCurrentLevel, levelProgress
+  - `XP_AWARDS` constant with point values for all activity types (question correct/incorrect, exam complete, study session, drills, SR reviews)
+  - `LEVEL_THRESHOLDS` array with 12 levels from Novice (0 XP) to Transcendent (10000 XP)
+  - `calculateLevel()` pure function to compute level info from total XP
+  - `XPAwardResponse` interface for API responses including level-up detection
+- **Learnings for future iterations:**
+  - The shared package exports everything from a single index.ts file
+  - Existing patterns use const arrays with `as const` for literal types (see STREAK_MILESTONES)
+  - Level thresholds are designed with increasing gaps between levels for balanced progression
+---
+
+## Wed 22 Jan 2026 - US-002
+- Implemented database schema for XP/leveling system
+- Files changed:
+  - `packages/server/src/db/schema.ts` - Added `userXp` table definition
+  - `packages/server/src/db/migrations/0008_add_xp_leveling.sql` - Migration file
+- Added:
+  - `user_xp` table with id, user_id (unique), total_xp, current_level, updated_at
+  - Unique index on user_id
+  - `UserXpRecord` and `NewUserXp` type exports
+- **Learnings for future iterations:**
+  - Migration file naming: always check existing migrations before creating - 0007 was already used for streaks
+  - Schema pattern: tables use callback for indexes, export both Select and Insert types
+  - Follow userStreaks pattern for similar user-linked tables with unique index
+---
+
+## Wed 22 Jan 2026 - US-003
+- Implemented XP service with award logic
+- Files changed: `packages/server/src/services/xpService.ts` (new file)
+- Added:
+  - `getXP(userId)` function - retrieves user's XP and calculates level info
+  - `awardXP(userId, xpType)` function - awards XP using XP_AWARDS constants with upsert
+  - `awardCustomXP(userId, amount)` function - for batch operations and bonuses
+  - Transaction support for atomicity (prevents race conditions)
+  - Level-up detection - returns `newLevel` and `newTitle` when level changes
+- **Learnings for future iterations:**
+  - Follow streakService.ts pattern for user-centric services with upsert logic
+  - Use `db.transaction()` for atomic operations that read-then-write
+  - Import db and schema from `../db/index.js` (with .js extension for ESM)
+  - Reuse calculateLevel from shared package for consistent level calculations
+---
+
+## Wed 22 Jan 2026 - US-004
+- Implemented GET /api/progress/xp endpoint
+- Files changed: `packages/server/src/routes/progress.ts`
+- Added:
+  - Import for `getXP` from xpService
+  - GET `/api/progress/xp` endpoint that returns UserXP data
+  - Uses existing `authenticate` hook applied to all progress routes
+  - Returns default level 1 values if no XP record exists for user
+- **Learnings for future iterations:**
+  - Progress routes already have auth middleware via `fastify.addHook('preHandler', authenticate)`
+  - Follow the `/streak` endpoint pattern for simple user data fetch endpoints
+  - Service functions should handle the "create default if not exists" logic, not the route
+---
+
+## Wed 22 Jan 2026 - US-005
+- Integrated XP awards into exam completion endpoint
+- Files changed: `packages/server/src/routes/exams.ts`
+- Added:
+  - Import `awardCustomXP` from xpService and `XP_AWARDS, XPAwardResponse` from shared
+  - XP calculation in PATCH /:id/complete after exam transaction
+  - Per-question XP: +10 for correct, +2 for incorrect (using XP_AWARDS constants)
+  - Exam completion bonus: +50 (XP_AWARDS.EXAM_COMPLETE)
+  - Perfect score bonus: +100 if score === 100 (XP_AWARDS.EXAM_PERFECT_SCORE)
+  - `xpUpdate` field in response with XPAwardResponse data
+  - Graceful degradation: try/catch with logging, xpUpdate is undefined on failure
+- **Learnings for future iterations:**
+  - Use `awardCustomXP` for batch XP awards (combining multiple sources into single award)
+  - Follow the streakUpdate pattern: calculate in transaction, award after, handle errors gracefully
+  - Track correctCount and incorrectCount in transaction return for XP calculation
+  - XP awards are non-critical - don't fail the main operation if XP service fails
+---
+
+## Wed 22 Jan 2026 - US-006
+- Integrated XP awards into study session completion endpoint
+- Files changed: `packages/server/src/routes/study.ts`
+- Added:
+  - Import `awardCustomXP` from xpService and `XP_AWARDS, XPAwardResponse` from shared
+  - XP calculation in PATCH /sessions/:id/complete after streak update
+  - Per-question XP: +10 for correct, +2 for incorrect (using XP_AWARDS constants)
+  - Study session completion bonus: +25 (XP_AWARDS.STUDY_SESSION_COMPLETE)
+  - `xpUpdate` field in response with XPAwardResponse data
+  - Graceful degradation: try/catch with logging, xpUpdate is undefined on failure
+- **Learnings for future iterations:**
+  - Study sessions follow same pattern as exams for XP integration
+  - Both streak and XP updates happen after the main transaction, both with graceful degradation
+  - actualCorrect and actualTotal are already computed before the transaction, reuse them for XP calculation
+---
+
+## Wed 22 Jan 2026 - US-007
+- Integrated XP awards into timed drill completion endpoint
+- Files changed: `packages/server/src/routes/drills.ts`
+- Added:
+  - Import `awardCustomXP` from xpService and `XP_AWARDS, XPAwardResponse` from shared
+  - XP calculation in PATCH /:id/complete after drill transaction
+  - Per-question XP: +5 per question answered (XP_AWARDS.DRILL_QUESTION)
+  - Drill completion bonus: +20 (XP_AWARDS.DRILL_COMPLETE)
+  - Perfect score bonus: +50 if score === 100 (XP_AWARDS.DRILL_PERFECT_SCORE)
+  - `xpUpdate` field in response with XPAwardResponse data
+  - Graceful degradation: try/catch with logging, xpUpdate is undefined on failure
+- **Learnings for future iterations:**
+  - Drills use same pattern as exams/study for XP integration (post-transaction, try/catch, graceful degradation)
+  - Drill routes are in separate drills.ts file, not in study.ts
+  - Drills use studySessions table with sessionType='timed_drill'
+  - XP is calculated from totalCount (all questions answered), not just correct ones
+---
+
+## Wed 22 Jan 2026 - US-008
+- Integrated XP awards into spaced repetition review submissions
+- Files changed: `packages/server/src/routes/questions.ts`
+- Added:
+  - Import `awardCustomXP` from xpService and `XP_AWARDS, XPAwardResponse` from shared
+  - XP award in POST /review endpoint after streak update
+  - Awards +3 XP per card reviewed (XP_AWARDS.SR_CARD_REVIEWED)
+  - `xpUpdate` field in response with XPAwardResponse data
+  - Graceful degradation: try/catch with logging, xpUpdate is undefined on failure
+- **Learnings for future iterations:**
+  - Spaced repetition review endpoint is in questions.ts (POST /review), NOT in study.ts
+  - The PRD acceptance criteria mentioned study.ts but the actual SR review endpoint is in questions.ts
+  - Same pattern as other XP integrations: award after main logic, try/catch, graceful degradation
+---
