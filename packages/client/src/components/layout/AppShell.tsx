@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CertificationSelector } from '../common/CertificationSelector';
 import { OfflineBanner } from '../common/OfflineBanner';
 import { StreakDisplay } from '../common/StreakDisplay';
+import { XPDisplay } from '../common/XPDisplay';
 import { useCertificationStore } from '../../stores/certificationStore';
 import { useStudyStore } from '../../stores/studyStore';
 import { questionApi, progressApi } from '../../api/client';
@@ -80,6 +81,13 @@ export function AppShell({ children }: AppShellProps) {
     staleTime: 60000, // Consider fresh for 1 minute
   });
 
+  // Fetch XP data for level display
+  const { data: xpData } = useQuery({
+    queryKey: ['xp'],
+    queryFn: progressApi.getXp,
+    staleTime: 60000, // Consider fresh for 1 minute
+  });
+
   // Hide nav during active review session (when on /review page with questions)
   const isReviewActive = location.pathname === '/review' && reviewQueue.length > 0;
 
@@ -125,11 +133,10 @@ export function AppShell({ children }: AppShellProps) {
           </nav>
 
           <div className={styles.footer}>
-            {streakData && (
-              <div className={styles.footerStreak}>
-                <StreakDisplay streak={streakData} variant="compact" />
-              </div>
-            )}
+            <div className={styles.footerStats}>
+              {streakData && <StreakDisplay streak={streakData} variant="compact" />}
+              {xpData && <XPDisplay xp={xpData} variant="compact" />}
+            </div>
             <UserProfile />
             {selectedCert && (
               <div className={styles.footerText}>
@@ -146,7 +153,7 @@ export function AppShell({ children }: AppShellProps) {
         pendingSyncCount={pendingSyncCount}
       />
 
-      {!hideNavigation && <MobileHeader streakData={streakData} />}
+      {!hideNavigation && <MobileHeader streakData={streakData} xpData={xpData} />}
 
       <main
         className={`${styles.main} ${hideNavigation ? styles.mainFullWidth : styles.mainWithMobileNav}`}

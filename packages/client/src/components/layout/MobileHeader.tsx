@@ -1,13 +1,16 @@
-import { UserStreak } from '@ace-prep/shared';
+import { UserStreak, UserXP } from '@ace-prep/shared';
 import { StreakDisplay } from '../common/StreakDisplay';
+import { XPDisplay } from '../common/XPDisplay';
 import styles from './MobileHeader.module.css';
 
 interface MobileHeaderProps {
   streakData?: UserStreak;
+  xpData?: UserXP;
 }
 
-export function MobileHeader({ streakData }: MobileHeaderProps) {
-  if (!streakData) return null;
+export function MobileHeader({ streakData, xpData }: MobileHeaderProps) {
+  const hasData = streakData || xpData;
+  if (!hasData) return null;
 
   return (
     <div className={styles.header}>
@@ -15,7 +18,10 @@ export function MobileHeader({ streakData }: MobileHeaderProps) {
         <span className={styles.logoIcon}>☁</span>
         <span className={styles.logoText}>Cert Trainer</span>
       </div>
-      <StreakDisplay streak={streakData} variant="compact" />
+      <div className={styles.stats}>
+        {streakData && <StreakDisplay streak={streakData} variant="compact" />}
+        {xpData && <XPDisplay xp={xpData} variant="compact" />}
+      </div>
     </div>
   );
 }
