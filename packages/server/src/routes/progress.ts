@@ -8,6 +8,7 @@ import {
   topics,
   performanceStats,
   certifications,
+  xpHistory,
 } from '../db/schema.js';
 import { eq, sql, desc, and } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
@@ -152,6 +153,38 @@ export async function progressRoutes(fastify: FastifyInstance) {
   fastify.get('/xp', async (request) => {
     const userId = parseInt(request.user!.id, 10);
     return getXP(userId);
+  });
+
+  // Get user's XP history
+  fastify.get<{
+    Querystring: { limit?: string };
+  }>('/xp/history', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
+    const limitStr = request.query.limit;
+
+    // Default 20, max 50
+    let limit = 20;
+    if (limitStr) {
+      const parsed = parseInt(limitStr, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limit = Math.min(parsed, 50);
+      }
+    }
+
+    const history = await db
+      .select({
+        id: xpHistory.id,
+        userId: xpHistory.userId,
+        amount: xpHistory.amount,
+        source: xpHistory.source,
+        createdAt: xpHistory.createdAt,
+      })
+      .from(xpHistory)
+      .where(eq(xpHistory.userId, userId))
+      .orderBy(desc(xpHistory.createdAt))
+      .limit(limit);
+
+    return history;
   });
 
   // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)

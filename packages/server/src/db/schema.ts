@@ -346,6 +346,24 @@ export const userXp = sqliteTable(
   (table) => [uniqueIndex('user_xp_user_id_idx').on(table.userId)]
 );
 
+// XP History (tracks individual XP awards)
+export const xpHistory = sqliteTable(
+  'xp_history',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    amount: integer('amount').notNull(),
+    source: text('source').notNull(), // XP_AWARDS key or custom source
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    index('xp_history_user_id_idx').on(table.userId),
+    index('xp_history_created_at_idx').on(table.createdAt),
+  ]
+);
+
 // ============ USER STREAKS ============
 export const userStreaks = sqliteTable(
   'user_streaks',
@@ -421,3 +439,5 @@ export type UserStreakRecord = typeof userStreaks.$inferSelect;
 export type NewUserStreak = typeof userStreaks.$inferInsert;
 export type UserXpRecord = typeof userXp.$inferSelect;
 export type NewUserXp = typeof userXp.$inferInsert;
+export type XpHistoryRecord = typeof xpHistory.$inferSelect;
+export type NewXpHistory = typeof xpHistory.$inferInsert;
