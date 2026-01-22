@@ -28,6 +28,8 @@ import type {
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
+import { awardCustomXP } from '../services/xpService.js';
+import { XP_AWARDS, XPAwardResponse } from '@ace-prep/shared';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
@@ -544,11 +546,30 @@ export async function questionRoutes(fastify: FastifyInstance) {
       streakUpdate = undefined;
     }
 
+    // Award XP for review completion
+    let xpUpdate: XPAwardResponse | undefined;
+    try {
+      xpUpdate = await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED);
+    } catch (error) {
+      // Log error but don't fail the review submission
+      fastify.log.error(
+        {
+          userId,
+          questionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP after review completion'
+      );
+      // Graceful degradation - XP award is non-critical
+      xpUpdate = undefined;
+    }
+
     return {
       success: true,
       nextReviewAt: result.nextReviewAt,
       interval: result.interval,
       streakUpdate,
+      xpUpdate,
     };
   });
 }
