@@ -388,7 +388,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       const perfectBonusXP = score === 100 ? XP_AWARDS.DRILL_PERFECT_SCORE : 0;
       const totalXPAwarded = questionXP + completionBonusXP + perfectBonusXP;
 
-      xpUpdate = await awardCustomXP(userId, totalXPAwarded);
+      xpUpdate = await awardCustomXP(userId, totalXPAwarded, 'DRILL_COMPLETE');
     } catch (error) {
       fastify.log.error({ error, drillId, userId }, 'Failed to award XP for drill completion');
       // Continue without XP update - drill completion is more important

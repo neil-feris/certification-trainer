@@ -79,6 +79,14 @@ export async function awardXP(userId: number, xpType: XPAwardType): Promise<XPAw
         .where(eq(schema.userXp.userId, userId));
     }
 
+    // Record XP in history
+    await tx.insert(schema.xpHistory).values({
+      userId,
+      amount: awardAmount,
+      source: xpType,
+      createdAt: new Date(),
+    });
+
     // Detect level-up
     const leveledUp = levelInfo.currentLevel > previousLevel;
 
@@ -104,9 +112,14 @@ export async function awardXP(userId: number, xpType: XPAwardType): Promise<XPAw
  *
  * @param userId - The user ID to award XP to
  * @param amount - The custom XP amount to award
+ * @param source - The source type for history tracking (defaults to 'CUSTOM')
  * @returns XP award details including any level-up info
  */
-export async function awardCustomXP(userId: number, amount: number): Promise<XPAwardResponse> {
+export async function awardCustomXP(
+  userId: number,
+  amount: number,
+  source: string = 'CUSTOM'
+): Promise<XPAwardResponse> {
   return db.transaction(async (tx) => {
     // Get existing XP record with transaction isolation
     const existing = await tx
@@ -141,6 +154,14 @@ export async function awardCustomXP(userId: number, amount: number): Promise<XPA
         })
         .where(eq(schema.userXp.userId, userId));
     }
+
+    // Record XP in history
+    await tx.insert(schema.xpHistory).values({
+      userId,
+      amount,
+      source,
+      createdAt: new Date(),
+    });
 
     // Detect level-up
     const leveledUp = levelInfo.currentLevel > previousLevel;

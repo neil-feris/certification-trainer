@@ -328,7 +328,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       const perfectScoreBonus = txResult.score === 100 ? XP_AWARDS.EXAM_PERFECT_SCORE : 0;
       const totalXpToAward = questionXP + completionBonus + perfectScoreBonus;
 
-      xpUpdate = await awardCustomXP(userId, totalXpToAward);
+      xpUpdate = await awardCustomXP(userId, totalXpToAward, 'EXAM_COMPLETE');
     } catch (error) {
       // Log error but don't fail the exam completion
       fastify.log.error(

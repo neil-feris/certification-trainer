@@ -549,7 +549,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
     // Award XP for review completion
     let xpUpdate: XPAwardResponse | undefined;
     try {
-      xpUpdate = await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED);
+      xpUpdate = await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED, 'SR_CARD_REVIEWED');
     } catch (error) {
       // Log error but don't fail the review submission
       fastify.log.error(

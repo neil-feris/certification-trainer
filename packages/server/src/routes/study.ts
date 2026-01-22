@@ -1188,7 +1188,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
         (actualTotal - actualCorrect) * XP_AWARDS.QUESTION_INCORRECT;
       const totalXpToAward = questionXp + XP_AWARDS.STUDY_SESSION_COMPLETE;
 
-      xpUpdate = await awardCustomXP(userId, totalXpToAward);
+      xpUpdate = await awardCustomXP(userId, totalXpToAward, 'STUDY_SESSION_COMPLETE');
     } catch (error) {
       // Log error but don't fail the study session completion
       fastify.log.error(
