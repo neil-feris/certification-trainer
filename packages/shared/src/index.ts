@@ -787,3 +787,25 @@ export interface XPAwardResponse {
   newLevel?: number; // Only present if user leveled up
   newTitle?: string; // Only present if user leveled up
 }
+
+// XP History record for tracking XP gains
+export interface XPHistoryRecord {
+  id: number;
+  userId: number;
+  amount: number;
+  source: XPAwardType | string; // XP_AWARDS key or custom source
+  createdAt: Date | string;
+}
+
+// Human-readable labels for XP sources
+export const XP_SOURCE_LABELS: Record<string, string> = {
+  QUESTION_CORRECT: 'Correct Answer',
+  QUESTION_INCORRECT: 'Answer Attempt',
+  EXAM_COMPLETE: 'Exam Completed',
+  EXAM_PERFECT_SCORE: 'Perfect Exam Score',
+  STUDY_SESSION_COMPLETE: 'Study Session',
+  DRILL_QUESTION: 'Drill Question',
+  DRILL_COMPLETE: 'Drill Completed',
+  DRILL_PERFECT_SCORE: 'Perfect Drill Score',
+  SR_CARD_REVIEWED: 'Card Reviewed',
+};

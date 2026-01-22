@@ -139,3 +139,108 @@ Started: Thu 22 Jan 2026 12:59:56 SAST
   - The PRD acceptance criteria mentioned study.ts but the actual SR review endpoint is in questions.ts
   - Same pattern as other XP integrations: award after main logic, try/catch, graceful degradation
 ---
+
+## Wed 22 Jan 2026 - US-009
+- Created XP Display component with two variants (compact/full)
+- Files changed:
+  - `packages/client/src/components/common/XPDisplay.tsx` (new file)
+  - `packages/client/src/components/common/XPDisplay.module.css` (new file)
+- Added:
+  - XPDisplay component accepting `xp: UserXP` and `variant?: 'compact' | 'full'`
+  - Compact variant: level badge and title for headers/nav
+  - Full variant: large level badge, title, total XP, progress bar with animations
+  - Progress bar with shimmer animation and gradient fill
+  - Responsive styles for mobile
+  - Max level handling (shows "Max Level Reached!" when at level 12)
+- **Learnings for future iterations:**
+  - Follow StreakDisplay pattern for gamification display components (variant prop, module.css)
+  - UserXP interface has `levelProgress` (0-100) already calculated - use directly for progress bar width
+  - CSS variables available: --accent-primary, --accent-secondary, --bg-secondary, etc.
+  - Use CSS keyframe animations for visual appeal (shimmer, progressShine)
+---
+
+## Thu 22 Jan 2026 - US-010
+- Integrated XP display on Dashboard
+- Files changed:
+  - `packages/client/src/api/client.ts` - Added UserXP import and getXp method to progressApi
+  - `packages/client/src/components/dashboard/Dashboard.tsx` - Added XPDisplay to stats grid
+- Added:
+  - `getXp()` method in progressApi returning `UserXP` type
+  - XPDisplay full variant in Dashboard stats grid (after streak display)
+  - React Query hook for XP data fetch with `['xp']` query key
+  - Loading state with animated ellipsis
+  - Error state showing "XP unavailable" message with failing style
+- **Learnings for future iterations:**
+  - Follow streak integration pattern: add API method, useQuery hook, conditional rendering
+  - Dashboard uses `styles.statCard` wrapper for all stat items including gamification displays
+  - React Query for simple fetches: `{ queryKey: ['xp'], queryFn: () => progressApi.getXp() }`
+  - Error handling pattern: xpError check comes before xp check in conditional rendering
+---
+
+## Thu 22 Jan 2026 - US-011
+- Added XP display to app header (desktop sidebar and mobile header)
+- Files changed:
+  - `packages/client/src/components/layout/AppShell.tsx` - Added XP data fetch and XPDisplay to footer
+  - `packages/client/src/components/layout/AppShell.module.css` - Changed footerStreak to footerStats for flexbox layout
+  - `packages/client/src/components/layout/MobileHeader.tsx` - Added xpData prop and XPDisplay component
+  - `packages/client/src/components/layout/MobileHeader.module.css` - Added stats container for multiple displays
+- Added:
+  - XP data fetch in AppShell using React Query with same pattern as streak fetch
+  - XPDisplay compact variant in desktop sidebar footer, next to StreakDisplay
+  - XPDisplay compact variant in mobile header, next to StreakDisplay
+  - Stats container divs for consistent alignment of streak + XP displays
+- **Learnings for future iterations:**
+  - AppShell fetches shared data (streak, xp) and passes to MobileHeader via props
+  - Desktop sidebar footer is in AppShell.tsx, mobile header is in MobileHeader.tsx
+  - CSS pattern: use flexbox container with gap for multiple inline stats
+  - MobileHeader only renders if at least one data source is available (streakData or xpData)
+---
+
+## Thu 22 Jan 2026 - US-012
+- Created Level-Up Celebration Modal with animated confetti effect
+- Files changed:
+  - `packages/client/src/components/common/LevelUpModal.tsx` (new file)
+  - `packages/client/src/components/common/LevelUpModal.module.css` (new file)
+- Added:
+  - LevelUpModal component with oldLevel, newLevel, onClose props
+  - CSS confetti animation with 50 randomized particles (colors, sizes, paths)
+  - Star burst animation effect behind the modal
+  - Old level → new level transition with bouncing arrow
+  - Level badge with pulsing glow effect
+  - Focus trap (Tab key stays on Continue button)
+  - Escape key to close modal
+  - Click overlay to close
+  - ARIA attributes: role="dialog", aria-modal, aria-labelledby
+  - Body scroll lock while modal is open
+  - Responsive design for mobile (stacked layout)
+- **Learnings for future iterations:**
+  - Modal pattern: overlay + modal div with fixed positioning, z-index: 1000
+  - Focus trap: useEffect to add keydown listener, focus close button on mount
+  - CSS custom properties in inline styles for random animation values
+  - Use `Array.from({ length: n })` for creating multiple animated elements
+  - LEVEL_THRESHOLDS can be imported from @ace-prep/shared for level titles
+---
+
+## Thu 22 Jan 2026 - US-013
+- Created XP History Panel component with collapsible history list
+- Files changed:
+  - `packages/shared/src/index.ts` - Added `XPHistoryRecord` interface and `XP_SOURCE_LABELS` constant
+  - `packages/client/src/components/common/XPHistoryPanel.tsx` (new file)
+  - `packages/client/src/components/common/XPHistoryPanel.module.css` (new file)
+- Added:
+  - `XPHistoryRecord` interface for history items (id, userId, amount, source, createdAt)
+  - `XP_SOURCE_LABELS` map for human-readable XP source labels
+  - XPHistoryPanel component with collapsed/expanded states
+  - `formatRelativeTime()` helper for "just now", "5m ago", "2h ago", etc.
+  - `getSourceLabel()` helper using XP_SOURCE_LABELS map
+  - `getSourceIcon()` helper returning emojis for different activity types
+  - Loading and error state handling
+  - Empty state with helpful message
+  - Accessible: aria-expanded, aria-controls, button semantics
+  - Responsive styles for mobile
+- **Learnings for future iterations:**
+  - Add shared types for API responses BEFORE the API endpoint exists (component can be built first)
+  - XP_SOURCE_LABELS allows consistent human-readable labels across UI
+  - Relative time formatting: use thresholds (10s, 60s, 60m, 24h, 7d) for natural language
+  - Follow XPDisplay pattern for component props interface and CSS module structure
+---
