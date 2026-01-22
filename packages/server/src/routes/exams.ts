@@ -14,6 +14,8 @@ import {
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
+import { awardCustomXP } from '../services/xpService.js';
+import { XP_AWARDS, type XPAwardResponse } from '@ace-prep/shared';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -266,6 +268,7 @@ export async function examRoutes(fastify: FastifyInstance) {
         .all();
 
       const correctCount = responses.filter((r) => r.isCorrect === true).length;
+      const incorrectCount = responses.length - correctCount;
       const score = responses.length > 0 ? (correctCount / responses.length) * 100 : 0;
 
       // Update exam atomically
@@ -282,7 +285,7 @@ export async function examRoutes(fastify: FastifyInstance) {
         .returning()
         .all();
 
-      return { exam: updatedExam };
+      return { exam: updatedExam, correctCount, incorrectCount, score };
     });
 
     if ('error' in txResult) {
@@ -311,9 +314,39 @@ export async function examRoutes(fastify: FastifyInstance) {
       streakUpdate = undefined;
     }
 
+    // Award XP after exam completion with error handling
+    let xpUpdate: XPAwardResponse | undefined;
+    try {
+      // Calculate total XP to award:
+      // - Per question: +10 for correct, +2 for incorrect
+      // - Exam completion bonus: +50
+      // - Perfect score bonus: +100 (if score is 100%)
+      const questionXP =
+        txResult.correctCount * XP_AWARDS.QUESTION_CORRECT +
+        txResult.incorrectCount * XP_AWARDS.QUESTION_INCORRECT;
+      const completionBonus = XP_AWARDS.EXAM_COMPLETE;
+      const perfectScoreBonus = txResult.score === 100 ? XP_AWARDS.EXAM_PERFECT_SCORE : 0;
+      const totalXpToAward = questionXP + completionBonus + perfectScoreBonus;
+
+      xpUpdate = await awardCustomXP(userId, totalXpToAward);
+    } catch (error) {
+      // Log error but don't fail the exam completion
+      fastify.log.error(
+        {
+          userId,
+          examId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP after exam completion'
+      );
+      // Graceful degradation - XP update is non-critical
+      xpUpdate = undefined;
+    }
+
     return {
       ...txResult.exam,
       streakUpdate,
+      xpUpdate,
     };
   });
 
