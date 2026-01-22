@@ -5,7 +5,7 @@
  * Supports multiple activity types and detects level-ups.
  */
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import type { UserXP, XPAwardResponse, XPAwardType } from '@ace-prep/shared';
 import { XP_AWARDS, calculateLevel } from '@ace-prep/shared';
@@ -45,34 +45,77 @@ export async function awardXP(userId: number, xpType: XPAwardType): Promise<XPAw
   const awardAmount = XP_AWARDS[xpType];
 
   return db.transaction(async (tx) => {
-    // Get existing XP record with transaction isolation
+    // Get existing XP record to check for level-up detection
     const existing = await tx
       .select()
       .from(schema.userXp)
       .where(eq(schema.userXp.userId, userId))
       .get();
 
-    const previousXp = existing?.totalXp ?? 0;
     const previousLevel = existing?.currentLevel ?? 1;
-    const newTotalXp = previousXp + awardAmount;
-
-    // Calculate new level info
-    const levelInfo = calculateLevel(newTotalXp);
 
     if (!existing) {
       // First XP ever - create new record
+      const levelInfo = calculateLevel(awardAmount);
       await tx.insert(schema.userXp).values({
         userId,
-        totalXp: newTotalXp,
+        totalXp: awardAmount,
         currentLevel: levelInfo.currentLevel,
         updatedAt: new Date(),
       });
-    } else {
-      // Update existing record
+
+      // Record XP in history
+      await tx.insert(schema.xpHistory).values({
+        userId,
+        amount: awardAmount,
+        source: xpType,
+        createdAt: new Date(),
+      });
+
+      // Detect level-up
+      const leveledUp = levelInfo.currentLevel > previousLevel;
+
+      const response: XPAwardResponse = {
+        awarded: awardAmount,
+        totalXp: awardAmount,
+        currentLevel: levelInfo.currentLevel,
+        levelTitle: levelInfo.levelTitle,
+      };
+
+      if (leveledUp) {
+        response.newLevel = levelInfo.currentLevel;
+        response.newTitle = levelInfo.levelTitle;
+      }
+
+      return response;
+    }
+
+    // Atomic increment for race-free update
+    await tx
+      .update(schema.userXp)
+      .set({
+        totalXp: sql`${schema.userXp.totalXp} + ${awardAmount}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.userXp.userId, userId));
+
+    // Read back updated values for level calculation
+    const updated = await tx
+      .select()
+      .from(schema.userXp)
+      .where(eq(schema.userXp.userId, userId))
+      .get();
+
+    if (!updated) {
+      throw new Error('Failed to read updated XP record');
+    }
+
+    // Calculate new level and update if changed
+    const levelInfo = calculateLevel(updated.totalXp);
+    if (levelInfo.currentLevel !== updated.currentLevel) {
       await tx
         .update(schema.userXp)
         .set({
-          totalXp: newTotalXp,
           currentLevel: levelInfo.currentLevel,
           updatedAt: new Date(),
         })
@@ -92,7 +135,7 @@ export async function awardXP(userId: number, xpType: XPAwardType): Promise<XPAw
 
     const response: XPAwardResponse = {
       awarded: awardAmount,
-      totalXp: newTotalXp,
+      totalXp: updated.totalXp,
       currentLevel: levelInfo.currentLevel,
       levelTitle: levelInfo.levelTitle,
     };
@@ -121,34 +164,77 @@ export async function awardCustomXP(
   source: string = 'CUSTOM'
 ): Promise<XPAwardResponse> {
   return db.transaction(async (tx) => {
-    // Get existing XP record with transaction isolation
+    // Get existing XP record to check for level-up detection
     const existing = await tx
       .select()
       .from(schema.userXp)
       .where(eq(schema.userXp.userId, userId))
       .get();
 
-    const previousXp = existing?.totalXp ?? 0;
     const previousLevel = existing?.currentLevel ?? 1;
-    const newTotalXp = previousXp + amount;
-
-    // Calculate new level info
-    const levelInfo = calculateLevel(newTotalXp);
 
     if (!existing) {
       // First XP ever - create new record
+      const levelInfo = calculateLevel(amount);
       await tx.insert(schema.userXp).values({
         userId,
-        totalXp: newTotalXp,
+        totalXp: amount,
         currentLevel: levelInfo.currentLevel,
         updatedAt: new Date(),
       });
-    } else {
-      // Update existing record
+
+      // Record XP in history
+      await tx.insert(schema.xpHistory).values({
+        userId,
+        amount,
+        source,
+        createdAt: new Date(),
+      });
+
+      // Detect level-up
+      const leveledUp = levelInfo.currentLevel > previousLevel;
+
+      const response: XPAwardResponse = {
+        awarded: amount,
+        totalXp: amount,
+        currentLevel: levelInfo.currentLevel,
+        levelTitle: levelInfo.levelTitle,
+      };
+
+      if (leveledUp) {
+        response.newLevel = levelInfo.currentLevel;
+        response.newTitle = levelInfo.levelTitle;
+      }
+
+      return response;
+    }
+
+    // Atomic increment for race-free update
+    await tx
+      .update(schema.userXp)
+      .set({
+        totalXp: sql`${schema.userXp.totalXp} + ${amount}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.userXp.userId, userId));
+
+    // Read back updated values for level calculation
+    const updated = await tx
+      .select()
+      .from(schema.userXp)
+      .where(eq(schema.userXp.userId, userId))
+      .get();
+
+    if (!updated) {
+      throw new Error('Failed to read updated XP record');
+    }
+
+    // Calculate new level and update if changed
+    const levelInfo = calculateLevel(updated.totalXp);
+    if (levelInfo.currentLevel !== updated.currentLevel) {
       await tx
         .update(schema.userXp)
         .set({
-          totalXp: newTotalXp,
           currentLevel: levelInfo.currentLevel,
           updatedAt: new Date(),
         })
@@ -168,7 +254,7 @@ export async function awardCustomXP(
 
     const response: XPAwardResponse = {
       awarded: amount,
-      totalXp: newTotalXp,
+      totalXp: updated.totalXp,
       currentLevel: levelInfo.currentLevel,
       levelTitle: levelInfo.levelTitle,
     };
