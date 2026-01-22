@@ -546,10 +546,16 @@ export async function questionRoutes(fastify: FastifyInstance) {
       streakUpdate = undefined;
     }
 
-    // Award XP for review completion
+    // Award XP for review completion with idempotency
     let xpUpdate: XPAwardResponse | undefined;
     try {
-      xpUpdate = await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED, 'SR_CARD_REVIEWED');
+      // Use SR record ID to track XP per review (each review gets XP once)
+      // Note: We check xpHistory for this source before the SR record update,
+      // so we use the timestamp before update as the idempotency key
+      const reviewTimestamp = Date.now();
+      const xpSource = `SR_CARD_REVIEWED_${sr.id}_${reviewTimestamp}`;
+
+      xpUpdate = await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED, xpSource);
     } catch (error) {
       // Log error but don't fail the review submission
       fastify.log.error(

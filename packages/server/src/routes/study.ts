@@ -1179,16 +1179,27 @@ export async function studyRoutes(fastify: FastifyInstance) {
       streakUpdate = undefined;
     }
 
-    // Award XP for study session completion
+    // Award XP for study session completion with idempotency
     let xpUpdate: XPAwardResponse | undefined;
     try {
-      // Calculate XP: per-question XP + session completion bonus
-      const questionXp =
-        actualCorrect * XP_AWARDS.QUESTION_CORRECT +
-        (actualTotal - actualCorrect) * XP_AWARDS.QUESTION_INCORRECT;
-      const totalXpToAward = questionXp + XP_AWARDS.STUDY_SESSION_COMPLETE;
+      const xpSource = `STUDY_SESSION_COMPLETE_${sessionId}`;
 
-      xpUpdate = await awardCustomXP(userId, totalXpToAward, 'STUDY_SESSION_COMPLETE');
+      // Check if XP already awarded for this session
+      const existingAward = await db
+        .select()
+        .from(schema.xpHistory)
+        .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, xpSource)))
+        .get();
+
+      if (!existingAward) {
+        // Calculate XP: per-question XP + session completion bonus
+        const questionXp =
+          actualCorrect * XP_AWARDS.QUESTION_CORRECT +
+          (actualTotal - actualCorrect) * XP_AWARDS.QUESTION_INCORRECT;
+        const totalXpToAward = questionXp + XP_AWARDS.STUDY_SESSION_COMPLETE;
+
+        xpUpdate = await awardCustomXP(userId, totalXpToAward, xpSource);
+      }
     } catch (error) {
       // Log error but don't fail the study session completion
       fastify.log.error(
