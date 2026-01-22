@@ -15,7 +15,9 @@ import type {
   SubmitDrillAnswerRequest,
   CompleteDrillRequest,
   DrillResult,
+  XPAwardResponse,
 } from '@ace-prep/shared';
+import { XP_AWARDS } from '@ace-prep/shared';
 import {
   idParamSchema,
   formatZodError,
@@ -26,6 +28,7 @@ import {
 import { checkAnswerCorrect } from '../utils/scoring.js';
 import { resolveCertificationId } from '../db/certificationUtils.js';
 import { authenticate } from '../middleware/auth.js';
+import { awardCustomXP } from '../services/xpService.js';
 
 export async function drillRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -375,6 +378,22 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
     const { responses, correctCount, totalCount, addedToSRCount } = txResult;
 
+    // Award XP for drill completion (non-blocking, graceful degradation)
+    let xpUpdate: XPAwardResponse | undefined;
+    try {
+      // Calculate XP: +5 per question answered, +20 completion bonus, +50 for perfect score
+      const questionXP = totalCount * XP_AWARDS.DRILL_QUESTION;
+      const completionBonusXP = XP_AWARDS.DRILL_COMPLETE;
+      const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+      const perfectBonusXP = score === 100 ? XP_AWARDS.DRILL_PERFECT_SCORE : 0;
+      const totalXPAwarded = questionXP + completionBonusXP + perfectBonusXP;
+
+      xpUpdate = await awardCustomXP(userId, totalXPAwarded);
+    } catch (error) {
+      fastify.log.error({ error, drillId, userId }, 'Failed to award XP for drill completion');
+      // Continue without XP update - drill completion is more important
+    }
+
     // Get all questions for the responses to build drill results (outside transaction - read-only)
     const questionIds = responses.map((r) => r.questionId);
     const drillQuestions =
@@ -417,15 +436,16 @@ export async function drillRoutes(fastify: FastifyInstance) {
     // Calculate remaining stats
     const totalTimeSpent = responses.reduce((sum, r) => sum + (r.timeSpentSeconds ?? 0), 0);
     const avgTimePerQuestion = totalCount > 0 ? Math.round(totalTimeSpent / totalCount) : 0;
-    const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+    const finalScore = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
 
     return {
-      score,
+      score: finalScore,
       correctCount,
       totalCount,
       avgTimePerQuestion,
       addedToSRCount,
       results,
+      xpUpdate,
     };
   });
 
