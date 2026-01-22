@@ -36,6 +36,7 @@ import type {
   GetCaseStudyResponse,
   UserStreak,
   StreakUpdateResponse,
+  UserXP,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -438,6 +439,7 @@ export const progressApi = {
     return request<TrendsResponse>(`/progress/trends?${params}`);
   },
   getStreak: () => request<UserStreak>('/progress/streak'),
+  getXp: () => request<UserXP>('/progress/xp'),
 };
 
 // Study
