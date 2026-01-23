@@ -226,11 +226,24 @@ export async function studyRoutes(fastify: FastifyInstance) {
         streakUpdate = undefined;
       }
 
-      // Check streak-based achievements
+      // Check streak-based and completionist achievements
       let achievementsUnlocked: AchievementUnlockResponse[] = [];
       try {
+        // Check if all learning path items are now complete for this certification
+        const completedItems = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(learningPathProgress)
+          .where(
+            and(
+              eq(learningPathProgress.certificationId, certId),
+              eq(learningPathProgress.userId, userId)
+            )
+          );
+        const pathComplete = (completedItems[0]?.count ?? 0) >= LEARNING_PATH_TOTAL;
+
         const achievementContext: AchievementContext = {
           streak: currentStreak,
+          pathComplete,
         };
         achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
       } catch (error) {
