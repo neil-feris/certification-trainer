@@ -24,6 +24,10 @@ Started: Fri 23 Jan 2026 23:34:23 SAST
 - `streakResult.streak.currentStreak` is the post-update streak value — use this when passing streak to achievement context
 - Learning path completion (POST `/learning-path/:certId/:order/complete`) in study.ts — needs both streak and completionist achievement checks
 - `performanceStats` table is NOT actively written by routes — domain-level stats are computed from `examResponses`/`studySessionResponses` via SQL GROUP BY on `domains.id`
+- Client components: CSS Modules + CSS variables from globals.css, export from `components/common/index.ts`
+- Rarity color mapping: common=#4a9eff (blue), rare=#a855f7 (purple), epic=#f59e0b (gold)
+- Card hover pattern: `translateY(-2px)` lift + `var(--shadow-md)` + reveal tooltip via opacity
+- Fonts: Outfit for text, JetBrains Mono for data/counts/labels — set via `var(--font-sans)` and `var(--font-mono)`
 
 ---
 
@@ -152,4 +156,38 @@ Started: Fri 23 Jan 2026 23:34:23 SAST
   - For domain-expert, aggregate responses by domain using SQL GROUP BY rather than relying on `performanceStats`
   - The `checkAndUnlock` function is idempotent (skips already-unlocked) — safe to call with multiple qualifying domains in a loop
   - Drills and study sessions store responses in `studySessionResponses` table; exams use `examResponses` — different tables, same domain join pattern
+---
+
+## 2026-01-24 - US-010
+- Integrated completionist achievement check into the learning path completion endpoint (`PATCH /learning-path/:order/complete`)
+- After marking an item complete, queries total completed items for the user/certification
+- Compares against `LEARNING_PATH_TOTAL` to determine if 100% path completion is reached
+- Passes `pathComplete: true` to `checkAndUnlock` context when all items are done
+- Combined with existing streak-based achievement check in the same context call
+- Files changed: `packages/server/src/routes/study.ts`
+- **Learnings for future iterations:**
+  - `LEARNING_PATH_TOTAL` is already imported in study.ts — it's the `.length` of `LEARNING_PATH_ITEMS` array
+  - The completionist check uses `count(*)` from `learningPathProgress` scoped to user + certification — simple and efficient
+  - The `pathComplete` flag in `AchievementContext` is checked by the `checkPathCompletion` function which simply checks `=== true`
+  - Both streak and completionist can be checked in a single `checkAndUnlock` call by combining context fields
+---
+
+## 2026-01-24 - US-011
+- Created `BadgeCard.tsx` component in `packages/client/src/components/common/`
+- Created `BadgeCard.module.css` with rarity-based styling (common=blue, rare=purple, epic=gold)
+- Earned state: full color icon with pulsing glow, unlock date display
+- Locked state: grayscale icon with progress bar (shows currentValue/targetValue when applicable)
+- Hover reveals description tooltip from bottom of card
+- Rarity label shown in mono font with matching color
+- Exported from `components/common/index.ts`
+- Typecheck, lint, and build all pass
+- Files changed: `packages/client/src/components/common/BadgeCard.tsx` (new), `packages/client/src/components/common/BadgeCard.module.css` (new), `packages/client/src/components/common/index.ts`
+- **Learnings for future iterations:**
+  - Client components use CSS Modules (`styles` object import), CSS variables from globals.css
+  - Rarity colors: common=#4a9eff (blue), rare=#a855f7 (purple), epic=#f59e0b (gold)
+  - Card pattern: `var(--bg-secondary)` background, `var(--border-color)` border, `var(--border-radius-lg)` corners
+  - Hover pattern: `translateY(-2px)` + `var(--shadow-md)` + tooltip reveal via opacity transition
+  - Font usage: Outfit for labels/names, JetBrains Mono for data/counts/labels
+  - The common/index.ts barrel exports all shared components — add new exports alphabetically
+  - Progress bar: 4px height, tertiary bg, rarity-colored fill with width transition
 ---
