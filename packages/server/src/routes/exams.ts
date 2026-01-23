@@ -385,40 +385,29 @@ export async function examRoutes(fastify: FastifyInstance) {
       streakUpdate = undefined;
     }
 
-    // Award XP after exam completion with idempotency and error handling
+    // Award XP after exam completion (idempotency handled inside awardCustomXP)
     let xpUpdate: XPAwardResponse | undefined;
     try {
-      // Use exam ID in source to ensure idempotency (prevents double-award on retry)
       const xpSource = `EXAM_COMPLETE_${examId}`;
 
-      // Check if XP already awarded for this exam
-      const existingAward = await db
-        .select()
-        .from(schema.xpHistory)
-        .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, xpSource)))
-        .get();
+      // Calculate total XP to award:
+      // - Per question: +10 for correct, +2 for incorrect
+      // - Exam completion bonus: +50
+      // - Perfect score bonus: +100 (if score is 100%)
+      const questionXP =
+        txResult.correctCount * XP_AWARDS.QUESTION_CORRECT +
+        txResult.incorrectCount * XP_AWARDS.QUESTION_INCORRECT;
+      const completionBonus = XP_AWARDS.EXAM_COMPLETE;
+      const perfectScoreBonus = txResult.score === 100 ? XP_AWARDS.EXAM_PERFECT_SCORE : 0;
+      const totalXpToAward = questionXP + completionBonus + perfectScoreBonus;
 
-      if (!existingAward) {
-        // Calculate total XP to award:
-        // - Per question: +10 for correct, +2 for incorrect
-        // - Exam completion bonus: +50
-        // - Perfect score bonus: +100 (if score is 100%)
-        const questionXP =
-          txResult.correctCount * XP_AWARDS.QUESTION_CORRECT +
-          txResult.incorrectCount * XP_AWARDS.QUESTION_INCORRECT;
-        const completionBonus = XP_AWARDS.EXAM_COMPLETE;
-        const perfectScoreBonus = txResult.score === 100 ? XP_AWARDS.EXAM_PERFECT_SCORE : 0;
-        const totalXpToAward = questionXP + completionBonus + perfectScoreBonus;
-
-        xpUpdate = await awardCustomXP(userId, totalXpToAward, xpSource);
-      } else {
-        // XP already awarded - return existing award details for consistency
+      const result = await awardCustomXP(userId, totalXpToAward, xpSource);
+      xpUpdate = result ?? undefined;
+      if (!result) {
         fastify.log.info(
           { userId, examId },
           'XP already awarded for this exam, skipping duplicate award'
         );
-        // Return undefined to indicate no new XP was awarded
-        xpUpdate = undefined;
       }
     } catch (error) {
       // Log error but don't fail the exam completion

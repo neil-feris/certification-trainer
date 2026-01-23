@@ -10,6 +10,9 @@ Started: Thu 22 Jan 2026 12:59:56 SAST
 - Schema tables: follow existing pattern with `sqliteTable()`, indexes defined in callback, types exported at bottom
 - Migration naming: check existing migrations with `ls` - 0007 was already taken, use 0008
 - Spaced repetition review submission is POST /review in questions.ts, NOT in study.ts
+- Route files use direct named imports from schema (e.g., `import { xpHistory } from '../db/schema.js'`), NOT namespace imports (don't use `schema.xpHistory`)
+- Progress routes use `fastify.addHook('preHandler', authenticate)` - all routes get auth automatically
+- XP history endpoint pattern: query from xpHistory table, order by createdAt desc, apply limit
 
 ---
 
@@ -243,4 +246,103 @@ Started: Thu 22 Jan 2026 12:59:56 SAST
   - XP_SOURCE_LABELS allows consistent human-readable labels across UI
   - Relative time formatting: use thresholds (10s, 60s, 60m, 24h, 7d) for natural language
   - Follow XPDisplay pattern for component props interface and CSS module structure
+---
+
+## Thu 23 Jan 2026 - US-014, US-015, US-016, US-017 (All remaining stories)
+- All four remaining stories were already implemented in previous iterations
+- Fixed pre-existing typecheck errors: `schema.xpHistory` references needed `xpHistory` import
+- Files changed:
+  - `packages/server/src/routes/drills.ts` - Added `xpHistory` to schema imports, fixed references
+  - `packages/server/src/routes/exams.ts` - Added `xpHistory` to schema imports, fixed references
+  - `packages/server/src/routes/study.ts` - Added `xpHistory` to schema imports, fixed references
+- Verified all acceptance criteria already met:
+  - US-014: GET /api/progress/xp/history endpoint exists with auth, limit param (default 20, max 50)
+  - US-015: xp_history table, indexes, types exported, awardXP inserts history records
+  - US-016: XPHistoryPanel on Dashboard with React Query, loading/error states, collapsed by default
+  - US-017: LevelUpModal in ExamContainer, PracticeSummary, DrillSummary with xpUpdate.newLevel checks and query invalidation
+- **Learnings for future iterations:**
+  - When using `schema.TABLE` syntax, the file needs to import `schema` as namespace OR import the table directly
+  - Previous iterations used `schema.xpHistory` without importing `schema` - should use direct import pattern consistent with rest of file
+  - All four stories were implemented incrementally across previous iterations but PRD wasn't always updated in same commit
+---
+
+## Thu 22 Jan 2026 - US-014
+- Implemented XP History API endpoint with database table
+- Files changed:
+  - `packages/server/src/db/schema.ts` - Added xpHistory table definition and types
+  - `packages/server/src/routes/progress.ts` - Added GET /xp/history endpoint
+  - `packages/server/src/db/migrations/0009_add_xp_history.sql` - Migration file
+- Added:
+  - `xp_history` table with id, user_id, amount, source, created_at
+  - Indexes on user_id and created_at for query performance
+  - `XpHistoryRecord` and `NewXpHistory` type exports
+  - GET `/api/progress/xp/history` endpoint with limit query param
+  - Default limit 20, max limit 50
+  - Ordered by created_at descending (most recent first)
+  - Authentication required (via progress routes hook)
+- **Learnings for future iterations:**
+  - US-014 and US-015 are interdependent - endpoint needs table, implemented both together
+  - XPHistoryRecord interface was already defined in shared package (US-013 did this)
+  - Follow existing pattern: add schema table, migration file, then endpoint
+  - Drizzle migration runner had issues with existing data, used sqlite3 directly for table creation
+---
+
+## Thu 22 Jan 2026 - US-015
+- Updated xpService to insert XP history records on every XP award
+- Files changed:
+  - `packages/server/src/services/xpService.ts` - Added history inserts to awardXP and awardCustomXP
+  - `packages/server/src/routes/exams.ts` - Added source param 'EXAM_COMPLETE'
+  - `packages/server/src/routes/drills.ts` - Added source param 'DRILL_COMPLETE'
+  - `packages/server/src/routes/questions.ts` - Added source param 'SR_CARD_REVIEWED'
+  - `packages/server/src/routes/study.ts` - Added source param 'STUDY_SESSION_COMPLETE'
+- Added:
+  - History insert to `awardXP()` using the xpType as source
+  - Optional `source` parameter to `awardCustomXP()` (defaults to 'CUSTOM')
+  - History insert to `awardCustomXP()` using the provided source
+  - All route callers updated with appropriate source values for history tracking
+- **Learnings for future iterations:**
+  - US-015's main work was updating xpService - the table already existed from US-014
+  - awardCustomXP needed a source parameter since it doesn't have an xpType (used for batch XP awards)
+  - Source values should match XP_SOURCE_LABELS keys for consistent UI display
+  - Both awardXP and awardCustomXP insert history within the same transaction for atomicity
+---
+
+## Thu 22 Jan 2026 - US-016
+- Integrated XP History Panel on Dashboard
+- Files changed:
+  - `packages/client/src/api/client.ts` - Added getXpHistory method to progressApi
+  - `packages/client/src/components/dashboard/Dashboard.tsx` - Added XPHistoryPanel component
+- Added:
+  - `getXpHistory(limit?: number)` method in progressApi returning `XPHistoryRecord[]`
+  - Import of `XPHistoryRecord` type from shared
+  - React Query hook for XP history with `['xpHistory']` query key
+  - XPHistoryPanel rendered below stats grid with loading/error states
+  - Limit of 20 history items by default
+- **Learnings for future iterations:**
+  - XPHistoryPanel already handles collapsed state internally (collapsed by default per component design)
+  - Follow same pattern as streak/xp queries for data fetching: useQuery with progressApi method
+  - Panel placement is between stats grid and main grid for good visual flow
+  - Error prop uses `!!xpHistoryError` to convert query error to boolean
+---
+
+## Thu 22 Jan 2026 - US-017
+- Implemented Level-Up Celebration Modal on Activity Completion
+- Files changed:
+  - `packages/shared/src/index.ts` - Added xpUpdate to CompleteStudySessionResponse and CompleteDrillResponse
+  - `packages/client/src/api/client.ts` - Updated examApi.complete return type, added XPAwardResponse import
+  - `packages/client/src/stores/examStore.ts` - Modified submitExam to return xpUpdate for level-up detection
+  - `packages/client/src/components/exam/ExamContainer.tsx` - Added LevelUpModal with XP query invalidation
+  - `packages/client/src/components/study/practice/PracticeSummary.tsx` - Added LevelUpModal for study sessions
+  - `packages/client/src/components/study/drills/DrillSummary.tsx` - Added LevelUpModal for drills
+- Added:
+  - Level-up detection by checking xpUpdate.newLevel in completion responses
+  - LevelUpModal display after activity summary in all three activity types
+  - XP query invalidation on modal close to refresh displays
+  - Old level calculated as currentLevel - 1 when level-up occurs
+- **Learnings for future iterations:**
+  - Completion responses now include xpUpdate with level-up info (newLevel, newTitle)
+  - Three different patterns for showing modal: exam (before navigation), study (after result set), drill (on initial render)
+  - Always invalidate both 'xp' and 'xpHistory' queries when level-up modal closes
+  - The examStore.submitExam returns the result now, not void
+  - Use useState initializer for DrillSummary since results are passed as prop (check level-up on mount)
 ---

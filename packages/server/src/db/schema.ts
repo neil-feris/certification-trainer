@@ -359,6 +359,7 @@ export const xpHistory = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   },
   (table) => [
+    uniqueIndex('xp_history_user_source_idx').on(table.userId, table.source),
     index('xp_history_user_id_idx').on(table.userId),
     index('xp_history_created_at_idx').on(table.createdAt),
   ]
