@@ -14,6 +14,8 @@ import {
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
+import { awardCustomXP } from '../services/xpService.js';
+import { XP_AWARDS, type XPAwardResponse } from '@ace-prep/shared';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -166,6 +168,77 @@ export async function examRoutes(fastify: FastifyInstance) {
     return { examId: newExam.id, totalQuestions: selectedQuestions.length };
   });
 
+  // Batch submit answers for all questions (performance optimization)
+  fastify.post<{
+    Params: { id: string };
+    Body: {
+      responses: Array<{
+        questionId: number;
+        selectedAnswers: number[];
+        timeSpentSeconds?: number;
+        flagged?: boolean;
+      }>;
+    };
+  }>('/:id/submit-batch', async (request, reply) => {
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Verify exam ownership
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
+    if (!exam) {
+      return reply.status(404).send({ error: 'Exam not found' });
+    }
+
+    const { responses: submittedResponses } = request.body;
+
+    // Get all questions for this exam in one query
+    const questionIds = submittedResponses.map((r) => r.questionId);
+    const examQuestions = await db
+      .select()
+      .from(questions)
+      .where(sql`${questions.id} IN ${sql.raw(`(${questionIds.join(',')})`)}`)
+      .all();
+
+    const questionMap = new Map(examQuestions.map((q) => [q.id, q]));
+
+    // Process all responses and prepare batch update
+    const updatePromises = submittedResponses.map(async (response) => {
+      const question = questionMap.get(response.questionId);
+      if (!question) {
+        throw new Error(`Question ${response.questionId} not found`);
+      }
+
+      const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+      const isCorrect =
+        response.selectedAnswers.length === correctAnswers.length &&
+        response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => response.selectedAnswers.includes(a));
+
+      return db
+        .update(examResponses)
+        .set({
+          selectedAnswers: JSON.stringify(response.selectedAnswers),
+          isCorrect,
+          timeSpentSeconds: response.timeSpentSeconds,
+          flagged: response.flagged ?? false,
+        })
+        .where(
+          and(eq(examResponses.examId, examId), eq(examResponses.questionId, response.questionId))
+        );
+    });
+
+    await Promise.all(updatePromises);
+
+    return { success: true, processedCount: submittedResponses.length };
+  });
+
   // Submit answer for a question
   fastify.patch<{
     Params: { id: string };
@@ -266,6 +339,7 @@ export async function examRoutes(fastify: FastifyInstance) {
         .all();
 
       const correctCount = responses.filter((r) => r.isCorrect === true).length;
+      const incorrectCount = responses.length - correctCount;
       const score = responses.length > 0 ? (correctCount / responses.length) * 100 : 0;
 
       // Update exam atomically
@@ -282,7 +356,7 @@ export async function examRoutes(fastify: FastifyInstance) {
         .returning()
         .all();
 
-      return { exam: updatedExam };
+      return { exam: updatedExam, correctCount, incorrectCount, score };
     });
 
     if ('error' in txResult) {
@@ -311,9 +385,59 @@ export async function examRoutes(fastify: FastifyInstance) {
       streakUpdate = undefined;
     }
 
+    // Award XP after exam completion with idempotency and error handling
+    let xpUpdate: XPAwardResponse | undefined;
+    try {
+      // Use exam ID in source to ensure idempotency (prevents double-award on retry)
+      const xpSource = `EXAM_COMPLETE_${examId}`;
+
+      // Check if XP already awarded for this exam
+      const existingAward = await db
+        .select()
+        .from(schema.xpHistory)
+        .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, xpSource)))
+        .get();
+
+      if (!existingAward) {
+        // Calculate total XP to award:
+        // - Per question: +10 for correct, +2 for incorrect
+        // - Exam completion bonus: +50
+        // - Perfect score bonus: +100 (if score is 100%)
+        const questionXP =
+          txResult.correctCount * XP_AWARDS.QUESTION_CORRECT +
+          txResult.incorrectCount * XP_AWARDS.QUESTION_INCORRECT;
+        const completionBonus = XP_AWARDS.EXAM_COMPLETE;
+        const perfectScoreBonus = txResult.score === 100 ? XP_AWARDS.EXAM_PERFECT_SCORE : 0;
+        const totalXpToAward = questionXP + completionBonus + perfectScoreBonus;
+
+        xpUpdate = await awardCustomXP(userId, totalXpToAward, xpSource);
+      } else {
+        // XP already awarded - return existing award details for consistency
+        fastify.log.info(
+          { userId, examId },
+          'XP already awarded for this exam, skipping duplicate award'
+        );
+        // Return undefined to indicate no new XP was awarded
+        xpUpdate = undefined;
+      }
+    } catch (error) {
+      // Log error but don't fail the exam completion
+      fastify.log.error(
+        {
+          userId,
+          examId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP after exam completion'
+      );
+      // Graceful degradation - XP update is non-critical
+      xpUpdate = undefined;
+    }
+
     return {
       ...txResult.exam,
       streakUpdate,
+      xpUpdate,
     };
   });
 

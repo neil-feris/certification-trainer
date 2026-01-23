@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
 import { StreakDisplay } from '../common/StreakDisplay';
+import { XPDisplay } from '../common/XPDisplay';
+import { XPHistoryPanel } from '../common/XPHistoryPanel';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -88,6 +90,26 @@ export function Dashboard() {
   const { data: streak, isLoading: streakLoading } = useQuery({
     queryKey: ['streak'],
     queryFn: () => progressApi.getStreak(),
+  });
+
+  // Fetch XP data
+  const {
+    data: xp,
+    isLoading: xpLoading,
+    error: xpError,
+  } = useQuery({
+    queryKey: ['xp'],
+    queryFn: () => progressApi.getXp(),
+  });
+
+  // Fetch XP history data
+  const {
+    data: xpHistory,
+    isLoading: xpHistoryLoading,
+    error: xpHistoryError,
+  } = useQuery({
+    queryKey: ['xpHistory'],
+    queryFn: () => progressApi.getXpHistory(20),
   });
 
   if (isLoading) {
@@ -209,7 +231,27 @@ export function Dashboard() {
             />
           )}
         </div>
+        <div className={styles.statCard}>
+          {xpLoading ? (
+            <div className={styles.statValue}>
+              <span className="animate-pulse">...</span>
+            </div>
+          ) : xpError ? (
+            <div className={styles.statValue}>
+              <span className={styles.failing}>XP unavailable</span>
+            </div>
+          ) : xp ? (
+            <XPDisplay variant="full" xp={xp} />
+          ) : null}
+        </div>
       </div>
+
+      {/* XP History Panel */}
+      <XPHistoryPanel
+        history={xpHistory || []}
+        isLoading={xpHistoryLoading}
+        error={!!xpHistoryError}
+      />
 
       <div className={styles.mainGrid}>
         {/* Domain Performance */}

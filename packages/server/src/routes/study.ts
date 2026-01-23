@@ -41,6 +41,8 @@ import {
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
+import { awardCustomXP } from '../services/xpService.js';
+import { XP_AWARDS, XPAwardResponse } from '@ace-prep/shared';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -1177,12 +1179,48 @@ export async function studyRoutes(fastify: FastifyInstance) {
       streakUpdate = undefined;
     }
 
+    // Award XP for study session completion with idempotency
+    let xpUpdate: XPAwardResponse | undefined;
+    try {
+      const xpSource = `STUDY_SESSION_COMPLETE_${sessionId}`;
+
+      // Check if XP already awarded for this session
+      const existingAward = await db
+        .select()
+        .from(schema.xpHistory)
+        .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, xpSource)))
+        .get();
+
+      if (!existingAward) {
+        // Calculate XP: per-question XP + session completion bonus
+        const questionXp =
+          actualCorrect * XP_AWARDS.QUESTION_CORRECT +
+          (actualTotal - actualCorrect) * XP_AWARDS.QUESTION_INCORRECT;
+        const totalXpToAward = questionXp + XP_AWARDS.STUDY_SESSION_COMPLETE;
+
+        xpUpdate = await awardCustomXP(userId, totalXpToAward, xpSource);
+      }
+    } catch (error) {
+      // Log error but don't fail the study session completion
+      fastify.log.error(
+        {
+          userId,
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP after study session completion'
+      );
+      // Graceful degradation - XP award is non-critical
+      xpUpdate = undefined;
+    }
+
     const result = {
       score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
       correctCount: actualCorrect,
       totalCount: actualTotal,
       addedToSRCount: actualAddedToSR,
       streakUpdate,
+      xpUpdate,
     };
 
     return result;

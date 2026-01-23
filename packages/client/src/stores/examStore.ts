@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/react';
 import { examApi } from '../api/client';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
 import { queryClient } from '../lib/queryClient';
-import type { CaseStudy } from '@ace-prep/shared';
+import type { CaseStudy, XPAwardResponse } from '@ace-prep/shared';
 
 interface ExamQuestion {
   id: number;
@@ -42,7 +42,7 @@ interface ExamState {
   answerQuestion: (questionId: number, selectedAnswers: number[]) => void;
   toggleFlag: (questionId: number) => void;
   updateTimeRemaining: (seconds: number) => void;
-  submitExam: () => Promise<void>;
+  submitExam: () => Promise<{ xpUpdate?: XPAwardResponse } | undefined>;
   resetExam: () => void;
   abandonExam: () => Promise<void>;
   hasIncompleteExam: () => boolean;
@@ -167,11 +167,11 @@ export const useExamStore = create<ExamState>()(
 
       submitExam: async () => {
         const { examId, startTime, responses, questions } = get();
-        if (!examId || !startTime) return;
+        if (!examId || !startTime) return undefined;
 
         set({ isSubmitting: true });
 
-        await Sentry.startSpan(
+        return await Sentry.startSpan(
           {
             op: 'ui.action',
             name: 'Complete Exam',
@@ -197,15 +197,18 @@ export const useExamStore = create<ExamState>()(
                 answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0
               );
 
-              // Submit answers to API using client
-              for (const response of responsesArray) {
-                if (response.selectedAnswers.length > 0) {
-                  await examApi.submitAnswer(examId, {
-                    questionId: response.questionId,
-                    selectedAnswers: response.selectedAnswers,
-                    timeSpentSeconds: response.timeSpentSeconds,
-                  });
-                }
+              // Submit all answers in one batch request (performance optimization)
+              const answeredResponses = responsesArray.filter((r) => r.selectedAnswers.length > 0);
+              if (answeredResponses.length > 0) {
+                await examApi.submitBatch(
+                  examId,
+                  answeredResponses.map((r) => ({
+                    questionId: r.questionId,
+                    selectedAnswers: r.selectedAnswers,
+                    timeSpentSeconds: r.timeSpentSeconds,
+                    flagged: r.flagged,
+                  }))
+                );
               }
 
               // Complete the exam using client
@@ -216,6 +219,9 @@ export const useExamStore = create<ExamState>()(
 
               // Invalidate streak query to refresh displays
               queryClient.invalidateQueries({ queryKey: ['streak'] });
+
+              // Return xpUpdate for level-up modal handling
+              return { xpUpdate: result.xpUpdate };
             } finally {
               set({ isSubmitting: false });
             }

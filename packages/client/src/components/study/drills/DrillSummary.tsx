@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import type { CompleteDrillResponse } from '@ace-prep/shared';
+import { LevelUpModal } from '../../common/LevelUpModal';
 import styles from './Drills.module.css';
 
 interface DrillSummaryProps {
@@ -9,6 +12,7 @@ interface DrillSummaryProps {
 
 export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const {
     score,
     correctCount,
@@ -16,7 +20,20 @@ export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
     avgTimePerQuestion,
     addedToSRCount,
     results: drillResults,
+    xpUpdate,
   } = results;
+
+  // Check for level-up on initial render
+  const [levelUpInfo, setLevelUpInfo] = useState<{ oldLevel: number; newLevel: number } | null>(
+    xpUpdate?.newLevel ? { oldLevel: xpUpdate.currentLevel - 1, newLevel: xpUpdate.newLevel } : null
+  );
+
+  const handleLevelUpClose = () => {
+    setLevelUpInfo(null);
+    // Invalidate XP queries to refresh displays
+    queryClient.invalidateQueries({ queryKey: ['xp'] });
+    queryClient.invalidateQueries({ queryKey: ['xpHistory'] });
+  };
 
   // Determine score category
   const getScoreCategory = (): string => {
@@ -123,6 +140,15 @@ export function DrillSummary({ results, onComplete }: DrillSummaryProps) {
           </button>
         </div>
       </div>
+
+      {/* Level-Up Celebration Modal */}
+      {levelUpInfo && (
+        <LevelUpModal
+          oldLevel={levelUpInfo.oldLevel}
+          newLevel={levelUpInfo.newLevel}
+          onClose={handleLevelUpClose}
+        />
+      )}
     </div>
   );
 }

@@ -1,0 +1,269 @@
+{
+  "project": "ace-prep",
+  "feature": "xp-leveling",
+  "branchName": "ralph/xp-leveling",
+  "description": "XP and leveling system for gamification progression",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Define XP Types in Shared Package",
+      "description": "As a developer, I need shared type definitions for XP, levels, and level thresholds so all packages use consistent contracts.",
+      "acceptanceCriteria": [
+        "Add UserXP interface with totalXp, currentLevel, levelTitle",
+        "Add XP_AWARDS constant with point values per activity type",
+        "Add LEVEL_THRESHOLDS array with level definitions",
+        "Add XPAwardResponse interface",
+        "Export calculateLevel pure function",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create Database Schema for XP",
+      "description": "As a developer, I need a database table to persist user XP totals and current level.",
+      "acceptanceCriteria": [
+        "Add user_xp table with id, user_id, total_xp, current_level, updated_at",
+        "Add unique index on user_id",
+        "Create migration file 0007_add_xp_leveling.sql",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Migration created as 0008 since 0007 already existed for user_streaks"
+    },
+    {
+      "id": "US-003",
+      "title": "Create XP Service with Award Logic",
+      "description": "As a developer, I need a service that awards XP and calculates level-ups.",
+      "acceptanceCriteria": [
+        "Create packages/server/src/services/xpService.ts",
+        "Implement getXP(userId) function",
+        "Implement awardXP(userId, xpType) function with upsert",
+        "Calculate and return newLevel when level changes",
+        "Use transaction for atomicity",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create XP API Endpoints",
+      "description": "As a developer, I need REST endpoints to fetch XP and manually award XP (for testing).",
+      "acceptanceCriteria": [
+        "Add GET /api/progress/xp endpoint",
+        "Returns 200 with UserXP (creates default if not exists)",
+        "Add auth middleware",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Integrate XP Awards into Exam Completion",
+      "description": "As a developer, I need exams to award XP when completed.",
+      "acceptanceCriteria": [
+        "In exams.ts PATCH /:id/complete call awardXP for each question",
+        "Award +50 bonus for completing exam",
+        "Award +100 bonus if score is 100%",
+        "Include xpUpdate in response",
+        "Graceful degradation if XP service fails",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Integrate XP Awards into Study Sessions",
+      "description": "As a developer, I need study sessions to award XP when completed.",
+      "acceptanceCriteria": [
+        "In study.ts PATCH /sessions/:id/complete call awardXP",
+        "Include xpUpdate in response",
+        "Graceful degradation if XP service fails",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Integrate XP Awards into Drills",
+      "description": "As a developer, I need timed drills to award XP when completed.",
+      "acceptanceCriteria": [
+        "Award +5 per question in drill completion",
+        "Award +20 bonus for drill completion",
+        "Award +50 bonus for 100% accuracy on timed drill",
+        "Include xpUpdate in response",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Integrate XP Awards into Spaced Repetition Reviews",
+      "description": "As a developer, I need review sessions to award XP per card reviewed.",
+      "acceptanceCriteria": [
+        "In study.ts review submission award +3 per card rated",
+        "Include xpUpdate in response",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Implemented in questions.ts POST /review endpoint (not study.ts)"
+    },
+    {
+      "id": "US-009",
+      "title": "Create XP Display Component",
+      "description": "As a user, I want to see my XP, level, and progress to next level displayed attractively.",
+      "acceptanceCriteria": [
+        "Create XPDisplay.tsx component",
+        "Create XPDisplay.module.css styles",
+        "Show level badge/title prominently",
+        "Show XP progress bar to next level",
+        "Support variant prop (compact/full)",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Display XP on Dashboard",
+      "description": "As a user, I want to see my XP and level prominently on the dashboard.",
+      "acceptanceCriteria": [
+        "Add XPDisplay full variant to Dashboard",
+        "Position near streak display",
+        "Fetch XP data via React Query",
+        "Handle loading and error states",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Display XP in Header",
+      "description": "As a user, I want to see my level in the app header for constant visibility.",
+      "acceptanceCriteria": [
+        "Add XPDisplay compact variant to AppShell header",
+        "Position near streak counter",
+        "Desktop and mobile responsive",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Level-Up Celebration Modal",
+      "description": "As a user, I want to see a celebratory modal with animation when I level up.",
+      "acceptanceCriteria": [
+        "Create LevelUpModal.tsx component",
+        "Create LevelUpModal.module.css styles",
+        "Modal displays Level Up heading prominently",
+        "Shows old level to new level transition with animation",
+        "Displays new title prominently",
+        "Include confetti or particle animation effect (CSS-based)",
+        "Continue button closes modal",
+        "Accessible (focus trap, escape to close)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create XP History Panel Component",
+      "description": "As a user, I want to see my recent XP gains in an expandable history.",
+      "acceptanceCriteria": [
+        "Create XPHistoryPanel.tsx component",
+        "Create XPHistoryPanel.module.css styles",
+        "Collapsed by default with View XP History button",
+        "Expanded shows list of recent gains (max 20)",
+        "Each item shows source, amount, relative time",
+        "Human-readable source labels",
+        "Relative time format (just now, 5m ago, etc)",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add XP History API Endpoint",
+      "description": "As a developer, I need an API endpoint to fetch XP history.",
+      "acceptanceCriteria": [
+        "Add GET /api/progress/xp/history endpoint",
+        "Returns array of amount, source, createdAt",
+        "Requires authentication",
+        "Default limit 20, max limit 50",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add XP History Database Table",
+      "description": "As a developer, I need a table to store XP award history.",
+      "acceptanceCriteria": [
+        "Add xp_history table with id, user_id, amount, source, created_at",
+        "Add index on user_id and created_at",
+        "Export XPHistoryRecord type",
+        "Update awardXP to insert into history table",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Display XP History on Dashboard",
+      "description": "As a user, I want to see my XP history panel on the dashboard.",
+      "acceptanceCriteria": [
+        "Add XPHistoryPanel below XP display on Dashboard",
+        "Fetch history via React Query",
+        "Handle loading and error states",
+        "Collapsed by default",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Show Level-Up Modal on Activity Completion",
+      "description": "As a user, I want to see the level-up modal after completing activities that cause a level-up.",
+      "acceptanceCriteria": [
+        "Exam completion checks xpUpdate.newLevel in response",
+        "Study session completion checks xpUpdate.newLevel",
+        "Drill completion checks xpUpdate.newLevel",
+        "Show LevelUpModal after activity summary",
+        "Invalidate XP queries after modal closes",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

@@ -36,6 +36,9 @@ import type {
   GetCaseStudyResponse,
   UserStreak,
   StreakUpdateResponse,
+  UserXP,
+  XPHistoryRecord,
+  XPAwardResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -314,11 +317,27 @@ export const examApi = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  complete: (examId: number, totalTimeSeconds: number) =>
-    request<{ streakUpdate?: StreakUpdateResponse }>(`/exams/${examId}/complete`, {
-      method: 'PATCH',
-      body: JSON.stringify({ totalTimeSeconds }),
+  submitBatch: (
+    examId: number,
+    responses: Array<{
+      questionId: number;
+      selectedAnswers: number[];
+      timeSpentSeconds?: number;
+      flagged?: boolean;
+    }>
+  ) =>
+    request<{ success: boolean; processedCount: number }>(`/exams/${examId}/submit-batch`, {
+      method: 'POST',
+      body: JSON.stringify({ responses }),
     }),
+  complete: (examId: number, totalTimeSeconds: number) =>
+    request<{ streakUpdate?: StreakUpdateResponse; xpUpdate?: XPAwardResponse }>(
+      `/exams/${examId}/complete`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ totalTimeSeconds }),
+      }
+    ),
   getReview: (id: number) => request<any>(`/exams/${id}/review`),
   abandon: (id: number) =>
     request<{ success: boolean }>(`/exams/${id}`, {
@@ -438,6 +457,11 @@ export const progressApi = {
     return request<TrendsResponse>(`/progress/trends?${params}`);
   },
   getStreak: () => request<UserStreak>('/progress/streak'),
+  getXp: () => request<UserXP>('/progress/xp'),
+  getXpHistory: (limit?: number) => {
+    const params = limit ? `?limit=${limit}` : '';
+    return request<XPHistoryRecord[]>(`/progress/xp/history${params}`);
+  },
 };
 
 // Study

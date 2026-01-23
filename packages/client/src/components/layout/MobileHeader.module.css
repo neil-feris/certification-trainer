@@ -32,3 +32,9 @@
   font-weight: 600;
   color: var(--text-primary);
 }
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

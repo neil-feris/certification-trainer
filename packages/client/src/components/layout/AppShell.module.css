@@ -91,9 +91,11 @@
   gap: 12px;
 }
 
-.footerStreak {
+.footerStats {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 16px;
   padding: 8px;
 }
 

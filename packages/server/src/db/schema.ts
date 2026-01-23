@@ -331,6 +331,39 @@ export const learningPathProgress = sqliteTable(
   ]
 );
 
+// ============ USER XP & LEVELING ============
+export const userXp = sqliteTable(
+  'user_xp',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    totalXp: integer('total_xp').notNull().default(0),
+    currentLevel: integer('current_level').notNull().default(1),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [uniqueIndex('user_xp_user_id_idx').on(table.userId)]
+);
+
+// XP History (tracks individual XP awards)
+export const xpHistory = sqliteTable(
+  'xp_history',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    amount: integer('amount').notNull(),
+    source: text('source').notNull(), // XP_AWARDS key or custom source
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    index('xp_history_user_id_idx').on(table.userId),
+    index('xp_history_created_at_idx').on(table.createdAt),
+  ]
+);
+
 // ============ USER STREAKS ============
 export const userStreaks = sqliteTable(
   'user_streaks',
@@ -404,3 +437,7 @@ export type LearningPathSummaryRecord = typeof learningPathSummaries.$inferSelec
 export type NewLearningPathSummary = typeof learningPathSummaries.$inferInsert;
 export type UserStreakRecord = typeof userStreaks.$inferSelect;
 export type NewUserStreak = typeof userStreaks.$inferInsert;
+export type UserXpRecord = typeof userXp.$inferSelect;
+export type NewUserXp = typeof userXp.$inferInsert;
+export type XpHistoryRecord = typeof xpHistory.$inferSelect;
+export type NewXpHistory = typeof xpHistory.$inferInsert;
