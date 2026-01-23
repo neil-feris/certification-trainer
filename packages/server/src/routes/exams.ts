@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db, schema } from '../db/index.js';
+import { db } from '../db/index.js';
 import { exams, examResponses, questions, domains, topics, caseStudies } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
@@ -15,7 +15,8 @@ import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
-import { XP_AWARDS, type XPAwardResponse } from '@ace-prep/shared';
+import { checkAndUnlock, type AchievementContext } from '../services/achievementService.js';
+import { XP_AWARDS, type XPAwardResponse, type AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -423,10 +424,41 @@ export async function examRoutes(fastify: FastifyInstance) {
       xpUpdate = undefined;
     }
 
+    // Check achievements after exam completion
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    try {
+      // Count total completed exams for exam-veteran badge
+      const [examCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(exams)
+        .where(and(eq(exams.userId, userId), eq(exams.status, 'completed')));
+
+      const achievementContext: AchievementContext = {
+        activity: 'exam',
+        score: txResult.correctCount,
+        totalQuestions: txResult.exam.totalQuestions,
+        cumulativeExams: examCount.count,
+      };
+
+      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+    } catch (error) {
+      // Log error but don't fail the exam completion
+      fastify.log.error(
+        {
+          userId,
+          examId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to check achievements after exam completion'
+      );
+      // Graceful degradation - achievement check is non-critical
+    }
+
     return {
       ...txResult.exam,
       streakUpdate,
       xpUpdate,
+      achievementsUnlocked,
     };
   });
 
