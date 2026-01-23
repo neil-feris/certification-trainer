@@ -369,9 +369,11 @@ export async function examRoutes(fastify: FastifyInstance) {
 
     // Update streak after exam completion with error handling
     let streakUpdate;
+    let currentStreak: number | undefined;
     try {
       const streakResult = await updateStreak(userId);
       streakUpdate = streakResult.streakUpdate;
+      currentStreak = streakResult.streak.currentStreak;
     } catch (error) {
       // Log error but don't fail the exam completion
       fastify.log.error(
@@ -438,6 +440,7 @@ export async function examRoutes(fastify: FastifyInstance) {
         score: txResult.correctCount,
         totalQuestions: txResult.exam.totalQuestions,
         cumulativeExams: examCount.count,
+        streak: currentStreak,
       };
 
       achievementsUnlocked = await checkAndUnlock(userId, achievementContext);

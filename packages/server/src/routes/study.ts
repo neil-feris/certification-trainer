@@ -207,9 +207,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       // Update streak since this is a new completion with error handling
       let streakUpdate;
+      let currentStreak: number | undefined;
       try {
         const streakResult = await updateStreak(userId);
         streakUpdate = streakResult.streakUpdate;
+        currentStreak = streakResult.streak.currentStreak;
       } catch (error) {
         // Log error but don't fail the learning path completion
         fastify.log.error(
@@ -224,10 +226,29 @@ export async function studyRoutes(fastify: FastifyInstance) {
         streakUpdate = undefined;
       }
 
+      // Check streak-based achievements
+      let achievementsUnlocked: AchievementUnlockResponse[] = [];
+      try {
+        const achievementContext: AchievementContext = {
+          streak: currentStreak,
+        };
+        achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+      } catch (error) {
+        fastify.log.error(
+          {
+            userId,
+            order,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to check achievements after learning path completion'
+        );
+      }
+
       return {
         isCompleted: true,
         completedAt: now,
         streakUpdate,
+        achievementsUnlocked,
       };
     }
   );
@@ -1164,9 +1185,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
     // Update streak after session completion with error handling
     let streakUpdate;
+    let currentStreak: number | undefined;
     try {
       const streakResult = await updateStreak(userId);
       streakUpdate = streakResult.streakUpdate;
+      currentStreak = streakResult.streak.currentStreak;
     } catch (error) {
       // Log error but don't fail the study session completion
       fastify.log.error(
@@ -1207,7 +1230,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       xpUpdate = undefined;
     }
 
-    // Check achievements: night-owl, early-bird (time of day)
+    // Check achievements: night-owl, early-bird (time of day), streak badges
     let achievementsUnlocked: AchievementUnlockResponse[] = [];
     try {
       const currentHour = new Date().getHours();
@@ -1216,6 +1239,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
         timeOfDay: currentHour,
         score: actualCorrect,
         totalQuestions: actualTotal,
+        streak: currentStreak,
       };
       achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
     } catch (error) {

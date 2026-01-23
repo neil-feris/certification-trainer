@@ -531,9 +531,11 @@ export async function questionRoutes(fastify: FastifyInstance) {
 
     // Update streak after review completion with error handling
     let streakUpdate;
+    let currentStreak: number | undefined;
     try {
       const streakResult = await updateStreak(userId);
       streakUpdate = streakResult.streakUpdate;
+      currentStreak = streakResult.streak.currentStreak;
     } catch (error) {
       // Log error but don't fail the review submission
       fastify.log.error(
@@ -585,6 +587,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       const achievementContext: AchievementContext = {
         activity: 'review',
         cumulativeSrReviews: reviewCount?.count ?? 0,
+        streak: currentStreak,
       };
       achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
     } catch (error) {
