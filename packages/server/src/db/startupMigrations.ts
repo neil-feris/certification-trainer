@@ -289,6 +289,58 @@ const migrations: Migration[] = [
       console.log(`  [migration] Seeded ${caseStudies.length} PCA case studies`);
     },
   },
+  {
+    version: 5,
+    name: 'add_achievement_tables',
+    up: (db) => {
+      // Create achievements table
+      const achievementsExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='achievements'")
+        .get();
+
+      if (!achievementsExists) {
+        db.exec(`
+          CREATE TABLE achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            rarity TEXT NOT NULL,
+            icon TEXT NOT NULL,
+            criteria_type TEXT NOT NULL,
+            criteria_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+          )
+        `);
+        db.exec(`
+          CREATE UNIQUE INDEX IF NOT EXISTS achievements_code_idx ON achievements(code)
+        `);
+        console.log('  [migration] Created achievements table');
+      }
+
+      // Create user_achievements table
+      const userAchievementsExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_achievements'")
+        .get();
+
+      if (!userAchievementsExists) {
+        db.exec(`
+          CREATE TABLE user_achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            achievement_code TEXT NOT NULL,
+            xp_awarded INTEGER NOT NULL,
+            unlocked_at INTEGER NOT NULL
+          )
+        `);
+        db.exec(`
+          CREATE UNIQUE INDEX IF NOT EXISTS user_achievements_user_code_idx ON user_achievements(user_id, achievement_code);
+          CREATE INDEX IF NOT EXISTS user_achievements_user_idx ON user_achievements(user_id);
+        `);
+        console.log('  [migration] Created user_achievements table');
+      }
+    },
+  },
 ];
 
 /**
