@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db, schema } from '../db/index.js';
+import { db } from '../db/index.js';
 import {
   domains,
   topics,
@@ -29,6 +29,8 @@ import { checkAnswerCorrect } from '../utils/scoring.js';
 import { resolveCertificationId } from '../db/certificationUtils.js';
 import { authenticate } from '../middleware/auth.js';
 import { awardCustomXP } from '../services/xpService.js';
+import { checkAndUnlock, AchievementContext } from '../services/achievementService.js';
+import type { AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function drillRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -440,6 +442,23 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const avgTimePerQuestion = totalCount > 0 ? Math.round(totalTimeSpent / totalCount) : 0;
     const finalScore = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
 
+    // Check achievements: speed-demon (100% accuracy drill under 60s)
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    try {
+      const achievementContext: AchievementContext = {
+        activity: 'drill',
+        score: correctCount,
+        totalQuestions: totalCount,
+        durationSeconds: totalTimeSeconds,
+      };
+      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+    } catch (error) {
+      fastify.log.error(
+        { userId, drillId, error: error instanceof Error ? error.message : String(error) },
+        'Failed to check achievements after drill completion'
+      );
+    }
+
     return {
       score: finalScore,
       correctCount,
@@ -448,6 +467,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       addedToSRCount,
       results,
       xpUpdate,
+      achievementsUnlocked,
     };
   });
 

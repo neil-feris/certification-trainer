@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db, schema } from '../db/index.js';
+import { db } from '../db/index.js';
 import {
   domains,
   topics,
@@ -43,6 +43,8 @@ import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
 import { XP_AWARDS, XPAwardResponse } from '@ace-prep/shared';
+import { checkAndUnlock, AchievementContext } from '../services/achievementService.js';
+import type { AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -1205,6 +1207,28 @@ export async function studyRoutes(fastify: FastifyInstance) {
       xpUpdate = undefined;
     }
 
+    // Check achievements: night-owl, early-bird (time of day)
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    try {
+      const currentHour = new Date().getHours();
+      const achievementContext: AchievementContext = {
+        activity: 'study',
+        timeOfDay: currentHour,
+        score: actualCorrect,
+        totalQuestions: actualTotal,
+      };
+      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to check achievements after study session completion'
+      );
+    }
+
     const result = {
       score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
       correctCount: actualCorrect,
@@ -1212,6 +1236,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       addedToSRCount: actualAddedToSR,
       streakUpdate,
       xpUpdate,
+      achievementsUnlocked,
     };
 
     return result;
