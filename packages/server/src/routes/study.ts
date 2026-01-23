@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db } from '../db/index.js';
+import { db, schema } from '../db/index.js';
 import {
   domains,
   topics,

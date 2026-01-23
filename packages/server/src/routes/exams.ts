@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db } from '../db/index.js';
+import { db, schema } from '../db/index.js';
 import { exams, examResponses, questions, domains, topics, caseStudies } from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
