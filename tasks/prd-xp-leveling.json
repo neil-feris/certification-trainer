@@ -216,8 +216,8 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Also added xp_history table schema and migration (0009) as dependency for API endpoint"
     },
     {
       "id": "US-015",
@@ -231,8 +231,8 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Table and types were already created in US-014. Updated xpService to insert history records on XP awards."
     },
     {
       "id": "US-016",
@@ -246,7 +246,7 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -262,7 +262,7 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

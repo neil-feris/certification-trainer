@@ -31,7 +31,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-002: XP & Leveling System
-- **Status**: `[ ]`
+- **Status**: `[~]`
 - **Priority**: P0 (High Impact, Low Effort)
 - **Category**: Gamification
 
