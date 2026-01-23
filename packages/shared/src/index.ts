@@ -449,6 +449,7 @@ export interface CompleteStudySessionResponse {
   addedToSRCount: number;
   streakUpdate?: StreakUpdateResponse;
   xpUpdate?: XPAwardResponse;
+  achievementsUnlocked?: AchievementUnlockResponse[];
 }
 
 export interface ActiveStudySessionResponse {
@@ -568,6 +569,7 @@ export interface CompleteDrillResponse {
   addedToSRCount: number;
   results: DrillResult[];
   xpUpdate?: XPAwardResponse;
+  achievementsUnlocked?: AchievementUnlockResponse[];
 }
 
 export interface ActiveDrillResponse {

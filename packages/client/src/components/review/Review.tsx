@@ -8,6 +8,7 @@ import { getCachedQuestions } from '../../services/offlineStorage';
 import { queueResponse } from '../../services/syncQueue';
 import { showToast } from '../common/Toast';
 import { showStreakMilestoneToast } from '../../utils/streakNotifications';
+import { showAchievementUnlockToasts } from '../../utils/achievementNotifications';
 import styles from './Review.module.css';
 
 type Quality = 'again' | 'hard' | 'good' | 'easy';
@@ -94,6 +95,7 @@ export function Review() {
     onSuccess: (data) => {
       // Show milestone toast if applicable
       showStreakMilestoneToast(data.streakUpdate);
+      showAchievementUnlockToasts(data.achievementsUnlocked);
 
       queryClient.invalidateQueries({ queryKey: ['reviewQueue'] });
       queryClient.invalidateQueries({ queryKey: ['streak'] });

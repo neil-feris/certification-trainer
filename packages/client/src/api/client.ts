@@ -41,6 +41,7 @@ import type {
   XPAwardResponse,
   AchievementRarity,
   AchievementCriteria,
+  AchievementUnlockResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -333,13 +334,14 @@ export const examApi = {
       body: JSON.stringify({ responses }),
     }),
   complete: (examId: number, totalTimeSeconds: number) =>
-    request<{ streakUpdate?: StreakUpdateResponse; xpUpdate?: XPAwardResponse }>(
-      `/exams/${examId}/complete`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ totalTimeSeconds }),
-      }
-    ),
+    request<{
+      streakUpdate?: StreakUpdateResponse;
+      xpUpdate?: XPAwardResponse;
+      achievementsUnlocked?: AchievementUnlockResponse[];
+    }>(`/exams/${examId}/complete`, {
+      method: 'PATCH',
+      body: JSON.stringify({ totalTimeSeconds }),
+    }),
   getReview: (id: number) => request<any>(`/exams/${id}/review`),
   abandon: (id: number) =>
     request<{ success: boolean }>(`/exams/${id}`, {
@@ -427,7 +429,10 @@ export const questionApi = {
     }),
   getReviewQueue: () => request<QuestionWithDomain[]>('/questions/review'),
   submitReview: (questionId: number, quality: string) =>
-    request<{ streakUpdate?: StreakUpdateResponse }>('/questions/review', {
+    request<{
+      streakUpdate?: StreakUpdateResponse;
+      achievementsUnlocked?: AchievementUnlockResponse[];
+    }>('/questions/review', {
       method: 'POST',
       body: JSON.stringify({ questionId, quality }),
     }),
@@ -504,6 +509,7 @@ export const studyApi = {
       isCompleted: boolean;
       completedAt: Date | null;
       streakUpdate?: StreakUpdateResponse;
+      achievementsUnlocked?: AchievementUnlockResponse[];
     }>(`/study/learning-path/${order}/complete${params}`, {
       method: 'PATCH',
     });

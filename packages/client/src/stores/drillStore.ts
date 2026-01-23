@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { drillApi } from '../api/client';
+import { showAchievementUnlockToasts } from '../utils/achievementNotifications';
 import type {
   DrillMode,
   DrillQuestionCount,
@@ -265,6 +266,8 @@ export const useDrillStore = create<DrillState>()(
             totalTimeSeconds,
             timedOut,
           });
+
+          showAchievementUnlockToasts(result.achievementsUnlocked);
 
           set({
             showSummary: true,

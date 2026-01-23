@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import * as Sentry from '@sentry/react';
 import { examApi } from '../api/client';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
+import { showAchievementUnlockToasts } from '../utils/achievementNotifications';
 import { queryClient } from '../lib/queryClient';
 import type { CaseStudy, XPAwardResponse } from '@ace-prep/shared';
 
@@ -216,6 +217,7 @@ export const useExamStore = create<ExamState>()(
 
               // Show milestone toast if applicable
               showStreakMilestoneToast(result.streakUpdate);
+              showAchievementUnlockToasts(result.achievementsUnlocked);
 
               // Invalidate streak query to refresh displays
               queryClient.invalidateQueries({ queryKey: ['streak'] });

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studyApi } from '../../../api/client';
 import { useCertificationStore } from '../../../stores/certificationStore';
 import { showStreakMilestoneToast } from '../../../utils/streakNotifications';
+import { showAchievementUnlockToasts } from '../../../utils/achievementNotifications';
 import styles from './LearningPathDetail.module.css';
 
 export function LearningPathDetail() {
@@ -39,6 +40,7 @@ export function LearningPathDetail() {
     onSuccess: (data) => {
       // Show milestone toast if applicable
       showStreakMilestoneToast(data.streakUpdate);
+      showAchievementUnlockToasts(data.achievementsUnlocked);
 
       setShowSuccess(true);
       queryClient.invalidateQueries({ queryKey: ['learningPathItem', orderNum] });
