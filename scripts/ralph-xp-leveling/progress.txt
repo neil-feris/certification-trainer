@@ -10,6 +10,7 @@ Started: Thu 22 Jan 2026 12:59:56 SAST
 - Schema tables: follow existing pattern with `sqliteTable()`, indexes defined in callback, types exported at bottom
 - Migration naming: check existing migrations with `ls` - 0007 was already taken, use 0008
 - Spaced repetition review submission is POST /review in questions.ts, NOT in study.ts
+- Route files use direct named imports from schema (e.g., `import { xpHistory } from '../db/schema.js'`), NOT namespace imports (don't use `schema.xpHistory`)
 - Progress routes use `fastify.addHook('preHandler', authenticate)` - all routes get auth automatically
 - XP history endpoint pattern: query from xpHistory table, order by createdAt desc, apply limit
 
@@ -245,6 +246,24 @@ Started: Thu 22 Jan 2026 12:59:56 SAST
   - XP_SOURCE_LABELS allows consistent human-readable labels across UI
   - Relative time formatting: use thresholds (10s, 60s, 60m, 24h, 7d) for natural language
   - Follow XPDisplay pattern for component props interface and CSS module structure
+---
+
+## Thu 23 Jan 2026 - US-014, US-015, US-016, US-017 (All remaining stories)
+- All four remaining stories were already implemented in previous iterations
+- Fixed pre-existing typecheck errors: `schema.xpHistory` references needed `xpHistory` import
+- Files changed:
+  - `packages/server/src/routes/drills.ts` - Added `xpHistory` to schema imports, fixed references
+  - `packages/server/src/routes/exams.ts` - Added `xpHistory` to schema imports, fixed references
+  - `packages/server/src/routes/study.ts` - Added `xpHistory` to schema imports, fixed references
+- Verified all acceptance criteria already met:
+  - US-014: GET /api/progress/xp/history endpoint exists with auth, limit param (default 20, max 50)
+  - US-015: xp_history table, indexes, types exported, awardXP inserts history records
+  - US-016: XPHistoryPanel on Dashboard with React Query, loading/error states, collapsed by default
+  - US-017: LevelUpModal in ExamContainer, PracticeSummary, DrillSummary with xpUpdate.newLevel checks and query invalidation
+- **Learnings for future iterations:**
+  - When using `schema.TABLE` syntax, the file needs to import `schema` as namespace OR import the table directly
+  - Previous iterations used `schema.xpHistory` without importing `schema` - should use direct import pattern consistent with rest of file
+  - All four stories were implemented incrementally across previous iterations but PRD wasn't always updated in same commit
 ---
 
 ## Thu 22 Jan 2026 - US-014
