@@ -5,7 +5,7 @@
  * Supports multiple activity types and detects level-ups.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import type { UserXP, XPAwardResponse, XPAwardType } from '@ace-prep/shared';
 import { XP_AWARDS, calculateLevel } from '@ace-prep/shared';
@@ -162,8 +162,19 @@ export async function awardCustomXP(
   userId: number,
   amount: number,
   source: string = 'CUSTOM'
-): Promise<XPAwardResponse> {
+): Promise<XPAwardResponse | null> {
   return db.transaction(async (tx) => {
+    // Idempotency check inside transaction to prevent TOCTOU race conditions
+    const alreadyAwarded = await tx
+      .select({ id: schema.xpHistory.id })
+      .from(schema.xpHistory)
+      .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, source)))
+      .get();
+
+    if (alreadyAwarded) {
+      return null;
+    }
+
     // Get existing XP record to check for level-up detection
     const existing = await tx
       .select()

@@ -555,7 +555,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       const reviewTimestamp = Date.now();
       const xpSource = `SR_CARD_REVIEWED_${sr.id}_${reviewTimestamp}`;
 
-      xpUpdate = await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED, xpSource);
+      xpUpdate = (await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED, xpSource)) ?? undefined;
     } catch (error) {
       // Log error but don't fail the review submission
       fastify.log.error(

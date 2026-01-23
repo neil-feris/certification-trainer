@@ -8,7 +8,6 @@ import {
   studySessionResponses,
   spacedRepetition,
   performanceStats,
-  xpHistory,
 } from '../db/schema.js';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import type {
@@ -379,28 +378,19 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
     const { responses, correctCount, totalCount, addedToSRCount } = txResult;
 
-    // Award XP for drill completion with idempotency (non-blocking, graceful degradation)
+    // Award XP for drill completion (idempotency handled inside awardCustomXP)
     let xpUpdate: XPAwardResponse | undefined;
     try {
       const xpSource = `DRILL_COMPLETE_${drillId}`;
 
-      // Check if XP already awarded for this drill
-      const existingAward = await db
-        .select()
-        .from(xpHistory)
-        .where(and(eq(xpHistory.userId, userId), eq(xpHistory.source, xpSource)))
-        .get();
+      const questionXP = totalCount * XP_AWARDS.DRILL_QUESTION;
+      const completionBonusXP = XP_AWARDS.DRILL_COMPLETE;
+      const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+      const perfectBonusXP = score === 100 ? XP_AWARDS.DRILL_PERFECT_SCORE : 0;
+      const totalXPAwarded = questionXP + completionBonusXP + perfectBonusXP;
 
-      if (!existingAward) {
-        // Calculate XP: +5 per question answered, +20 completion bonus, +50 for perfect score
-        const questionXP = totalCount * XP_AWARDS.DRILL_QUESTION;
-        const completionBonusXP = XP_AWARDS.DRILL_COMPLETE;
-        const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-        const perfectBonusXP = score === 100 ? XP_AWARDS.DRILL_PERFECT_SCORE : 0;
-        const totalXPAwarded = questionXP + completionBonusXP + perfectBonusXP;
-
-        xpUpdate = await awardCustomXP(userId, totalXPAwarded, xpSource);
-      }
+      const result = await awardCustomXP(userId, totalXPAwarded, xpSource);
+      xpUpdate = result ?? undefined;
     } catch (error) {
       fastify.log.error({ error, drillId, userId }, 'Failed to award XP for drill completion');
       // Continue without XP update - drill completion is more important
