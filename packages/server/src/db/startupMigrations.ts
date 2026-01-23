@@ -341,6 +341,164 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 6,
+    name: 'seed_achievement_definitions',
+    up: (db) => {
+      const achievementDefinitions = [
+        {
+          code: 'first-steps',
+          name: 'First Steps',
+          description: 'Complete your first exam or study session',
+          rarity: 'common',
+          icon: '👣',
+          criteriaType: 'first_activity',
+          criteriaJson: JSON.stringify({ type: 'first_activity', activity: 'any' }),
+        },
+        {
+          code: 'perfect-score',
+          name: 'Perfect Score',
+          description: 'Score 100% on any exam',
+          rarity: 'rare',
+          icon: '💯',
+          criteriaType: 'perfect_score',
+          criteriaJson: JSON.stringify({ type: 'perfect_score', scorePercent: 100 }),
+        },
+        {
+          code: 'consistent-7',
+          name: 'Week Warrior',
+          description: 'Maintain a 7-day study streak',
+          rarity: 'common',
+          icon: '🔥',
+          criteriaType: 'streak',
+          criteriaJson: JSON.stringify({ type: 'streak', days: 7 }),
+        },
+        {
+          code: 'dedicated-30',
+          name: 'Dedicated Learner',
+          description: 'Maintain a 30-day study streak',
+          rarity: 'rare',
+          icon: '📅',
+          criteriaType: 'streak',
+          criteriaJson: JSON.stringify({ type: 'streak', days: 30 }),
+        },
+        {
+          code: 'century-streak',
+          name: 'Century Streak',
+          description: 'Maintain a 100-day study streak',
+          rarity: 'epic',
+          icon: '🏆',
+          criteriaType: 'streak',
+          criteriaJson: JSON.stringify({ type: 'streak', days: 100 }),
+        },
+        {
+          code: 'domain-expert',
+          name: 'Domain Expert',
+          description: 'Achieve 90%+ accuracy in any domain with 5+ attempts',
+          rarity: 'rare',
+          icon: '🎓',
+          criteriaType: 'domain_mastery',
+          criteriaJson: JSON.stringify({
+            type: 'domain_mastery',
+            accuracyPercent: 90,
+            minAttempts: 5,
+          }),
+        },
+        {
+          code: 'speed-demon',
+          name: 'Speed Demon',
+          description: 'Complete a drill with 100% accuracy in under 60 seconds',
+          rarity: 'epic',
+          icon: '⚡',
+          criteriaType: 'speed',
+          criteriaJson: JSON.stringify({ type: 'speed', maxSeconds: 60, minAccuracy: 100 }),
+        },
+        {
+          code: 'night-owl',
+          name: 'Night Owl',
+          description: 'Complete a study session between midnight and 5 AM',
+          rarity: 'common',
+          icon: '🦉',
+          criteriaType: 'time_of_day',
+          criteriaJson: JSON.stringify({ type: 'time_of_day', startHour: 0, endHour: 5 }),
+        },
+        {
+          code: 'early-bird',
+          name: 'Early Bird',
+          description: 'Complete a study session between 5 AM and 7 AM',
+          rarity: 'common',
+          icon: '🐦',
+          criteriaType: 'time_of_day',
+          criteriaJson: JSON.stringify({ type: 'time_of_day', startHour: 5, endHour: 7 }),
+        },
+        {
+          code: 'completionist',
+          name: 'Completionist',
+          description: 'Complete 100% of a learning path',
+          rarity: 'epic',
+          icon: '✅',
+          criteriaType: 'path_completion',
+          criteriaJson: JSON.stringify({ type: 'path_completion', percentComplete: 100 }),
+        },
+        {
+          code: 'reviewer-100',
+          name: 'Review Master',
+          description: 'Review 100 spaced repetition cards',
+          rarity: 'rare',
+          icon: '🔄',
+          criteriaType: 'cumulative_count',
+          criteriaJson: JSON.stringify({
+            type: 'cumulative_count',
+            activity: 'sr_review',
+            count: 100,
+          }),
+        },
+        {
+          code: 'exam-veteran',
+          name: 'Exam Veteran',
+          description: 'Complete 10 exams',
+          rarity: 'rare',
+          icon: '🎖️',
+          criteriaType: 'cumulative_count',
+          criteriaJson: JSON.stringify({
+            type: 'cumulative_count',
+            activity: 'exam_complete',
+            count: 10,
+          }),
+        },
+      ];
+
+      const upsertStmt = db.prepare(`
+        INSERT INTO achievements (code, name, description, rarity, icon, criteria_type, criteria_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(code) DO UPDATE SET
+          name = excluded.name,
+          description = excluded.description,
+          rarity = excluded.rarity,
+          icon = excluded.icon,
+          criteria_type = excluded.criteria_type,
+          criteria_json = excluded.criteria_json
+      `);
+
+      const now = Date.now();
+      let inserted = 0;
+      for (const a of achievementDefinitions) {
+        upsertStmt.run(
+          a.code,
+          a.name,
+          a.description,
+          a.rarity,
+          a.icon,
+          a.criteriaType,
+          a.criteriaJson,
+          now
+        );
+        inserted++;
+      }
+
+      console.log(`  [migration] Seeded ${inserted} achievement definitions`);
+    },
+  },
 ];
 
 /**
