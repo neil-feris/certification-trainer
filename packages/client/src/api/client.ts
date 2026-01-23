@@ -39,6 +39,8 @@ import type {
   UserXP,
   XPHistoryRecord,
   XPAwardResponse,
+  AchievementRarity,
+  AchievementCriteria,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -597,4 +599,44 @@ export const drillApi = {
     request<{ success: boolean }>(`/drills/${drillId}`, {
       method: 'DELETE',
     }),
+};
+
+// Achievement API response types
+export interface AchievementBadge {
+  code: string;
+  name: string;
+  description: string;
+  rarity: AchievementRarity;
+  icon: string;
+  criteria: AchievementCriteria;
+  earned: boolean;
+  unlockedAt: string | null;
+  xpAwarded: number;
+}
+
+export interface AchievementsResponse {
+  badges: AchievementBadge[];
+  earned: number;
+  total: number;
+  locked: number;
+}
+
+export interface AchievementProgressItem {
+  code: string;
+  name: string;
+  rarity: AchievementRarity;
+  icon: string;
+  currentValue: number;
+  targetValue: number;
+  percentComplete: number;
+}
+
+export interface AchievementProgressResponse {
+  progress: AchievementProgressItem[];
+}
+
+// Achievements
+export const achievementApi = {
+  getAll: () => request<AchievementsResponse>('/achievements'),
+  getProgress: () => request<AchievementProgressResponse>('/achievements/progress'),
 };

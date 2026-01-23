@@ -34,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/case-studies', label: 'Case Studies', icon: '📋', requiresCaseStudies: true },
   { path: '/questions', label: 'Question Bank', icon: '☰' },
   { path: '/progress', label: 'Progress', icon: '◔' },
+  { path: '/achievements', label: 'Achievements', icon: '🏆' },
   { path: '/review', label: 'Review', icon: '↻' },
   { path: '/settings', label: 'Settings', icon: '⚙' },
 ];
