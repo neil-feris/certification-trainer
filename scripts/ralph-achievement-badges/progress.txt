@@ -1,0 +1,155 @@
+# Ralph Progress Log
+Started: Fri 23 Jan 2026 23:34:23 SAST
+
+## Codebase Patterns
+- Shared types are all in a single `packages/shared/src/index.ts` file — add new types at the bottom
+- Use `/Users/neil.feris/.nvm/versions/node/v22.2.0/bin/npx tsc --project <path>/tsconfig.json --noEmit` for typecheck (shell has broken nvm lazy-loading, call node binary directly)
+- lint-staged runs on commit: eslint --fix + prettier --write
+- XP types already exist (XP_AWARDS, calculateLevel, etc.) — achievement XP rewards should integrate with existing awardCustomXP flow
+- Existing pattern for criteria-style constants: use `as const` arrays and Record types
+- Startup migrations: version-tracked in `_startup_migrations` table, next available version is 7
+- Seeding pattern: use `INSERT ... ON CONFLICT(code) DO UPDATE SET ...` for upsert logic in SQLite
+- Schema index pattern: `(table) => [uniqueIndex('name').on(table.col1, table.col2)]`
+- All user-scoped tables: `userId` references `users.id` with `ON DELETE CASCADE`
+- `awardCustomXP(userId, amount, source)` uses source as idempotency key — for achievements use `achievement:{code}` as source
+- Service pattern: export individual functions, import db/schema from `../db/index.js`, import shared types from `@ace-prep/shared`
+- Don't import unused drizzle operators — lint-staged will fail the commit
+- lint-staged checks entire file, not just your changes — fix any pre-existing unused imports in files you touch
+- Route auth pattern: `fastify.addHook('preHandler', authenticate)` at top of route function
+- Routes registered in `packages/server/src/index.ts` with `fastify.register(routes, { prefix: '/api/...' })`
+- `userStreaks.currentStreak` gives live streak count — no date computation needed
+- SR reviews are handled in `packages/server/src/routes/questions.ts` (POST /review endpoint)
+- Both study.ts and drills.ts had unused `{ db, schema }` — only `db` is used; check all route files
+- `isNotNull(spacedRepetition.lastReviewedAt)` gives count of reviewed SR cards for a user
+- `streakResult.streak.currentStreak` is the post-update streak value — use this when passing streak to achievement context
+- Learning path completion (POST `/learning-path/:certId/:order/complete`) in study.ts — needs both streak and completionist achievement checks
+- `performanceStats` table is NOT actively written by routes — domain-level stats are computed from `examResponses`/`studySessionResponses` via SQL GROUP BY on `domains.id`
+
+---
+
+## 2026-01-23 - US-001
+- Implemented all achievement type definitions in `packages/shared/src/index.ts`
+- Added: AchievementRarity, ACHIEVEMENT_XP_REWARDS, AchievementCriteriaType, AchievementCriteria, AchievementDefinition, UserAchievement, AchievementProgress, AchievementUnlockResponse
+- Added ACHIEVEMENTS constant with all 12 badge definitions (first-steps, perfect-score, consistent-7, dedicated-30, century-streak, domain-expert, speed-demon, night-owl, early-bird, completionist, reviewer-100, exam-veteran)
+- Files changed: `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - Shell has broken nvm lazy-loading — always use direct path `/Users/neil.feris/.nvm/versions/node/v22.2.0/bin/npx` for npm/npx commands
+  - The shared package is a single index.ts file, no separate module files
+  - All types are exported directly (no re-export barrel pattern)
+  - XP integration already has `XPAwardType` and `XP_AWARDS` — achievement XP will likely need a custom award type
+---
+
+## 2026-01-23 - US-002
+- Added `achievements` table (id, code unique, name, description, rarity, icon, criteria_type, criteria_json, created_at) to Drizzle schema
+- Added `user_achievements` table (id, user_id, achievement_code, xp_awarded, unlocked_at) with unique index on (user_id, achievement_code) and index on user_id
+- Added startup migration version 5 (`add_achievement_tables`) with idempotent CREATE TABLE IF NOT EXISTS pattern
+- Exported Drizzle types: AchievementRecord, NewAchievement, UserAchievementRecord, NewUserAchievement
+- Files changed: `packages/server/src/db/schema.ts`, `packages/server/src/db/startupMigrations.ts`
+- **Learnings for future iterations:**
+  - Startup migrations use a `_startup_migrations` tracking table and version numbers — next available version is 6
+  - Schema tables use `(table) => [...]` syntax for indices (new Drizzle v2 pattern)
+  - The `code` column on achievements is already unique via table definition AND explicit index — matches certifications pattern
+  - user_id foreign key references `users.id` with `ON DELETE CASCADE` — consistent with other user-related tables
+---
+
+## 2026-01-23 - US-003
+- Added startup migration version 6 (`seed_achievement_definitions`) to seed all 12 badge definitions
+- Uses `INSERT ... ON CONFLICT(code) DO UPDATE SET ...` for upsert logic — safe to re-run without duplicates
+- All 12 badges seeded: first-steps, perfect-score, consistent-7, dedicated-30, century-streak, domain-expert, speed-demon, night-owl, early-bird, completionist, reviewer-100, exam-veteran
+- Each badge stores criteria_type and criteria_json matching the shared ACHIEVEMENTS constant
+- Files changed: `packages/server/src/db/startupMigrations.ts`
+- **Learnings for future iterations:**
+  - SQLite supports `ON CONFLICT(col) DO UPDATE SET ...` syntax for upserts — no need for separate check-then-insert
+  - Migration ordering matters: seed migrations must come after table-creation migrations in the array
+  - Next available migration version is 7
+---
+
+## 2026-01-23 - US-004
+- Created `packages/server/src/services/achievementService.ts`
+- Implemented `checkAndUnlock(userId, context)` function that checks all 12 achievements
+- Context interface: activity, score, totalQuestions, streak, timeOfDay, durationSeconds, domainAccuracy, domainAttempts, pathComplete, cumulativeSrReviews, cumulativeExams
+- Dedicated checker functions for each criteria_type: first_activity, perfect_score, streak, domain_mastery, speed, time_of_day, cumulative_count, path_completion
+- On unlock: inserts user_achievement record + awards rarity XP via `awardCustomXP`
+- Idempotent: queries existing user_achievements and skips already-unlocked badges
+- Files changed: `packages/server/src/services/achievementService.ts`
+- **Learnings for future iterations:**
+  - `awardCustomXP` source-based idempotency means achievement XP won't double-award even if checkAndUnlock is called multiple times
+  - lint-staged will reject commits with unused imports — always remove unused drizzle operators
+  - The service exports `AchievementContext` interface for use by route handlers that call `checkAndUnlock`
+  - Checker functions are pure (no DB access) — they only evaluate context against criteria; cumulative counts must be pre-fetched by callers
+---
+
+## 2026-01-23 - US-005
+- Created `packages/server/src/routes/achievements.ts` with two endpoints:
+  - `GET /api/achievements` — returns all badge definitions with user unlock status (earned/locked, unlockedAt, xpAwarded)
+  - `GET /api/achievements/progress` — returns progress toward locked achievements (currentValue, targetValue, percentComplete)
+- Registered routes in `packages/server/src/index.ts` under `/api/achievements` prefix
+- Both endpoints require authentication via `authenticate` preHandler hook
+- Progress calculation uses streak, completed exam count, and SR review count for quantifiable achievements
+- Files changed: `packages/server/src/routes/achievements.ts` (new), `packages/server/src/index.ts`
+- **Learnings for future iterations:**
+  - Route pattern: `fastify.addHook('preHandler', authenticate)` at top of route function for auth on all routes
+  - `schema.exams.status` can be filtered with `eq()` for 'completed' — always filter when counting completions
+  - `spacedRepetition.lastReviewedAt` is nullable — use `isNotNull()` to count only actually-reviewed cards
+  - `userStreaks.currentStreak` is the live streak count — no need to compute from dates
+  - For progress, streak-based and cumulative-count achievements have quantifiable progress; others default to 0/1
+---
+
+## 2026-01-23 - US-006
+- Integrated achievement checks into the exam completion endpoint (`/:id/complete`)
+- After scoring + streak + XP, calls `checkAndUnlock` with context: activity=exam, score (correct count), totalQuestions, cumulativeExams
+- Counts completed exams via SQL aggregate for `exam-veteran` badge check
+- Adds `achievementsUnlocked` array to the response
+- Graceful degradation: try/catch ensures exam completion succeeds even if achievement check fails
+- Fixed pre-existing lint issue: removed unused `schema` import from exams.ts
+- Files changed: `packages/server/src/routes/exams.ts`
+- **Learnings for future iterations:**
+  - The exams.ts route file imported `{ db, schema }` from db/index.js but only used `db` — lint-staged catches these even if pre-existing when you touch the file
+  - Exam completion already follows graceful-degradation pattern for streak and XP — achievement check should match the same try/catch pattern
+  - `AchievementContext` is exported from the service, import it alongside `checkAndUnlock`
+  - `cumulativeExams` count should filter by `status: 'completed'` — don't count in-progress or abandoned exams
+---
+
+## 2026-01-23 - US-007
+- Integrated achievement checks into study session completion, drill completion, and review submission
+- Study session completion (`/sessions/:id/complete`): checks night-owl, early-bird via `timeOfDay` context
+- Drill completion (`/:id/complete`): checks speed-demon via `activity=drill`, `durationSeconds`, and `score`/`totalQuestions` context
+- Review submission (`POST /review` in questions.ts): checks reviewer-100 via cumulative SR card count (cards with `lastReviewedAt` not null)
+- All three include `achievementsUnlocked` array in responses
+- Graceful degradation: each check wrapped in try/catch — activity completion succeeds even if achievement check fails
+- Fixed pre-existing lint issues: removed unused `schema` import from both study.ts and drills.ts
+- Files changed: `packages/server/src/routes/study.ts`, `packages/server/src/routes/drills.ts`, `packages/server/src/routes/questions.ts`
+- **Learnings for future iterations:**
+  - Both study.ts and drills.ts had unused `schema` import from `../db/index.js` — always check for this pre-existing issue in route files
+  - For `reviewer-100`, count SR cards where `lastReviewedAt` is not null (uses `isNotNull` from drizzle-orm)
+  - The questions.ts route file handles SR reviews (not a separate review route file)
+  - `checkAndUnlock` is fully idempotent — safe to call from multiple activity types without risk of double-awarding
+  - Import pattern: `import { checkAndUnlock, AchievementContext } from '../services/achievementService.js'` + `import type { AchievementUnlockResponse } from '@ace-prep/shared'`
+---
+
+## 2026-01-23 - US-008
+- Integrated streak-based achievement checks into all routes that call `updateStreak`
+- Captured `streakResult.streak.currentStreak` after each `updateStreak` call and passed it as `streak` in `AchievementContext`
+- Routes updated: exams.ts, study.ts (session completion + learning path completion), questions.ts (review)
+- Learning path completion: added new achievement check block (previously had no achievement check) with streak context
+- Drills.ts does NOT call `updateStreak` — no changes needed there
+- Files changed: `packages/server/src/routes/exams.ts`, `packages/server/src/routes/study.ts`, `packages/server/src/routes/questions.ts`
+- **Learnings for future iterations:**
+  - `streakResult.streak.currentStreak` is the updated streak value after `updateStreak` completes — use this for achievement context
+  - The learning path completion endpoint in study.ts (POST `/learning-path/:certId/:order/complete`) previously had no achievement check — it only had streak and no XP/achievement handling
+  - drills.ts does NOT trigger streak updates — only exams, study sessions, learning path, and reviews do
+  - When adding streak to existing achievement contexts, simply append `streak: currentStreak` — the checker ignores undefined fields so it won't break other achievement checks
+---
+
+## 2026-01-24 - US-009
+- Integrated domain-expert achievement check into exam completion, drill completion, and study session completion
+- After each completion, queries domain-level accuracy aggregates from response tables (examResponses for exams, studySessionResponses for drills/study)
+- For each domain with 90%+ accuracy and 5+ attempts, calls `checkAndUnlock` with `domainAccuracy` and `domainAttempts` context
+- Idempotent: `checkAndUnlock` skips already-unlocked badges, so multiple qualifying domains won't cause issues
+- Files changed: `packages/server/src/routes/exams.ts`, `packages/server/src/routes/drills.ts`, `packages/server/src/routes/study.ts`
+- **Learnings for future iterations:**
+  - The `performanceStats` table is NOT actively written by route handlers — domain stats are computed on-the-fly from `examResponses`/`studySessionResponses` joined with `questions`/`domains`
+  - For domain-expert, aggregate responses by domain using SQL GROUP BY rather than relying on `performanceStats`
+  - The `checkAndUnlock` function is idempotent (skips already-unlocked) — safe to call with multiple qualifying domains in a loop
+  - Drills and study sessions store responses in `studySessionResponses` table; exams use `examResponses` — different tables, same domain join pattern
+---

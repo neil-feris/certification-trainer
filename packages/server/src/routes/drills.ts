@@ -452,6 +452,34 @@ export async function drillRoutes(fastify: FastifyInstance) {
         durationSeconds: totalTimeSeconds,
       };
       achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+
+      // Check domain-expert: query domain-level accuracy from drill responses
+      const domainStats = await db
+        .select({
+          domainId: domains.id,
+          totalAttempts: sql<number>`count(*)`.as('total_attempts'),
+          correctAttempts:
+            sql<number>`sum(case when ${studySessionResponses.isCorrect} = 1 then 1 else 0 end)`.as(
+              'correct_attempts'
+            ),
+        })
+        .from(studySessionResponses)
+        .innerJoin(questions, eq(questions.id, studySessionResponses.questionId))
+        .innerJoin(domains, eq(domains.id, questions.domainId))
+        .where(eq(studySessionResponses.userId, userId))
+        .groupBy(domains.id);
+
+      for (const stat of domainStats) {
+        const accuracy =
+          stat.totalAttempts > 0 ? (stat.correctAttempts / stat.totalAttempts) * 100 : 0;
+        if (accuracy >= 90 && stat.totalAttempts >= 5) {
+          const domainUnlocks = await checkAndUnlock(userId, {
+            domainAccuracy: accuracy,
+            domainAttempts: stat.totalAttempts,
+          });
+          achievementsUnlocked.push(...domainUnlocks);
+        }
+      }
     } catch (error) {
       fastify.log.error(
         { userId, drillId, error: error instanceof Error ? error.message : String(error) },
