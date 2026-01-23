@@ -1,6 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { exams, examResponses, questions, domains, topics, caseStudies } from '../db/schema.js';
+import {
+  exams,
+  examResponses,
+  questions,
+  domains,
+  topics,
+  caseStudies,
+  xpHistory,
+} from '../db/schema.js';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
@@ -394,8 +402,8 @@ export async function examRoutes(fastify: FastifyInstance) {
       // Check if XP already awarded for this exam
       const existingAward = await db
         .select()
-        .from(schema.xpHistory)
-        .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, xpSource)))
+        .from(xpHistory)
+        .where(and(eq(xpHistory.userId, userId), eq(xpHistory.source, xpSource)))
         .get();
 
       if (!existingAward) {

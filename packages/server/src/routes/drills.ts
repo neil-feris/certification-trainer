@@ -8,6 +8,7 @@ import {
   studySessionResponses,
   spacedRepetition,
   performanceStats,
+  xpHistory,
 } from '../db/schema.js';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import type {
@@ -386,8 +387,8 @@ export async function drillRoutes(fastify: FastifyInstance) {
       // Check if XP already awarded for this drill
       const existingAward = await db
         .select()
-        .from(schema.xpHistory)
-        .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, xpSource)))
+        .from(xpHistory)
+        .where(and(eq(xpHistory.userId, userId), eq(xpHistory.source, xpSource)))
         .get();
 
       if (!existingAward) {

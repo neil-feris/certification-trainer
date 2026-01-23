@@ -12,6 +12,7 @@ import {
   spacedRepetition,
   learningPathSummaries,
   caseStudies,
+  xpHistory,
 } from '../db/schema.js';
 import { eq, desc, and, sql, inArray, like, or } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
@@ -1187,8 +1188,8 @@ export async function studyRoutes(fastify: FastifyInstance) {
       // Check if XP already awarded for this session
       const existingAward = await db
         .select()
-        .from(schema.xpHistory)
-        .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, xpSource)))
+        .from(xpHistory)
+        .where(and(eq(xpHistory.userId, userId), eq(xpHistory.source, xpSource)))
         .get();
 
       if (!existingAward) {
