@@ -8,7 +8,7 @@ import { ExamSetup } from './components/exam/ExamSetup';
 import { ExamContainer } from './components/exam/ExamContainer';
 import { ExamReview } from './components/exam/ExamReview';
 import { StudyHub } from './components/study/StudyHub';
-import { FlashcardSetup, FlashcardStudy } from './components/study/flashcards';
+import { FlashcardSetup, FlashcardStudy, FlashcardSummary } from './components/study/flashcards';
 import { LearningPathDetail } from './components/study/learning-path/LearningPathDetail';
 import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
@@ -169,6 +169,18 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <FlashcardStudy />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/study/flashcards/:sessionId/summary"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <FlashcardSummary />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>
