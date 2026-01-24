@@ -11,6 +11,8 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
 - Migrations: raw SQL in `packages/server/src/db/migrations/0NNN_description.sql`, always use `IF NOT EXISTS`
 - Schema type exports: `TypeRecord` (select) and `NewType` (insert) at bottom of schema.ts
 - Timestamps stored as integers with `{ mode: 'timestamp' }`, JSON as `text` columns
+- Services: typed DB param as `BetterSQLite3Database<typeof schemaTypes>`, dynamic schema import
+- `npm install --ignore-scripts` works when native builds fail in sandbox
 
 ---
 
@@ -38,4 +40,19 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - Type exports at bottom of schema.ts follow pattern: `Record` for select, `New` for insert
   - Timestamps use `integer('col_name', { mode: 'timestamp' })` pattern
   - JSON stored as `text` column with a descriptive comment
+---
+
+## 2026-01-25 - US-003
+- Implemented readiness score calculation service at `packages/server/src/services/readinessService.ts`
+- Algorithm: Coverage (20%) + Accuracy (50%) + Recency (20%) + Volume (10%)
+- Per-domain breakdown with individual component scores
+- Confidence levels: low (<5 domains attempted), medium (5+ but <10 per), high (10+ per domain)
+- Generates actionable recommendations sorted by lowest domain score
+- Files changed: `packages/server/src/services/readinessService.ts`
+- **Learnings for future iterations:**
+  - Services use dynamic `import('../db/schema.js')` for schema access when db is passed as param
+  - DB type: `BetterSQLite3Database<typeof schemaTypes>` for typed Drizzle instance
+  - `performanceStats` table aggregates totalAttempts/correctAttempts per domain per user (may have multiple rows per domain if topic-level)
+  - Use `sql.raw()` for IN clause with computed values
+  - `npm install --ignore-scripts` bypasses native build issues in sandbox
 ---
