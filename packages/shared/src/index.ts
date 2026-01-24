@@ -1035,3 +1035,100 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     criteria: { type: 'cumulative_count', activity: 'exam_complete', count: 10 },
   },
 ];
+
+// ============ FLASHCARD TYPES ============
+
+export const FLASHCARD_COUNT_OPTIONS = [10, 15, 20, 30] as const;
+export type FlashcardCount = (typeof FLASHCARD_COUNT_OPTIONS)[number];
+
+export type FlashcardSessionStatus = 'in_progress' | 'completed' | 'abandoned';
+
+export interface FlashcardSessionConfig {
+  certificationId?: number;
+  domainId?: number;
+  topicId?: number;
+  bookmarkedOnly?: boolean;
+  count: FlashcardCount;
+}
+
+export interface FlashcardCard {
+  id: number;
+  questionId: number;
+  questionText: string;
+  questionType: QuestionType;
+  options: string[];
+  correctAnswers: number[];
+  explanation: string;
+  difficulty: Difficulty;
+  domain: { id: number; name: string; code: string };
+  topic: { id: number; name: string };
+  isBookmarked: boolean;
+  note: string | null;
+}
+
+export interface FlashcardSession {
+  id: number;
+  certificationId: number | null;
+  domainId: number | null;
+  topicId: number | null;
+  bookmarkedOnly: boolean;
+  status: FlashcardSessionStatus;
+  totalCards: number;
+  cardsReviewed: number;
+  startedAt: Date | string;
+  completedAt: Date | string | null;
+}
+
+export interface FlashcardRating {
+  questionId: number;
+  rating: ReviewQuality;
+}
+
+export interface FlashcardSessionResponse {
+  session: FlashcardSession;
+  cards: FlashcardCard[];
+}
+
+// Flashcard API Request/Response types
+
+export interface StartFlashcardSessionRequest {
+  certificationId?: number;
+  domainId?: number;
+  topicId?: number;
+  bookmarkedOnly?: boolean;
+  count?: FlashcardCount;
+}
+
+export interface StartFlashcardSessionResponse {
+  sessionId: number;
+  totalCards: number;
+  questionIds: number[];
+}
+
+export interface GetFlashcardSessionResponse {
+  session: FlashcardSession;
+  cards: FlashcardCard[];
+}
+
+export interface RateFlashcardRequest {
+  questionId: number;
+  rating: ReviewQuality;
+}
+
+export interface RateFlashcardResponse {
+  updated: boolean;
+  nextReviewAt: string;
+  xpUpdate?: XPAwardResponse;
+}
+
+export interface CompleteFlashcardSessionRequest {
+  totalTimeSeconds?: number;
+}
+
+export interface CompleteFlashcardSessionResponse {
+  cardsReviewed: number;
+  ratingDistribution: Record<ReviewQuality, number>;
+  xpUpdate?: XPAwardResponse;
+  streakUpdate?: StreakUpdateResponse;
+  achievementsUnlocked?: AchievementUnlockResponse[];
+}
