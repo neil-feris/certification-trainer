@@ -71,3 +71,15 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - `readinessSnapshots.calculatedAt` uses `{ mode: 'timestamp' }` so comparisons work with Date objects
   - userId from `request.user!.id` is a string, needs `parseInt` for DB queries
 ---
+
+## 2026-01-25 - US-005
+- Implemented GET /api/progress/readiness/history?certificationId=X&limit=30 endpoint
+- Returns array of ReadinessSnapshot ordered by calculatedAt desc
+- Default limit 30, max 90
+- Reuses same mapping pattern as the /readiness endpoint's inline history fetch
+- Files changed: `packages/server/src/routes/progress.ts`
+- **Learnings for future iterations:**
+  - History endpoints follow the same limit pattern: default N, max M, parsed from query string
+  - The readiness route already has inline history (10 items) - dedicated endpoint provides configurable access
+  - Route ordering matters in Fastify: `/readiness/history` must be registered before parameterized routes on `/readiness`
+---
