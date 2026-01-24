@@ -39,10 +39,12 @@ export function FlashcardStudy() {
         sessionId={numericSessionId}
         onExit={handleExit}
         onComplete={handleComplete}
-        renderCard={({ isFlipped, onFlip }) => {
+        renderCard={({ isFlipped, onFlip, swipeState }) => {
           const card = getCurrentCard();
           if (!card) return null;
-          return <Flashcard card={card} isFlipped={isFlipped} onFlip={onFlip} />;
+          return (
+            <Flashcard card={card} isFlipped={isFlipped} onFlip={onFlip} swipeState={swipeState} />
+          );
         }}
         renderRating={({ visible, onRate }) => (
           <FlashcardRating visible={visible} onRate={onRate} />

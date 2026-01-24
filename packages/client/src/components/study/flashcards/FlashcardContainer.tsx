@@ -1,13 +1,23 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
+import { useSwipeable } from 'react-swipeable';
 import { useFlashcardStore } from '../../../stores/flashcardStore';
-import { useSwipeNavigation } from '../../../hooks/useSwipeNavigation';
 import styles from './FlashcardContainer.module.css';
+
+export interface SwipeState {
+  deltaX: number;
+  direction: 'left' | 'right' | null;
+  active: boolean;
+}
 
 interface FlashcardContainerProps {
   sessionId: number;
   onExit: () => void;
   onComplete: () => void;
-  renderCard: (props: { isFlipped: boolean; onFlip: () => void }) => React.ReactNode;
+  renderCard: (props: {
+    isFlipped: boolean;
+    onFlip: () => void;
+    swipeState: SwipeState;
+  }) => React.ReactNode;
   renderRating: (props: {
     visible: boolean;
     onRate: (rating: 'again' | 'hard' | 'good' | 'easy') => void;
@@ -104,9 +114,47 @@ export function FlashcardContainer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const { handlers: swipeHandlers } = useSwipeNavigation({
-    onSwipeLeft: () => nextCard(),
-    onSwipeRight: () => previousCard(),
+  // Swipe state for visual feedback
+  const [swipeState, setSwipeState] = useState<SwipeState>({
+    deltaX: 0,
+    direction: null,
+    active: false,
+  });
+
+  const currentCard = cards[currentCardIndex];
+  const currentRating = currentCard ? ratings.get(currentCard.questionId) : undefined;
+  const canSwipeRate = isFlipped && !currentRating;
+
+  const swipeHandlers = useSwipeable({
+    onSwiping: (e) => {
+      if (canSwipeRate) {
+        const direction = e.deltaX > 0 ? 'right' : 'left';
+        setSwipeState({ deltaX: e.deltaX, direction, active: true });
+      }
+    },
+    onSwipedLeft: () => {
+      if (canSwipeRate) {
+        handleRate('again');
+      } else {
+        nextCard();
+      }
+      setSwipeState({ deltaX: 0, direction: null, active: false });
+    },
+    onSwipedRight: () => {
+      if (canSwipeRate) {
+        handleRate('good');
+      } else {
+        previousCard();
+      }
+      setSwipeState({ deltaX: 0, direction: null, active: false });
+    },
+    onTouchEndOrOnMouseUp: () => {
+      setSwipeState({ deltaX: 0, direction: null, active: false });
+    },
+    delta: 50,
+    preventScrollOnSwipe: true,
+    trackTouch: true,
+    trackMouse: false,
   });
 
   if (isLoading || cards.length === 0) {
@@ -120,8 +168,6 @@ export function FlashcardContainer({
     );
   }
 
-  const currentCard = cards[currentCardIndex];
-  const currentRating = currentCard ? ratings.get(currentCard.questionId) : undefined;
   const progressPercent = (progress.rated / progress.total) * 100;
 
   return (
@@ -163,6 +209,7 @@ export function FlashcardContainer({
             {renderCard({
               isFlipped,
               onFlip: flipCard,
+              swipeState,
             })}
           </div>
 
@@ -189,7 +236,7 @@ export function FlashcardContainer({
       </div>
 
       <div className={styles.footer}>
-        <div className={styles.shortcuts}>
+        <div className={`${styles.shortcuts} ${styles.desktopShortcuts}`}>
           <div className={styles.shortcut}>
             <span className={styles.key}>Space</span>
             <span>Flip</span>
@@ -206,6 +253,17 @@ export function FlashcardContainer({
           <div className={styles.shortcut}>
             <span className={styles.key}>Esc</span>
             <span>Exit</span>
+          </div>
+        </div>
+        <div className={`${styles.shortcuts} ${styles.mobileShortcuts}`}>
+          <div className={styles.shortcut}>
+            <span>Tap to flip</span>
+          </div>
+          <div className={styles.shortcut}>
+            <span>Swipe &#8594; Good</span>
+          </div>
+          <div className={styles.shortcut}>
+            <span>Swipe &#8592; Again</span>
           </div>
         </div>
       </div>

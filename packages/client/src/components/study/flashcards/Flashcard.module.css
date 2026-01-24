@@ -219,6 +219,58 @@
   opacity: 0.7;
 }
 
+/* Swipe indicators */
+.swipeOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+  border-radius: 16px;
+  transition: opacity 0.05s linear;
+}
+
+.swipeIndicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 28px;
+  border-radius: 14px;
+  backdrop-filter: blur(4px);
+}
+
+.swipeGood {
+  background: rgba(0, 212, 170, 0.15);
+  border: 2px solid rgba(0, 212, 170, 0.6);
+  color: #00d4aa;
+}
+
+.swipeAgain {
+  background: rgba(239, 83, 80, 0.15);
+  border: 2px solid rgba(239, 83, 80, 0.6);
+  color: #ef5350;
+}
+
+.swipeIcon {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.swipeLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--font-mono);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .flashcard {

@@ -214,6 +214,10 @@
   cursor: not-allowed;
 }
 
+.mobileShortcuts {
+  display: none;
+}
+
 @media (min-width: 768px) {
   .exitBtnText {
     display: inline;
@@ -245,5 +249,13 @@
 
   .shortcuts {
     gap: 12px;
+  }
+
+  .desktopShortcuts {
+    display: none;
+  }
+
+  .mobileShortcuts {
+    display: flex;
   }
 }

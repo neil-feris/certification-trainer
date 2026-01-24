@@ -1,4 +1,5 @@
 import type { FlashcardCard } from '@ace-prep/shared';
+import type { SwipeState } from './FlashcardContainer';
 import { BookmarkButton } from '../../common/BookmarkButton';
 import styles from './Flashcard.module.css';
 
@@ -6,9 +7,16 @@ interface FlashcardProps {
   card: FlashcardCard;
   isFlipped: boolean;
   onFlip: () => void;
+  swipeState?: SwipeState;
 }
 
-export function Flashcard({ card, isFlipped, onFlip }: FlashcardProps) {
+export function Flashcard({ card, isFlipped, onFlip, swipeState }: FlashcardProps) {
+  const showSwipeIndicator = swipeState?.active && isFlipped;
+  const swipeOpacity = showSwipeIndicator ? Math.min(Math.abs(swipeState.deltaX) / 120, 1) : 0;
+  const swipeTranslateX = showSwipeIndicator
+    ? Math.max(-30, Math.min(30, swipeState.deltaX * 0.15))
+    : 0;
+
   return (
     <div
       className={`${styles.flashcard} ${isFlipped ? styles.flipped : ''}`}
@@ -17,10 +25,27 @@ export function Flashcard({ card, isFlipped, onFlip }: FlashcardProps) {
       tabIndex={0}
       aria-label={
         isFlipped
-          ? 'Showing answer. Click to show question.'
+          ? 'Showing answer. Swipe right for Good, left for Again.'
           : 'Showing question. Click to reveal answer.'
       }
+      style={showSwipeIndicator ? { transform: `translateX(${swipeTranslateX}px)` } : undefined}
     >
+      {showSwipeIndicator && swipeState.direction === 'right' && (
+        <div className={styles.swipeOverlay} style={{ opacity: swipeOpacity }}>
+          <div className={`${styles.swipeIndicator} ${styles.swipeGood}`}>
+            <span className={styles.swipeIcon}>&#x2713;</span>
+            <span className={styles.swipeLabel}>Good</span>
+          </div>
+        </div>
+      )}
+      {showSwipeIndicator && swipeState.direction === 'left' && (
+        <div className={styles.swipeOverlay} style={{ opacity: swipeOpacity }}>
+          <div className={`${styles.swipeIndicator} ${styles.swipeAgain}`}>
+            <span className={styles.swipeIcon}>&#x21BB;</span>
+            <span className={styles.swipeLabel}>Again</span>
+          </div>
+        </div>
+      )}
       <div className={styles.inner}>
         {/* Front - Question */}
         <div className={styles.front}>
@@ -85,7 +110,7 @@ export function Flashcard({ card, isFlipped, onFlip }: FlashcardProps) {
             <span className={styles.meta}>
               {card.difficulty} &middot; {card.domain.code}
             </span>
-            <span className={styles.flipHint}>Click to flip back</span>
+            <span className={styles.flipHint}>Swipe to rate &middot; Click to flip back</span>
           </div>
         </div>
       </div>
