@@ -478,6 +478,54 @@ export const userSettings = sqliteTable(
   ]
 );
 
+// ============ FLASHCARD SESSIONS ============
+export const flashcardSessions = sqliteTable(
+  'flashcard_sessions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id').references(() => certifications.id, {
+      onDelete: 'restrict',
+    }),
+    domainId: integer('domain_id').references(() => domains.id, { onDelete: 'set null' }),
+    topicId: integer('topic_id').references(() => topics.id, { onDelete: 'set null' }),
+    bookmarkedOnly: integer('bookmarked_only', { mode: 'boolean' }).notNull().default(false),
+    status: text('status').notNull(), // 'in_progress' | 'completed' | 'abandoned'
+    totalCards: integer('total_cards').notNull(),
+    cardsReviewed: integer('cards_reviewed').notNull().default(0),
+    questionIds: text('question_ids').notNull(), // JSON array of question IDs
+    startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp' }),
+    timeSpentSeconds: integer('time_spent_seconds'),
+  },
+  (table) => [
+    index('flashcard_sessions_user_idx').on(table.userId),
+    index('flashcard_sessions_status_idx').on(table.status),
+    index('flashcard_sessions_cert_idx').on(table.certificationId),
+  ]
+);
+
+export const flashcardSessionRatings = sqliteTable(
+  'flashcard_session_ratings',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => flashcardSessions.id, { onDelete: 'cascade' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'restrict' }),
+    rating: text('rating').notNull(), // 'again' | 'hard' | 'good' | 'easy'
+    ratedAt: integer('rated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    index('flashcard_ratings_session_idx').on(table.sessionId),
+    uniqueIndex('flashcard_ratings_session_question_idx').on(table.sessionId, table.questionId),
+  ]
+);
+
 // Type exports for Drizzle
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -522,3 +570,7 @@ export type BookmarkRecord = typeof bookmarks.$inferSelect;
 export type NewBookmark = typeof bookmarks.$inferInsert;
 export type UserNoteRecord = typeof userNotes.$inferSelect;
 export type NewUserNote = typeof userNotes.$inferInsert;
+export type FlashcardSessionRecord = typeof flashcardSessions.$inferSelect;
+export type NewFlashcardSession = typeof flashcardSessions.$inferInsert;
+export type FlashcardSessionRatingRecord = typeof flashcardSessionRatings.$inferSelect;
+export type NewFlashcardSessionRating = typeof flashcardSessionRatings.$inferInsert;
