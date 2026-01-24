@@ -18,6 +18,11 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
 - Sentry spans: `import * as Sentry from '@sentry/node'`, wrap with `Sentry.startSpan({ op, name }, async (span) => { ... })`
 - Questions table field is `questionText` (not `text`) for the question content
 - Upsert pattern: check existing → update set + run → else insert values + returning().get()
+- Client API: all in `packages/client/src/api/client.ts`, use `request<T>()` utility, export as object literals (e.g., `export const fooApi = { ... }`)
+- Client API types: import shared types in the type-only import block at the top of `client.ts`
+- Shared bookmark types use `bookmarked` field name (not `isBookmarked`)
+- Optimistic UI: `useState<T | null>(null)` where null = use server data; set on mutate, reset on success/error
+- New common components: create in `components/common/`, export from `components/common/index.ts`
 
 ---
 
@@ -74,4 +79,33 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
   - Delete-on-empty pattern: check `content.trim() === ''` before any DB lookups to short-circuit
   - The `returning()` method on inserts gives back the full row (good for returning created notes)
   - Route param validation uses same Zod pattern as query: `.transform(Number)` for string params
+---
+
+## 2026-01-24 - US-005
+- Implemented client-side API functions for bookmarks and notes
+- Added `bookmarksApi` with: toggle, list (with optional type filter), listQuestions, check
+- Added `notesApi` with: save, get, list, delete
+- All functions use the existing `request<T>()` utility with proper type annotations from shared types
+- Files changed: `packages/client/src/api/client.ts`
+- **Learnings for future iterations:**
+  - All API modules live in a single file `packages/client/src/api/client.ts` as exported object literals
+  - The utility is `request<T>()` not `fetchJson` - includes Sentry tracing, auth headers, and token refresh
+  - Import shared types in the type import block at the top of the file
+  - API methods that take body data use `JSON.stringify()` with `method: 'POST'`
+  - Query params are built inline as template strings for simple cases
+  - No need for separate files per API domain - everything in one file
+---
+
+## 2026-01-24 - US-006
+- Implemented BookmarkButton reusable component
+- Features: TanStack Query mutation with optimistic UI, error rollback with toast, filled/outline bookmark icon SVG, sm/md sizes, CSS Module styling with project variables, aria labels
+- Uses `useQuery` to check initial bookmark status and `useMutation` with `onMutate` for optimistic updates
+- Exported from `components/common/index.ts`
+- Files changed: `packages/client/src/components/common/BookmarkButton.tsx` (new), `packages/client/src/components/common/BookmarkButton.module.css` (new), `packages/client/src/components/common/index.ts`
+- **Learnings for future iterations:**
+  - Shared types use `bookmarked` (not `isBookmarked`) for `ToggleBookmarkResponse` and `CheckBookmarkResponse`
+  - Optimistic UI pattern: use local `useState<boolean | null>(null)` where `null` means "use server data" — set non-null on mutate, reset to null on success/error
+  - `queryClient.setQueryData` for immediate cache updates, then `invalidateQueries` for background refresh
+  - `e.stopPropagation()` + `e.preventDefault()` needed on buttons inside clickable cards
+  - The browser MCP tool runs in Docker so can't access `localhost` - use `curl` for verification instead
 ---

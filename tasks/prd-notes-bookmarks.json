@@ -94,8 +94,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented bookmarksApi (toggle, list, listQuestions, check) and notesApi (save, get, list, delete) in packages/client/src/api/client.ts using the existing request<T>() utility pattern. All type-safe with shared types."
     },
     {
       "id": "US-006",
@@ -112,8 +112,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented BookmarkButton component with TanStack Query mutation, optimistic UI via local state, error rollback with toast, bookmark icon (filled/outline), CSS Module styling, sm/md sizes, and query cache invalidation."
     },
     {
       "id": "US-007",
