@@ -156,3 +156,15 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - DomainCard previously hardcoded `isExpanded=true`; parameterized via `initialExpanded` prop
   - Navigation with query params: `navigate('/study?domainId=5')` pattern
 ---
+
+## 2026-01-25 - US-010
+- Added "Readiness" nav item to AppShell's NAV_ITEMS array (icon: ◐)
+- Placed after "Progress" in nav order for logical grouping
+- Dashboard widget already renders in stats grid (done in US-007)
+- Page title "Exam Readiness" already set in ReadinessPage header (done in US-008)
+- Files changed: `packages/client/src/components/layout/AppShell.tsx`
+- **Learnings for future iterations:**
+  - Nav items use unicode characters as icons (not SVG components)
+  - Adding a nav item is just appending to the NAV_ITEMS array - no other config needed
+  - Nav grouping is implicit via ordering, no sub-nav/folder structure exists
+---
