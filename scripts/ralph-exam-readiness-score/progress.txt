@@ -1,0 +1,22 @@
+# Ralph Progress Log
+Started: Sun 25 Jan 2026 00:27:50 SAST
+
+## Codebase Patterns
+- All shared types live in a single file: `packages/shared/src/index.ts` (direct exports, no submodules)
+- Build order matters: shared → server → client
+- Use `$HOME/.nvm/versions/node/v22.2.0/bin/node` to bypass shell nvm loading issues in sandbox
+- Server typecheck requires `node_modules` installed (drizzle-orm etc) - pre-existing errors without install
+- Client typecheck works standalone with shared dist built
+- Commit using `git -C <path> commit -m "msg"` to avoid heredoc temp file issues
+
+---
+
+## 2026-01-25 - US-001
+- Implemented shared TypeScript interfaces for readiness score API contract
+- Added: ConfidenceLevel, DomainReadiness, ReadinessScore, ReadinessRecommendation, ReadinessSnapshot, ReadinessResponse
+- Files changed: `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - Types go at the end of `packages/shared/src/index.ts` grouped by feature with a comment header
+  - No import/export barrel files - everything is flat exported from the single index.ts
+  - Shared package builds with just `tsc` (no bundler)
+---
