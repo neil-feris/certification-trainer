@@ -16,6 +16,9 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
 - Common UI components: `packages/client/src/components/common/` with `ComponentName.tsx` + `ComponentName.module.css`
 - Dashboard stats grid: `repeat(4, 1fr)`, cards wrap naturally for overflow
 - TanStack Query in dashboard: parallel queries with independent loading states, `staleTime` for infrequent data
+- Page routes: ProtectedRoute > AppShell > RouteErrorBoundary > PageComponent in App.tsx
+- Recharts theming: use CSS variables for stroke/fill colors, `var(--bg-secondary)` for Tooltip contentStyle
+- Certification selector: local state + store sync, dropdown with useRef outside-click handler
 
 ---
 
@@ -113,4 +116,26 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - `color-mix(in srgb, var(--color) 15%, transparent)` works for tinted backgrounds in CSS
   - `staleTime: 300000` (5min) is appropriate for readiness scores since they change infrequently
   - Common components go in `packages/client/src/components/common/` with paired `.module.css`
+---
+
+## 2026-01-25 - US-008
+- Created ReadinessPage component at `packages/client/src/components/progress/ReadinessPage.tsx`
+- Route `/readiness` added to App.tsx with ProtectedRoute + AppShell pattern
+- Full domain breakdown table with columns: domain name, weight, score, accuracy, coverage, recency
+- Domains color-coded by score (red <50%, yellow 50-70%, green >70%)
+- Historical readiness line chart using Recharts LineChart with ReferenceLine at 70%
+- Certification selector dropdown (follows PerformanceTrendsChart filter pattern)
+- Score overview section with SVG circular gauge (larger than widget version)
+- Confidence badge, domain coverage count, total attempts, last updated metadata
+- Loading and empty states handled
+- Recommendations preview (max 5) shown at bottom
+- Mobile responsive with grid collapse at 768px
+- Files changed: `packages/client/src/components/progress/ReadinessPage.tsx`, `packages/client/src/components/progress/ReadinessPage.module.css`, `packages/client/src/App.tsx`
+- **Learnings for future iterations:**
+  - Page components go in feature directories (`components/progress/`) not in a `pages/` dir
+  - Routes added in App.tsx follow exact pattern: ProtectedRoute > AppShell > RouteErrorBoundary > Component
+  - Certification selector: local state synced from store, dropdown with outside-click-close pattern (useRef + useEffect)
+  - Chart uses `history` endpoint with 30 items, sorts oldest-first for left-to-right chronological display
+  - ReferenceLine at 70% with dashed stroke follows existing PerformanceTrendsChart pattern exactly
+  - `score.overall` is 0-1 float, multiply by 100 for display percentage
 ---
