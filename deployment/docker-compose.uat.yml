@@ -1,0 +1,58 @@
+# UAT Docker Compose for ACE Prep
+# Usage: VERSION=uat docker compose -f docker-compose.uat.yml up -d
+#
+# Required environment variables:
+#   GHCR_OWNER - GitHub username or org
+#   VERSION    - Image tag to deploy (default: uat)
+
+services:
+  ace-prep-uat:
+    image: ghcr.io/${GHCR_OWNER}/ace-prep:${VERSION:-uat}
+    container_name: ace-prep-uat
+    restart: unless-stopped
+
+    # Port 3002 to avoid conflict with production on 3001
+    ports:
+      - "127.0.0.1:3002:3001"
+
+    # Separate volume from production
+    volumes:
+      - ace-data-uat:/app/data
+
+    env_file:
+      - .env
+
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3001
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777
+
+volumes:
+  ace-data-uat:
+    name: ace-prep-data-uat
