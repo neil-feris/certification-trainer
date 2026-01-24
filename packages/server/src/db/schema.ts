@@ -415,6 +415,44 @@ export const userAchievements = sqliteTable(
   ]
 );
 
+// ============ BOOKMARKS & NOTES ============
+export const bookmarks = sqliteTable(
+  'bookmarks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').notNull(), // 'question' | 'topic' | 'domain'
+    targetId: integer('target_id').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('bookmarks_user_target_idx').on(table.userId, table.targetType, table.targetId),
+    index('bookmarks_user_idx').on(table.userId),
+  ]
+);
+
+export const userNotes = sqliteTable(
+  'user_notes',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('user_notes_user_question_idx').on(table.userId, table.questionId),
+    index('user_notes_user_idx').on(table.userId),
+  ]
+);
+
 // Settings (API keys stored encrypted) - global settings for anonymous users
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -480,3 +518,7 @@ export type AchievementRecord = typeof achievements.$inferSelect;
 export type NewAchievement = typeof achievements.$inferInsert;
 export type UserAchievementRecord = typeof userAchievements.$inferSelect;
 export type NewUserAchievement = typeof userAchievements.$inferInsert;
+export type BookmarkRecord = typeof bookmarks.$inferSelect;
+export type NewBookmark = typeof bookmarks.$inferInsert;
+export type UserNoteRecord = typeof userNotes.$inferSelect;
+export type NewUserNote = typeof userNotes.$inferInsert;
