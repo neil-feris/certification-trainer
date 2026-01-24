@@ -139,3 +139,20 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - ReferenceLine at 70% with dashed stroke follows existing PerformanceTrendsChart pattern exactly
   - `score.overall` is 0-1 float, multiply by 100 for display percentage
 ---
+
+## 2026-01-25 - US-009
+- Added Recommendations section on ReadinessPage with "Practice Now" buttons
+- Each recommendation shows domain name, action text, current score, and a styled CTA button
+- Button navigates to `/study?domainId={domainId}` for deep-linking
+- StudyHub reads `domainId` query param via `useSearchParams`, switches to 'domains' tab
+- DomainList accepts `highlightDomainId` prop, passes `initialExpanded` to DomainCard
+- DomainCard accepts `initialExpanded` prop (defaults to true for backward compatibility)
+- When navigating from readiness, only the targeted domain is expanded; others collapsed
+- Max 5 recommendations shown (slice)
+- Files changed: `packages/client/src/components/progress/ReadinessPage.tsx`, `packages/client/src/components/progress/ReadinessPage.module.css`, `packages/client/src/components/study/StudyHub.tsx`, `packages/client/src/components/study/domains/DomainList.tsx`, `packages/client/src/components/study/domains/DomainCard.tsx`
+- **Learnings for future iterations:**
+  - `useSearchParams` from react-router-dom for reading URL query params in existing routes
+  - Clear query params after reading with `setSearchParams({}, { replace: true })` to avoid re-triggering
+  - DomainCard previously hardcoded `isExpanded=true`; parameterized via `initialExpanded` prop
+  - Navigation with query params: `navigate('/study?domainId=5')` pattern
+---
