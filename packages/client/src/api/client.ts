@@ -42,6 +42,14 @@ import type {
   AchievementRarity,
   AchievementCriteria,
   AchievementUnlockResponse,
+  BookmarkTargetType,
+  Bookmark,
+  ToggleBookmarkResponse,
+  CheckBookmarkResponse,
+  BookmarkedQuestion,
+  Note,
+  SaveNoteResponse,
+  NoteWithQuestion,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -645,4 +653,37 @@ export interface AchievementProgressResponse {
 export const achievementApi = {
   getAll: () => request<AchievementsResponse>('/achievements'),
   getProgress: () => request<AchievementProgressResponse>('/achievements/progress'),
+};
+
+// Bookmarks
+export const bookmarksApi = {
+  toggle: (targetType: BookmarkTargetType, targetId: number) =>
+    request<ToggleBookmarkResponse>('/bookmarks', {
+      method: 'POST',
+      body: JSON.stringify({ targetType, targetId }),
+    }),
+  list: (type?: BookmarkTargetType) => {
+    const params = type ? `?type=${type}` : '';
+    return request<Bookmark[]>(`/bookmarks${params}`);
+  },
+  listQuestions: () => request<BookmarkedQuestion[]>('/bookmarks/questions'),
+  check: (targetType: BookmarkTargetType, targetId: number) =>
+    request<CheckBookmarkResponse>(
+      `/bookmarks/check?targetType=${targetType}&targetId=${targetId}`
+    ),
+};
+
+// Notes
+export const notesApi = {
+  save: (questionId: number, content: string) =>
+    request<SaveNoteResponse>('/notes', {
+      method: 'POST',
+      body: JSON.stringify({ questionId, content }),
+    }),
+  get: (questionId: number) => request<Note | null>(`/notes/${questionId}`),
+  list: () => request<NoteWithQuestion[]>('/notes'),
+  delete: (questionId: number) =>
+    request<{ success: boolean }>(`/notes/${questionId}`, {
+      method: 'DELETE',
+    }),
 };
