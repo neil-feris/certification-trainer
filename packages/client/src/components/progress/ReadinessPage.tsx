@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   LineChart,
@@ -26,6 +27,7 @@ function formatDate(dateStr: string): string {
 }
 
 export function ReadinessPage() {
+  const navigate = useNavigate();
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const [certId, setCertId] = useState<number | null>(selectedCertificationId);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -288,18 +290,33 @@ export function ReadinessPage() {
         </table>
       </div>
 
-      {/* Recommendations Preview (brief, detail in US-009) */}
+      {/* Actionable Recommendations */}
       {recommendations.length > 0 && (
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Recommendations</h2>
-          <div className={styles.chartCard}>
-            <ul style={{ margin: 0, padding: '0 0 0 20px', listStyle: 'disc' }}>
-              {recommendations.slice(0, 5).map((rec) => (
-                <li key={rec.domainId} style={{ marginBottom: 8, fontSize: 14, color: 'var(--text-primary)' }}>
-                  <strong>{rec.domainName}</strong>: {rec.action} — Score: {Math.round(rec.currentScore * 100)}%
-                </li>
-              ))}
-            </ul>
+          <div className={styles.recommendations}>
+            {recommendations.slice(0, 5).map((rec) => {
+              const recScore = Math.round(rec.currentScore * 100);
+              return (
+                <div key={rec.domainId} className={styles.recCard}>
+                  <div className={styles.recInfo}>
+                    <span className={styles.recDomain}>{rec.domainName}</span>
+                    <span className={styles.recAction}>{rec.action}</span>
+                  </div>
+                  <div className={styles.recRight}>
+                    <span className={styles.recScore} style={{ color: getScoreColor(recScore) }}>
+                      {recScore}%
+                    </span>
+                    <button
+                      className={styles.practiceButton}
+                      onClick={() => navigate(`/study?domainId=${rec.domainId}`)}
+                    >
+                      Practice Now
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

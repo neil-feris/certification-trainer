@@ -257,6 +257,75 @@
   color: var(--text-secondary);
 }
 
+/* Recommendations */
+.recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+
+.recInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recDomain {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.recAction {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.recScore {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.practiceButton {
+  padding: 6px 14px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast);
+}
+
+.practiceButton:hover {
+  background: var(--accent-hover);
+}
+
 /* Chart Section */
 .chartCard {
   padding: 24px;
