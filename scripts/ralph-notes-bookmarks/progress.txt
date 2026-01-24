@@ -1,0 +1,77 @@
+# Ralph Progress Log
+Started: Sat 24 Jan 2026 18:29:29 SAST
+---
+
+## Codebase Patterns
+- Shared types are all in `packages/shared/src/index.ts` - single file, section-commented
+- Use `Date | string` for date fields in shared types (DB returns Date, JSON returns string)
+- Follow section comment pattern: `// ============ SECTION NAME ============`
+- Build order: shared → server → client (shared must build first)
+- npm/nvm has lazy-loading issues in shell; use direct binary path: `$HOME/.nvm/versions/node/v22.2.0/bin/node` and `$HOME/.nvm/versions/node/v22.2.0/lib/node_modules/npm/bin/npm-cli.js`
+- lint-staged runs on commit via husky hooks (eslint --fix, prettier --write)
+- New DB tables need: (1) Drizzle definition in `schema.ts`, (2) SQL migration file in `migrations/`, (3) entry in `startupMigrations.ts`
+- Schema type exports: `XxxRecord = typeof xxx.$inferSelect`, `NewXxx = typeof xxx.$inferInsert`
+- Startup migrations are versioned sequentially; latest is version 5 (bookmarks/notes)
+- Routes: export async function, `fastify.addHook('preHandler', authenticate)`, Zod validation with `formatZodError`
+- JSON fields (options, correctAnswers, gcpServices) must be `JSON.parse(field as string)` - gcpServices can be null so check first
+- Route registration: import in `index.ts`, register with `fastify.register(fn, { prefix: '/api/xxx' })`
+- Sentry spans: `import * as Sentry from '@sentry/node'`, wrap with `Sentry.startSpan({ op, name }, async (span) => { ... })`
+- Questions table field is `questionText` (not `text`) for the question content
+- Upsert pattern: check existing → update set + run → else insert values + returning().get()
+
+---
+
+## 2026-01-24 - US-001
+- Implemented shared TypeScript types for bookmarks and notes feature
+- Added: BookmarkTargetType, Bookmark, Note, BookmarkedQuestion, ToggleBookmarkRequest/Response, CheckBookmarkResponse, SaveNoteRequest/Response, NoteWithQuestion
+- Files changed: `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - All shared types live in a single file with section comments
+  - Interface naming follows pattern: `XxxRequest`, `XxxResponse` for DTOs
+  - Extended types use `extends BaseType` pattern (e.g., `BookmarkedQuestion extends Question`)
+  - `Date | string` union used for date fields since JSON serialization converts to string
+  - The project has existing patterns for paginated responses, filter options, etc. that can be reused
+  - The PRD file lives at `tasks/prd-notes-bookmarks.json` (not `scripts/ralph-notes-bookmarks/prd.json`)
+---
+
+## 2026-01-24 - US-002
+- Implemented database schema for bookmarks and user_notes tables
+- Added Drizzle ORM table definitions with proper indices and FK cascades
+- Created SQL migration `0011_add_bookmarks_notes.sql`
+- Added startup migration (version 5) in `startupMigrations.ts`
+- Exported types: `BookmarkRecord`, `NewBookmark`, `UserNoteRecord`, `NewUserNote`
+- Files changed: `packages/server/src/db/schema.ts`, `packages/server/src/db/startupMigrations.ts`, `packages/server/src/db/migrations/0011_add_bookmarks_notes.sql`
+- **Learnings for future iterations:**
+  - Schema uses section comments `// ============ SECTION ============` for organization
+  - Tables follow pattern: `userId` references `users.id` with `onDelete: 'cascade'`
+  - Indices use drizzle helpers: `uniqueIndex()`, `index()` in 3rd arg function
+  - Type exports follow pattern: `XxxRecord` for select, `NewXxx` for insert
+  - Startup migrations use version numbers and are tracked in `_startup_migrations` table
+  - For typecheck, use direct path: `/Users/neil.feris/.nvm/versions/node/v22.2.0/bin/node /Users/neil.feris/.nvm/versions/node/v22.2.0/bin/npx tsc --noEmit -p <tsconfig>`
+---
+
+## 2026-01-24 - US-003
+- Implemented backend API routes for bookmarks
+- Endpoints: POST /api/bookmarks (toggle), GET /api/bookmarks (list with ?type filter), GET /api/bookmarks/questions (joined question data), GET /api/bookmarks/check (check status)
+- All routes use `authenticate` preHandler, Zod validation, and Sentry spans on toggle/list operations
+- Files changed: `packages/server/src/routes/bookmarks.ts` (new), `packages/server/src/index.ts` (route registration)
+- **Learnings for future iterations:**
+  - Toggle pattern: check if exists → delete if yes, insert if no → return `{ bookmarked: boolean }`
+  - The unique index on (userId, targetType, targetId) prevents duplicate bookmarks at DB level
+  - Bookmark `/questions` endpoint joins bookmarks → questions → domains → topics for full data
+  - Query params need `.transform(Number)` in Zod for string-to-number conversion (GET requests send strings)
+  - No existing routes use Sentry spans; this is the first to add them. Import `* as Sentry from '@sentry/node'`
+---
+
+## 2026-01-24 - US-004
+- Implemented backend API routes for notes
+- Endpoints: POST /api/notes (upsert, empty content deletes), GET /api/notes/:questionId (single), GET /api/notes (list with question/domain/topic join), DELETE /api/notes/:questionId
+- All routes use `authenticate` preHandler, Zod validation (5000 char max), Sentry spans on save
+- Files changed: `packages/server/src/routes/notes.ts` (new), `packages/server/src/index.ts` (route registration)
+- **Learnings for future iterations:**
+  - The questions table uses `questionText` not `text` for the question content field
+  - Upsert pattern: check existing → update if found, insert if not → use `.returning().get()` for insert
+  - Delete-on-empty pattern: check `content.trim() === ''` before any DB lookups to short-circuit
+  - The `returning()` method on inserts gives back the full row (good for returning created notes)
+  - Route param validation uses same Zod pattern as query: `.transform(Number)` for string params
+---
