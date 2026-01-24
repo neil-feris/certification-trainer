@@ -13,6 +13,7 @@ import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
 import { QuestionBrowser } from './components/questions';
 import { ProgressPage } from './components/progress/ProgressPage';
+import { ReadinessPage } from './components/progress/ReadinessPage';
 import { CaseStudiesPage, CaseStudyDetail } from './components/case-studies';
 import { AchievementsPage } from './components/achievements/AchievementsPage';
 import { BookmarksPage } from './components/bookmarks/BookmarksPage';
@@ -228,6 +229,18 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <ProgressPage />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/readiness"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <ReadinessPage />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>
