@@ -50,6 +50,13 @@ import type {
   Note,
   SaveNoteResponse,
   NoteWithQuestion,
+  StartFlashcardSessionRequest,
+  StartFlashcardSessionResponse,
+  GetFlashcardSessionResponse,
+  RateFlashcardRequest,
+  RateFlashcardResponse,
+  CompleteFlashcardSessionRequest,
+  CompleteFlashcardSessionResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -673,6 +680,27 @@ export const bookmarksApi = {
     request<CheckBookmarkResponse>(
       `/bookmarks/check?targetType=${targetType}&targetId=${targetId}`
     ),
+};
+
+// Flashcards
+export const flashcardApi = {
+  startSession: (data: StartFlashcardSessionRequest) =>
+    request<StartFlashcardSessionResponse>('/study/flashcards', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getSession: (sessionId: number) =>
+    request<GetFlashcardSessionResponse>(`/study/flashcards/${sessionId}`),
+  rateCard: (sessionId: number, data: RateFlashcardRequest) =>
+    request<RateFlashcardResponse>(`/study/flashcards/${sessionId}/rate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  completeSession: (sessionId: number, data?: CompleteFlashcardSessionRequest) =>
+    request<CompleteFlashcardSessionResponse>(`/study/flashcards/${sessionId}/complete`, {
+      method: 'PATCH',
+      body: JSON.stringify(data || {}),
+    }),
 };
 
 // Notes
