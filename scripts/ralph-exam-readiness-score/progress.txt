@@ -8,6 +8,9 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
 - Server typecheck requires `node_modules` installed (drizzle-orm etc) - pre-existing errors without install
 - Client typecheck works standalone with shared dist built
 - Commit using `git -C <path> commit -m "msg"` to avoid heredoc temp file issues
+- Migrations: raw SQL in `packages/server/src/db/migrations/0NNN_description.sql`, always use `IF NOT EXISTS`
+- Schema type exports: `TypeRecord` (select) and `NewType` (insert) at bottom of schema.ts
+- Timestamps stored as integers with `{ mode: 'timestamp' }`, JSON as `text` columns
 
 ---
 
@@ -19,4 +22,20 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - Types go at the end of `packages/shared/src/index.ts` grouped by feature with a comment header
   - No import/export barrel files - everything is flat exported from the single index.ts
   - Shared package builds with just `tsc` (no bundler)
+---
+
+## 2026-01-25 - US-002
+- Added `readinessSnapshots` Drizzle table definition in `packages/server/src/db/schema.ts`
+- Created SQL migration `packages/server/src/db/migrations/0012_add_readiness_snapshots.sql`
+- Table columns: id, user_id, certification_id, overall_score, domain_scores_json, calculated_at
+- Indexes on user_id, certification_id, and calculated_at for efficient querying
+- Added type exports: `ReadinessSnapshotRecord`, `NewReadinessSnapshot`
+- Files changed: `packages/server/src/db/schema.ts`, `packages/server/src/db/migrations/0012_add_readiness_snapshots.sql`
+- **Learnings for future iterations:**
+  - Schema table definitions use `sqliteTable` with a tuple-returning function for indexes
+  - Migrations use raw SQL with `IF NOT EXISTS` for idempotency
+  - Migration naming: `0NNN_description.sql` (sequential numbering)
+  - Type exports at bottom of schema.ts follow pattern: `Record` for select, `New` for insert
+  - Timestamps use `integer('col_name', { mode: 'timestamp' })` pattern
+  - JSON stored as `text` column with a descriptive comment
 ---
