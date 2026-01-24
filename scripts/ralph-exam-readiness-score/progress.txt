@@ -56,3 +56,18 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - Use `sql.raw()` for IN clause with computed values
   - `npm install --ignore-scripts` bypasses native build issues in sandbox
 ---
+
+## 2026-01-25 - US-004
+- Implemented GET /api/progress/readiness?certificationId=X endpoint in progress routes
+- Returns ReadinessResponse with score, domain breakdown, recommendations, and history
+- Debounced snapshot saving: checks last snapshot timestamp, only saves if >1 hour old
+- Fetches last 10 history snapshots for trend context
+- Recommendations come pre-sorted by lowest domain score from the service
+- Files changed: `packages/server/src/routes/progress.ts`
+- **Learnings for future iterations:**
+  - Progress routes use `parseCertificationIdFromQuery` helper for cert ID validation
+  - `authenticate` middleware is applied as a preHandler hook to all routes in the file
+  - Routes use `satisfies` keyword for type-safe return values
+  - `readinessSnapshots.calculatedAt` uses `{ mode: 'timestamp' }` so comparisons work with Date objects
+  - userId from `request.user!.id` is a string, needs `parseInt` for DB queries
+---
