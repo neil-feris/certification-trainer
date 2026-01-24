@@ -7,16 +7,27 @@ import {
   bookmarks,
   userNotes,
   flashcardSessions,
+  flashcardSessionRatings,
+  spacedRepetition,
 } from '../db/schema.js';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { resolveCertificationId } from '../db/certificationUtils.js';
 import {
   startFlashcardSessionSchema,
   sessionIdParamSchema,
+  rateFlashcardSchema,
   formatZodError,
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
-import type { StartFlashcardSessionRequest, FlashcardCard } from '@ace-prep/shared';
+import { calculateNextReview } from '../services/spacedRepetition.js';
+import { awardCustomXP } from '../services/xpService.js';
+import type {
+  StartFlashcardSessionRequest,
+  FlashcardCard,
+  RateFlashcardRequest,
+  XPAwardResponse,
+} from '@ace-prep/shared';
+import { XP_AWARDS } from '@ace-prep/shared';
 
 export async function flashcardRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -216,4 +227,133 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
       cards,
     };
   });
+
+  // POST /api/study/flashcards/:sessionId/rate - Submit SR rating for a flashcard
+  fastify.post<{ Params: { sessionId: string }; Body: RateFlashcardRequest }>(
+    '/:sessionId/rate',
+    async (request, reply) => {
+      const paramResult = sessionIdParamSchema.safeParse(request.params);
+      if (!paramResult.success) {
+        return reply.status(400).send(formatZodError(paramResult.error));
+      }
+
+      const bodyResult = rateFlashcardSchema.safeParse(request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send(formatZodError(bodyResult.error));
+      }
+
+      const { sessionId } = paramResult.data;
+      const { questionId, rating } = bodyResult.data;
+      const userId = parseInt(request.user!.id, 10);
+
+      // Verify session exists, belongs to user, and is in_progress
+      const [session] = await db
+        .select()
+        .from(flashcardSessions)
+        .where(and(eq(flashcardSessions.id, sessionId), eq(flashcardSessions.userId, userId)));
+
+      if (!session) {
+        return reply.status(404).send({ error: 'Flashcard session not found' });
+      }
+
+      if (session.status !== 'in_progress') {
+        return reply.status(400).send({ error: 'Session is not in progress' });
+      }
+
+      // Verify the question is part of this session
+      const sessionQuestionIds: number[] = JSON.parse(session.questionIds);
+      if (!sessionQuestionIds.includes(questionId)) {
+        return reply.status(400).send({ error: 'Question is not part of this session' });
+      }
+
+      // Insert or update rating in flashcard_session_ratings (unique on session+question)
+      const [existingRating] = await db
+        .select()
+        .from(flashcardSessionRatings)
+        .where(
+          and(
+            eq(flashcardSessionRatings.sessionId, sessionId),
+            eq(flashcardSessionRatings.questionId, questionId)
+          )
+        );
+
+      if (existingRating) {
+        await db
+          .update(flashcardSessionRatings)
+          .set({ rating, ratedAt: new Date() })
+          .where(eq(flashcardSessionRatings.id, existingRating.id));
+      } else {
+        await db.insert(flashcardSessionRatings).values({
+          sessionId,
+          questionId,
+          rating,
+          ratedAt: new Date(),
+        });
+
+        // Increment cardsReviewed only on first rating per question
+        await db
+          .update(flashcardSessions)
+          .set({ cardsReviewed: session.cardsReviewed + 1 })
+          .where(eq(flashcardSessions.id, sessionId));
+      }
+
+      // Update spaced repetition schedule
+      let [sr] = await db
+        .select()
+        .from(spacedRepetition)
+        .where(
+          and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
+        );
+
+      if (!sr) {
+        [sr] = await db
+          .insert(spacedRepetition)
+          .values({
+            userId,
+            questionId,
+            easeFactor: 2.5,
+            interval: 1,
+            repetitions: 0,
+            nextReviewAt: new Date(),
+          })
+          .returning();
+      }
+
+      const srResult = calculateNextReview(rating, sr.easeFactor, sr.interval, sr.repetitions);
+
+      await db
+        .update(spacedRepetition)
+        .set({
+          easeFactor: srResult.easeFactor,
+          interval: srResult.interval,
+          repetitions: srResult.repetitions,
+          nextReviewAt: srResult.nextReviewAt,
+          lastReviewedAt: new Date(),
+        })
+        .where(eq(spacedRepetition.id, sr.id));
+
+      // Award XP (non-critical, graceful degradation)
+      let xpUpdate: XPAwardResponse | undefined;
+      try {
+        const xpSource = `FLASHCARD_RATED_${sessionId}_${questionId}`;
+        xpUpdate = (await awardCustomXP(userId, XP_AWARDS.SR_CARD_REVIEWED, xpSource)) ?? undefined;
+      } catch (error) {
+        fastify.log.error(
+          {
+            userId,
+            questionId,
+            sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to award XP after flashcard rating'
+        );
+      }
+
+      return {
+        updated: true,
+        nextReviewAt: srResult.nextReviewAt.toISOString(),
+        xpUpdate,
+      };
+    }
+  );
 }
