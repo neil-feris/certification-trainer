@@ -922,10 +922,19 @@ export interface SaveNoteResponse {
   note: Note;
 }
 
+export interface NoteQuestionDetail {
+  id: number;
+  text: string;
+  options: string[];
+  correctAnswers: number[];
+  gcpServices: string[];
+  explanation: string | null;
+}
+
 export interface NoteWithQuestion extends Note {
-  questionText: string;
-  topicName: string;
-  domainName: string;
+  question: NoteQuestionDetail;
+  domain: Domain;
+  topic: Topic;
 }
 
 export const ACHIEVEMENTS: AchievementDefinition[] = [

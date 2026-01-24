@@ -16,6 +16,7 @@ import { ProgressPage } from './components/progress/ProgressPage';
 import { CaseStudiesPage, CaseStudyDetail } from './components/case-studies';
 import { AchievementsPage } from './components/achievements/AchievementsPage';
 import { BookmarksPage } from './components/bookmarks/BookmarksPage';
+import { NotesPage } from './components/notes/NotesPage';
 import { LoginPage, AuthCallbackPage } from './pages';
 import { useAuthStore } from './stores/authStore';
 
@@ -179,6 +180,18 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <BookmarksPage />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notes"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <NotesPage />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>
