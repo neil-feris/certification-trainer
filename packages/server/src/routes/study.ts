@@ -64,10 +64,26 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .where(eq(domains.certificationId, certId))
       .orderBy(domains.orderIndex, topics.id);
 
+    // Get question counts per topic in one query
+    const questionCounts = await db
+      .select({
+        topicId: questions.topicId,
+        count: sql<number>`COUNT(*)`.as('count'),
+      })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .where(eq(domains.certificationId, certId))
+      .groupBy(questions.topicId);
+
+    const countMap = new Map(questionCounts.map((r) => [r.topicId, r.count]));
+
     // Group topics by domain
     const domainMap = new Map<
       number,
-      { domain: typeof domains.$inferSelect; topics: (typeof topics.$inferSelect)[] }
+      {
+        domain: typeof domains.$inferSelect;
+        topics: (typeof topics.$inferSelect & { questionCount: number })[];
+      }
     >();
 
     for (const row of result) {
@@ -75,7 +91,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
         domainMap.set(row.domain.id, { domain: row.domain, topics: [] });
       }
       if (row.topic) {
-        domainMap.get(row.domain.id)!.topics.push(row.topic);
+        domainMap.get(row.domain.id)!.topics.push({
+          ...row.topic,
+          questionCount: countMap.get(row.topic.id) || 0,
+        });
       }
     }
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as Sentry from '@sentry/react';
 import { studyApi } from '../api/client';
+import { useCertificationStore } from './certificationStore';
 import { getCachedQuestions } from '../services/offlineStorage';
 import { queueResponse, type OfflineSessionContext } from '../services/syncQueue';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
@@ -189,7 +190,9 @@ export const useStudyStore = create<StudySessionState>()(
             }
 
             try {
+              const certificationId = useCertificationStore.getState().selectedCertificationId;
               const result = await studyApi.createSession({
+                certificationId: certificationId ?? undefined,
                 sessionType: type,
                 topicId,
                 domainId,
@@ -318,6 +321,8 @@ export const useStudyStore = create<StudySessionState>()(
           } = get();
           const offlineContext: OfflineSessionContext | undefined = sessionType
             ? {
+                certificationId:
+                  useCertificationStore.getState().selectedCertificationId ?? undefined,
                 sessionType,
                 topicId: storeTopicId ?? undefined,
                 domainId: storeDomainId ?? undefined,

@@ -11,6 +11,7 @@ const syncStore = createStore('ace-prep-sync-db', 'ace-prep-sync-queue');
 const QUEUE_KEY = 'pending-responses';
 
 export interface OfflineSessionContext {
+  certificationId?: number;
   sessionType: 'topic_practice' | 'learning_path';
   topicId?: number;
   domainId?: number;
@@ -102,6 +103,7 @@ async function createServerSession(context: OfflineSessionContext): Promise<numb
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
+        certificationId: context.certificationId,
         sessionType: context.sessionType,
         topicId: context.topicId,
         domainId: context.domainId,
