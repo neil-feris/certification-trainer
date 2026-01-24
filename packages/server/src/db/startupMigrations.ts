@@ -500,7 +500,7 @@ const migrations: Migration[] = [
     },
   },
   {
-    version: 5,
+    version: 7,
     name: 'add_bookmarks_notes_tables',
     up: (db) => {
       db.exec(`
