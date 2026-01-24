@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as Sentry from '@sentry/react';
 import { studyApi } from '../api/client';
+import { useCertificationStore } from './certificationStore';
 import { getCachedQuestions } from '../services/offlineStorage';
 import { queueResponse, type OfflineSessionContext } from '../services/syncQueue';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
+import { showAchievementUnlockToasts } from '../utils/achievementNotifications';
 import { queryClient } from '../lib/queryClient';
 import type { Question, CaseStudy } from '@ace-prep/shared';
 
@@ -188,7 +190,9 @@ export const useStudyStore = create<StudySessionState>()(
             }
 
             try {
+              const certificationId = useCertificationStore.getState().selectedCertificationId;
               const result = await studyApi.createSession({
+                certificationId: certificationId ?? undefined,
                 sessionType: type,
                 topicId,
                 domainId,
@@ -317,6 +321,8 @@ export const useStudyStore = create<StudySessionState>()(
           } = get();
           const offlineContext: OfflineSessionContext | undefined = sessionType
             ? {
+                certificationId:
+                  useCertificationStore.getState().selectedCertificationId ?? undefined,
                 sessionType,
                 topicId: storeTopicId ?? undefined,
                 domainId: storeDomainId ?? undefined,
@@ -476,6 +482,7 @@ export const useStudyStore = create<StudySessionState>()(
               const result = await studyApi.completeSession(sessionId, {
                 responses: responsesArray,
                 totalTimeSeconds,
+                clientHour: new Date().getHours(),
               });
 
               span.setAttribute('session.correct_count', result.correctCount);
@@ -484,6 +491,7 @@ export const useStudyStore = create<StudySessionState>()(
 
               // Show milestone toast if applicable
               showStreakMilestoneToast(result.streakUpdate);
+              showAchievementUnlockToasts(result.achievementsUnlocked);
 
               // Invalidate streak query to refresh displays
               queryClient.invalidateQueries({ queryKey: ['streak'] });

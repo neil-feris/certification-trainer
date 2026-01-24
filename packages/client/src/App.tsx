@@ -14,6 +14,7 @@ import { Settings } from './components/settings/Settings';
 import { QuestionBrowser } from './components/questions';
 import { ProgressPage } from './components/progress/ProgressPage';
 import { CaseStudiesPage, CaseStudyDetail } from './components/case-studies';
+import { AchievementsPage } from './components/achievements/AchievementsPage';
 import { LoginPage, AuthCallbackPage } from './pages';
 import { useAuthStore } from './stores/authStore';
 
@@ -201,6 +202,18 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <ProgressPage />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/achievements"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <AchievementsPage />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>

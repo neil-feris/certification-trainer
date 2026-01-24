@@ -128,6 +128,7 @@ export const completeStudySessionSchema = z.object({
     })
   ),
   totalTimeSeconds: z.number().int().min(0),
+  clientHour: z.number().int().min(0).max(23).optional(),
 });
 
 export const studySummarySchema = z.object({

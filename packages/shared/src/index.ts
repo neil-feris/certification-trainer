@@ -440,6 +440,7 @@ export interface SubmitStudyAnswerResponse {
 export interface CompleteStudySessionRequest {
   responses: SubmitStudyAnswerRequest[];
   totalTimeSeconds: number;
+  clientHour?: number;
 }
 
 export interface CompleteStudySessionResponse {
@@ -449,6 +450,7 @@ export interface CompleteStudySessionResponse {
   addedToSRCount: number;
   streakUpdate?: StreakUpdateResponse;
   xpUpdate?: XPAwardResponse;
+  achievementsUnlocked?: AchievementUnlockResponse[];
 }
 
 export interface ActiveStudySessionResponse {
@@ -568,6 +570,7 @@ export interface CompleteDrillResponse {
   addedToSRCount: number;
   results: DrillResult[];
   xpUpdate?: XPAwardResponse;
+  achievementsUnlocked?: AchievementUnlockResponse[];
 }
 
 export interface ActiveDrillResponse {
@@ -811,3 +814,159 @@ export const XP_SOURCE_LABELS: Record<string, string> = {
   DRILL_PERFECT_SCORE: 'Perfect Drill Score',
   SR_CARD_REVIEWED: 'Card Reviewed',
 };
+
+// ============ ACHIEVEMENT BADGE TYPES ============
+
+export type AchievementRarity = 'common' | 'rare' | 'epic';
+
+export const ACHIEVEMENT_XP_REWARDS: Record<AchievementRarity, number> = {
+  common: 25,
+  rare: 50,
+  epic: 100,
+};
+
+export type AchievementCriteriaType =
+  | 'first_activity'
+  | 'perfect_score'
+  | 'streak'
+  | 'domain_mastery'
+  | 'speed'
+  | 'time_of_day'
+  | 'cumulative_count'
+  | 'path_completion';
+
+export interface AchievementCriteria {
+  type: AchievementCriteriaType;
+  [key: string]: unknown;
+}
+
+export interface AchievementDefinition {
+  code: string;
+  name: string;
+  description: string;
+  rarity: AchievementRarity;
+  icon: string;
+  criteria: AchievementCriteria;
+}
+
+export interface UserAchievement {
+  code: string;
+  unlockedAt: Date | string;
+  rarity: AchievementRarity;
+  xpAwarded: number;
+}
+
+export interface AchievementProgress {
+  code: string;
+  currentValue: number;
+  targetValue: number;
+  percentComplete: number;
+}
+
+export interface AchievementUnlockResponse {
+  code: string;
+  name: string;
+  description: string;
+  rarity: AchievementRarity;
+  icon: string;
+  xpAwarded: number;
+}
+
+export const ACHIEVEMENTS: AchievementDefinition[] = [
+  {
+    code: 'first-steps',
+    name: 'First Steps',
+    description: 'Complete your first exam or study session',
+    rarity: 'common',
+    icon: '👣',
+    criteria: { type: 'first_activity', activity: 'any' },
+  },
+  {
+    code: 'perfect-score',
+    name: 'Perfect Score',
+    description: 'Score 100% on any exam',
+    rarity: 'rare',
+    icon: '💯',
+    criteria: { type: 'perfect_score', scorePercent: 100 },
+  },
+  {
+    code: 'consistent-7',
+    name: 'Week Warrior',
+    description: 'Maintain a 7-day study streak',
+    rarity: 'common',
+    icon: '🔥',
+    criteria: { type: 'streak', days: 7 },
+  },
+  {
+    code: 'dedicated-30',
+    name: 'Dedicated Learner',
+    description: 'Maintain a 30-day study streak',
+    rarity: 'rare',
+    icon: '📅',
+    criteria: { type: 'streak', days: 30 },
+  },
+  {
+    code: 'century-streak',
+    name: 'Century Streak',
+    description: 'Maintain a 100-day study streak',
+    rarity: 'epic',
+    icon: '🏆',
+    criteria: { type: 'streak', days: 100 },
+  },
+  {
+    code: 'domain-expert',
+    name: 'Domain Expert',
+    description: 'Achieve 90%+ accuracy in any domain with 5+ attempts',
+    rarity: 'rare',
+    icon: '🎓',
+    criteria: { type: 'domain_mastery', accuracyPercent: 90, minAttempts: 5 },
+  },
+  {
+    code: 'speed-demon',
+    name: 'Speed Demon',
+    description: 'Complete a drill with 100% accuracy in under 60 seconds',
+    rarity: 'epic',
+    icon: '⚡',
+    criteria: { type: 'speed', maxSeconds: 60, minAccuracy: 100 },
+  },
+  {
+    code: 'night-owl',
+    name: 'Night Owl',
+    description: 'Complete a study session between midnight and 5 AM',
+    rarity: 'common',
+    icon: '🦉',
+    criteria: { type: 'time_of_day', startHour: 0, endHour: 5 },
+  },
+  {
+    code: 'early-bird',
+    name: 'Early Bird',
+    description: 'Complete a study session between 5 AM and 7 AM',
+    rarity: 'common',
+    icon: '🐦',
+    criteria: { type: 'time_of_day', startHour: 5, endHour: 7 },
+  },
+  {
+    code: 'completionist',
+    name: 'Completionist',
+    description: 'Complete 100% of a learning path',
+    rarity: 'epic',
+    icon: '✅',
+    criteria: { type: 'path_completion', percentComplete: 100 },
+  },
+  {
+    code: 'reviewer-100',
+    name: 'Review Master',
+    description: 'Review 100 spaced repetition cards',
+    rarity: 'rare',
+    icon: '🔄',
+    criteria: { type: 'cumulative_count', activity: 'sr_review', count: 100 },
+  },
+  {
+    code: 'exam-veteran',
+    name: 'Exam Veteran',
+    description: 'Complete 10 exams',
+    rarity: 'rare',
+    icon: '🎖️',
+    criteria: { type: 'cumulative_count', activity: 'exam_complete', count: 10 },
+  },
+];

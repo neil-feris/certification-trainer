@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db, schema } from '../db/index.js';
+import { db } from '../db/index.js';
 import {
   domains,
   topics,
@@ -43,6 +43,12 @@ import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
 import { XP_AWARDS, XPAwardResponse } from '@ace-prep/shared';
+import {
+  checkAndUnlock,
+  checkDomainExpert,
+  AchievementContext,
+} from '../services/achievementService.js';
+import type { AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -62,10 +68,26 @@ export async function studyRoutes(fastify: FastifyInstance) {
       .where(eq(domains.certificationId, certId))
       .orderBy(domains.orderIndex, topics.id);
 
+    // Get question counts per topic in one query
+    const questionCounts = await db
+      .select({
+        topicId: questions.topicId,
+        count: sql<number>`COUNT(*)`.as('count'),
+      })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .where(eq(domains.certificationId, certId))
+      .groupBy(questions.topicId);
+
+    const countMap = new Map(questionCounts.map((r) => [r.topicId, r.count]));
+
     // Group topics by domain
     const domainMap = new Map<
       number,
-      { domain: typeof domains.$inferSelect; topics: (typeof topics.$inferSelect)[] }
+      {
+        domain: typeof domains.$inferSelect;
+        topics: (typeof topics.$inferSelect & { questionCount: number })[];
+      }
     >();
 
     for (const row of result) {
@@ -73,7 +95,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
         domainMap.set(row.domain.id, { domain: row.domain, topics: [] });
       }
       if (row.topic) {
-        domainMap.get(row.domain.id)!.topics.push(row.topic);
+        domainMap.get(row.domain.id)!.topics.push({
+          ...row.topic,
+          questionCount: countMap.get(row.topic.id) || 0,
+        });
       }
     }
 
@@ -205,9 +230,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       // Update streak since this is a new completion with error handling
       let streakUpdate;
+      let currentStreak: number | undefined;
       try {
         const streakResult = await updateStreak(userId);
         streakUpdate = streakResult.streakUpdate;
+        currentStreak = streakResult.streak.currentStreak;
       } catch (error) {
         // Log error but don't fail the learning path completion
         fastify.log.error(
@@ -222,10 +249,42 @@ export async function studyRoutes(fastify: FastifyInstance) {
         streakUpdate = undefined;
       }
 
+      // Check streak-based and completionist achievements
+      let achievementsUnlocked: AchievementUnlockResponse[] = [];
+      try {
+        // Check if all learning path items are now complete for this certification
+        const completedItems = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(learningPathProgress)
+          .where(
+            and(
+              eq(learningPathProgress.certificationId, certId),
+              eq(learningPathProgress.userId, userId)
+            )
+          );
+        const pathComplete = (completedItems[0]?.count ?? 0) >= LEARNING_PATH_TOTAL;
+
+        const achievementContext: AchievementContext = {
+          streak: currentStreak,
+          pathComplete,
+        };
+        achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+      } catch (error) {
+        fastify.log.error(
+          {
+            userId,
+            order,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to check achievements after learning path completion'
+        );
+      }
+
       return {
         isCompleted: true,
         completedAt: now,
         streakUpdate,
+        achievementsUnlocked,
       };
     }
   );
@@ -1022,7 +1081,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     if (!bodyResult.success) {
       return reply.status(400).send(formatZodError(bodyResult.error));
     }
-    const { responses, totalTimeSeconds } = bodyResult.data;
+    const { responses, totalTimeSeconds, clientHour } = bodyResult.data;
 
     // Verify session ownership
     const [session] = await db
@@ -1162,9 +1221,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
     // Update streak after session completion with error handling
     let streakUpdate;
+    let currentStreak: number | undefined;
     try {
       const streakResult = await updateStreak(userId);
       streakUpdate = streakResult.streakUpdate;
+      currentStreak = streakResult.streak.currentStreak;
     } catch (error) {
       // Log error but don't fail the study session completion
       fastify.log.error(
@@ -1205,6 +1266,35 @@ export async function studyRoutes(fastify: FastifyInstance) {
       xpUpdate = undefined;
     }
 
+    // Check achievements: night-owl, early-bird (time of day), streak badges, domain-expert
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    try {
+      // Use client-provided hour for timezone-correct time-of-day badges
+      const timeOfDay = clientHour ?? new Date().getHours();
+
+      const achievementContext: AchievementContext = {
+        activity: 'study',
+        timeOfDay,
+        score: actualCorrect,
+        totalQuestions: actualTotal,
+        streak: currentStreak,
+      };
+      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+
+      // Check domain-expert across all response sources
+      const domainUnlocks = await checkDomainExpert(userId);
+      achievementsUnlocked.push(...domainUnlocks);
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to check achievements after study session completion'
+      );
+    }
+
     const result = {
       score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,
       correctCount: actualCorrect,
@@ -1212,6 +1302,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       addedToSRCount: actualAddedToSR,
       streakUpdate,
       xpUpdate,
+      achievementsUnlocked,
     };
 
     return result;

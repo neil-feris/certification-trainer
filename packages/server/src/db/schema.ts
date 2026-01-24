@@ -381,6 +381,40 @@ export const userStreaks = sqliteTable(
   (table) => [uniqueIndex('user_streaks_user_id_idx').on(table.userId)]
 );
 
+// ============ ACHIEVEMENTS ============
+export const achievements = sqliteTable(
+  'achievements',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    code: text('code').notNull().unique(),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    rarity: text('rarity').notNull(), // 'common' | 'rare' | 'epic'
+    icon: text('icon').notNull(),
+    criteriaType: text('criteria_type').notNull(),
+    criteriaJson: text('criteria_json').notNull(), // JSON object with criteria details
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [uniqueIndex('achievements_code_idx').on(table.code)]
+);
+
+export const userAchievements = sqliteTable(
+  'user_achievements',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    achievementCode: text('achievement_code').notNull(),
+    xpAwarded: integer('xp_awarded').notNull(),
+    unlockedAt: integer('unlocked_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('user_achievements_user_code_idx').on(table.userId, table.achievementCode),
+    index('user_achievements_user_idx').on(table.userId),
+  ]
+);
+
 // Settings (API keys stored encrypted) - global settings for anonymous users
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -442,3 +476,7 @@ export type UserXpRecord = typeof userXp.$inferSelect;
 export type NewUserXp = typeof userXp.$inferInsert;
 export type XpHistoryRecord = typeof xpHistory.$inferSelect;
 export type NewXpHistory = typeof xpHistory.$inferInsert;
+export type AchievementRecord = typeof achievements.$inferSelect;
+export type NewAchievement = typeof achievements.$inferInsert;
+export type UserAchievementRecord = typeof userAchievements.$inferSelect;
+export type NewUserAchievement = typeof userAchievements.$inferInsert;

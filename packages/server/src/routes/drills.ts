@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db, schema } from '../db/index.js';
+import { db } from '../db/index.js';
 import {
   domains,
   topics,
@@ -29,6 +29,12 @@ import { checkAnswerCorrect } from '../utils/scoring.js';
 import { resolveCertificationId } from '../db/certificationUtils.js';
 import { authenticate } from '../middleware/auth.js';
 import { awardCustomXP } from '../services/xpService.js';
+import {
+  checkAndUnlock,
+  checkDomainExpert,
+  AchievementContext,
+} from '../services/achievementService.js';
+import type { AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function drillRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -440,6 +446,29 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const avgTimePerQuestion = totalCount > 0 ? Math.round(totalTimeSpent / totalCount) : 0;
     const finalScore = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
 
+    // Check achievements (skip for timed-out/abandoned drills)
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    if (!timedOut) {
+      try {
+        const achievementContext: AchievementContext = {
+          activity: 'drill',
+          score: correctCount,
+          totalQuestions: totalCount,
+          durationSeconds: totalTimeSpent,
+        };
+        achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+
+        // Check domain-expert across all response sources
+        const domainUnlocks = await checkDomainExpert(userId);
+        achievementsUnlocked.push(...domainUnlocks);
+      } catch (error) {
+        fastify.log.error(
+          { userId, drillId, error: error instanceof Error ? error.message : String(error) },
+          'Failed to check achievements after drill completion'
+        );
+      }
+    }
+
     return {
       score: finalScore,
       correctCount,
@@ -448,6 +477,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       addedToSRCount,
       results,
       xpUpdate,
+      achievementsUnlocked,
     };
   });
 

@@ -8,7 +8,7 @@ import {
   certifications,
   caseStudies,
 } from '../db/schema.js';
-import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull } from 'drizzle-orm';
+import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull, isNotNull } from 'drizzle-orm';
 import { generateQuestions, fetchCaseStudyById } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
@@ -30,6 +30,8 @@ import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
 import { XP_AWARDS, XPAwardResponse } from '@ace-prep/shared';
+import { checkAndUnlock, AchievementContext } from '../services/achievementService.js';
+import type { AchievementUnlockResponse } from '@ace-prep/shared';
 
 const SIMILARITY_THRESHOLD = 0.7;
 
@@ -529,9 +531,11 @@ export async function questionRoutes(fastify: FastifyInstance) {
 
     // Update streak after review completion with error handling
     let streakUpdate;
+    let currentStreak: number | undefined;
     try {
       const streakResult = await updateStreak(userId);
       streakUpdate = streakResult.streakUpdate;
+      currentStreak = streakResult.streak.currentStreak;
     } catch (error) {
       // Log error but don't fail the review submission
       fastify.log.error(
@@ -570,12 +574,40 @@ export async function questionRoutes(fastify: FastifyInstance) {
       xpUpdate = undefined;
     }
 
+    // Check achievements: reviewer-100 (cumulative SR cards reviewed)
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    try {
+      // Count total SR cards that have been reviewed at least once by this user
+      const [reviewCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(spacedRepetition)
+        .where(
+          and(eq(spacedRepetition.userId, userId), isNotNull(spacedRepetition.lastReviewedAt))
+        );
+      const achievementContext: AchievementContext = {
+        activity: 'review',
+        cumulativeSrReviews: reviewCount?.count ?? 0,
+        streak: currentStreak,
+      };
+      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          questionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to check achievements after review completion'
+      );
+    }
+
     return {
       success: true,
       nextReviewAt: result.nextReviewAt,
       interval: result.interval,
       streakUpdate,
       xpUpdate,
+      achievementsUnlocked,
     };
   });
 }

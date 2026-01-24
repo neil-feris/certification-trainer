@@ -1,0 +1,220 @@
+{
+  "project": "ace-prep",
+  "feature": "achievement-badges",
+  "branchName": "ralph/achievement-badges",
+  "description": "Achievement badges with rarity tiers and XP rewards for study milestones",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Define Achievement Types in Shared Package",
+      "description": "As a developer, I need shared type definitions for achievements, rarity tiers, badge definitions, and XP rewards so all packages use consistent contracts.",
+      "acceptanceCriteria": [
+        "Add AchievementRarity type: common | rare | epic",
+        "Add ACHIEVEMENT_XP_REWARDS constant: { common: 25, rare: 50, epic: 100 }",
+        "Add AchievementDefinition interface with code, name, description, rarity, icon, criteria",
+        "Add UserAchievement interface with code, unlockedAt, rarity, xpAwarded",
+        "Add AchievementProgress interface with code, currentValue, targetValue, percentComplete",
+        "Add ACHIEVEMENTS constant array with all 12 badge definitions",
+        "Add AchievementUnlockResponse interface for API responses",
+        "Export all types and constants",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create Database Schema for Achievements",
+      "description": "As a developer, I need database tables to store achievement definitions and user unlock records.",
+      "acceptanceCriteria": [
+        "Add achievements table: id, code (unique), name, description, rarity, icon, criteria_type, criteria_json, created_at",
+        "Add user_achievements table: id, user_id, achievement_code, xp_awarded, unlocked_at",
+        "Add unique index on (user_id, achievement_code) to prevent duplicates",
+        "Add index on user_id for fast lookups",
+        "Export Drizzle types",
+        "Add startup migration to create tables",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Seed Achievement Definitions",
+      "description": "As a developer, I need the 12 achievement badge definitions seeded into the database on startup.",
+      "acceptanceCriteria": [
+        "Seed 12 achievements with criteria_type and criteria_json",
+        "Badges: first-steps, perfect-score, consistent-7, dedicated-30, century-streak, domain-expert, speed-demon, night-owl, early-bird, completionist, reviewer-100, exam-veteran",
+        "Upsert logic (don't duplicate on re-run)",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create Achievement Checker Service",
+      "description": "As a developer, I need a service that checks achievement criteria and unlocks badges when conditions are met.",
+      "acceptanceCriteria": [
+        "Create packages/server/src/services/achievementService.ts",
+        "Implement checkAndUnlock(userId, context) function",
+        "Context includes: activity type, score, streak, time of day, domain stats",
+        "Each criteria_type has a dedicated checker function",
+        "On unlock: insert user_achievement record + award rarity XP via awardCustomXP",
+        "Return array of newly unlocked achievements (empty if none)",
+        "Idempotent: skip already-unlocked badges",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create Achievement API Endpoints",
+      "description": "As a developer, I need REST endpoints to fetch user achievements and progress.",
+      "acceptanceCriteria": [
+        "Add GET /api/achievements endpoint returning all definitions with user unlock status",
+        "Add GET /api/achievements/progress returning progress toward locked achievements",
+        "Both require authentication",
+        "Response includes earned badges, locked badges, and unlock progress",
+        "Register routes in server index",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Integrate Achievement Checks into Exam Completion",
+      "description": "As a developer, I need exam completion to trigger achievement checks.",
+      "acceptanceCriteria": [
+        "After exam scoring, call checkAndUnlock with exam context",
+        "Context: activity=exam, score, totalQuestions, userId",
+        "Checks: first-steps, perfect-score, exam-veteran",
+        "Include achievementsUnlocked array in response",
+        "Graceful degradation if achievement service fails",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Integrate Achievement Checks into Study/Drill/Review",
+      "description": "As a developer, I need study sessions, drills, and reviews to trigger achievement checks.",
+      "acceptanceCriteria": [
+        "Study session completion checks: night-owl, early-bird",
+        "Drill completion checks: speed-demon",
+        "Review submission checks: reviewer-100 (cumulative SR cards reviewed)",
+        "Include achievementsUnlocked in responses where applicable",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Integrate Achievement Checks into Streak Updates",
+      "description": "As a developer, I need streak updates to trigger streak-based achievement checks.",
+      "acceptanceCriteria": [
+        "After streak update, call checkAndUnlock with streak context",
+        "Checks: consistent-7, dedicated-30, century-streak",
+        "Pass current streak value in context",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Integrate Achievement Checks for Domain Expert",
+      "description": "As a developer, I need performance stats updates to check domain-expert achievement.",
+      "acceptanceCriteria": [
+        "After performance stats update, check if any domain has 90%+ accuracy with 5+ attempts",
+        "Award domain-expert badge on first qualifying domain",
+        "Query performanceStats table for domain-level aggregates",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Integrate Achievement Check for Completionist",
+      "description": "As a developer, I need learning path completion to check completionist achievement.",
+      "acceptanceCriteria": [
+        "After marking learning path item complete, check if all items are done",
+        "Award completionist badge when 100% path completion reached",
+        "Query learningPathProgress for certification",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create Badge Card Component",
+      "description": "As a user, I want to see individual badge cards showing icon, name, rarity, and lock status.",
+      "acceptanceCriteria": [
+        "Create BadgeCard.tsx component",
+        "Create BadgeCard.module.css styles",
+        "Show badge icon, name, rarity indicator",
+        "Earned state: full color with unlock date",
+        "Locked state: grayscale with progress bar if applicable",
+        "Rarity border colors: common=blue, rare=purple, epic=gold",
+        "Hover shows description",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Achievements Page",
+      "description": "As a user, I want a dedicated achievements page showing my badge gallery.",
+      "acceptanceCriteria": [
+        "Create /achievements route",
+        "Create AchievementsPage.tsx component",
+        "Create AchievementsPage.module.css styles",
+        "Grid layout of BadgeCard components",
+        "Filter tabs: All / Earned / Locked",
+        "Summary header showing X of Y unlocked",
+        "Group by rarity tier",
+        "Fetch data via React Query",
+        "Handle loading/error states",
+        "Add nav link to achievements page",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Show Achievement Toast on Unlock",
+      "description": "As a user, I want to see a toast notification when I unlock a new badge.",
+      "acceptanceCriteria": [
+        "After activity completion, check response for achievementsUnlocked",
+        "Show toast per unlocked badge: Badge Unlocked: {name} (+{xp} XP)",
+        "Use existing showToast with type=success",
+        "Toast shows in exam, study, drill completion flows",
+        "Invalidate achievements query cache after unlock",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

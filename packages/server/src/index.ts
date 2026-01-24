@@ -34,6 +34,7 @@ import { progressRoutes } from './routes/progress.js';
 import { studyRoutes } from './routes/study.js';
 import { settingsRoutes } from './routes/settings.js';
 import { drillRoutes } from './routes/drills.js';
+import { achievementRoutes } from './routes/achievements.js';
 import { authRoutes } from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,6 +95,7 @@ fastify.register(progressRoutes, { prefix: '/api/progress' });
 fastify.register(studyRoutes, { prefix: '/api/study' });
 fastify.register(settingsRoutes, { prefix: '/api/settings' });
 fastify.register(drillRoutes, { prefix: '/api/drills' });
+fastify.register(achievementRoutes, { prefix: '/api/achievements' });
 
 // Health check
 fastify.get('/api/health', async () => {

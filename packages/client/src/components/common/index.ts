@@ -1,4 +1,5 @@
 export { AuthLoader } from './AuthLoader';
+export { BadgeCard } from './BadgeCard';
 export { ErrorBoundary } from './ErrorBoundary';
 export { OfflineBanner } from './OfflineBanner';
 export { RouteErrorBoundary } from './RouteErrorBoundary';
