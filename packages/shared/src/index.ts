@@ -440,6 +440,7 @@ export interface SubmitStudyAnswerResponse {
 export interface CompleteStudySessionRequest {
   responses: SubmitStudyAnswerRequest[];
   totalTimeSeconds: number;
+  clientHour?: number;
 }
 
 export interface CompleteStudySessionResponse {

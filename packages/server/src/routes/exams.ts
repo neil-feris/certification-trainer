@@ -15,7 +15,11 @@ import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
-import { checkAndUnlock, type AchievementContext } from '../services/achievementService.js';
+import {
+  checkAndUnlock,
+  checkDomainExpert,
+  type AchievementContext,
+} from '../services/achievementService.js';
 import { XP_AWARDS, type XPAwardResponse, type AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function examRoutes(fastify: FastifyInstance) {
@@ -445,35 +449,10 @@ export async function examRoutes(fastify: FastifyInstance) {
 
       achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
 
-      // Check domain-expert: query domain-level accuracy from exam responses
-      const domainStats = await db
-        .select({
-          domainId: domains.id,
-          totalAttempts: sql<number>`count(*)`.as('total_attempts'),
-          correctAttempts:
-            sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as(
-              'correct_attempts'
-            ),
-        })
-        .from(examResponses)
-        .innerJoin(questions, eq(questions.id, examResponses.questionId))
-        .innerJoin(domains, eq(domains.id, questions.domainId))
-        .where(eq(examResponses.userId, userId))
-        .groupBy(domains.id);
-
-      for (const stat of domainStats) {
-        const accuracy =
-          stat.totalAttempts > 0 ? (stat.correctAttempts / stat.totalAttempts) * 100 : 0;
-        if (accuracy >= 90 && stat.totalAttempts >= 5) {
-          const domainUnlocks = await checkAndUnlock(userId, {
-            domainAccuracy: accuracy,
-            domainAttempts: stat.totalAttempts,
-          });
-          achievementsUnlocked.push(...domainUnlocks);
-        }
-      }
+      // Check domain-expert across all response sources
+      const domainUnlocks = await checkDomainExpert(userId);
+      achievementsUnlocked.push(...domainUnlocks);
     } catch (error) {
-      // Log error but don't fail the exam completion
       fastify.log.error(
         {
           userId,
@@ -482,7 +461,6 @@ export async function examRoutes(fastify: FastifyInstance) {
         },
         'Failed to check achievements after exam completion'
       );
-      // Graceful degradation - achievement check is non-critical
     }
 
     return {

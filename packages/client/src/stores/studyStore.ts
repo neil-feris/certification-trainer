@@ -482,6 +482,7 @@ export const useStudyStore = create<StudySessionState>()(
               const result = await studyApi.completeSession(sessionId, {
                 responses: responsesArray,
                 totalTimeSeconds,
+                clientHour: new Date().getHours(),
               });
 
               span.setAttribute('session.correct_count', result.correctCount);

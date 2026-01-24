@@ -13,6 +13,7 @@ interface DomainCardProps {
       id: number;
       name: string;
       description: string;
+      questionCount: number;
     }>;
   };
   onStartPractice: (topicId: number, domainId: number) => void;

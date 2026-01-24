@@ -5,8 +5,9 @@
  * Awards rarity-based XP via awardCustomXP on unlock.
  */
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
+import { examResponses, studySessionResponses, questions, domains } from '../db/schema.js';
 import {
   ACHIEVEMENTS,
   ACHIEVEMENT_XP_REWARDS,
@@ -62,13 +63,20 @@ export async function checkAndUnlock(
     const rarity = achievement.rarity as AchievementRarity;
     const xpAmount = ACHIEVEMENT_XP_REWARDS[rarity];
 
-    // Insert user_achievement record
-    await db.insert(schema.userAchievements).values({
-      userId,
-      achievementCode: achievement.code,
-      xpAwarded: xpAmount,
-      unlockedAt: new Date(),
-    });
+    // Insert user_achievement record (ON CONFLICT DO NOTHING handles race conditions)
+    const insertResult = db
+      .insert(schema.userAchievements)
+      .values({
+        userId,
+        achievementCode: achievement.code,
+        xpAwarded: xpAmount,
+        unlockedAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .run();
+
+    // Skip XP award if insert was a no-op (already unlocked by concurrent request)
+    if (insertResult.changes === 0) continue;
 
     // Award XP via existing service (source uniqueness prevents double-award)
     await awardCustomXP(userId, xpAmount, `achievement:${achievement.code}`);
@@ -116,9 +124,9 @@ function checkCriteria(
   }
 }
 
-/** first-steps: any activity completion */
+/** first-steps: first exam or study session completion */
 function checkFirstActivity(context: AchievementContext): boolean {
-  return context.activity !== undefined;
+  return context.activity === 'exam' || context.activity === 'study';
 }
 
 /** perfect-score: 100% on an exam */
@@ -197,4 +205,76 @@ function checkPathCompletion(
   context: AchievementContext
 ): boolean {
   return context.pathComplete === true;
+}
+
+/**
+ * Check domain-expert achievement across ALL response sources (exams + study/drills).
+ * Returns any newly unlocked achievements.
+ */
+export async function checkDomainExpert(userId: number): Promise<AchievementUnlockResponse[]> {
+  // Query exam responses by domain
+  const examStats = await db
+    .select({
+      domainId: domains.id,
+      totalAttempts: sql<number>`count(*)`.as('total_attempts'),
+      correctAttempts:
+        sql<number>`sum(case when ${examResponses.isCorrect} = 1 then 1 else 0 end)`.as(
+          'correct_attempts'
+        ),
+    })
+    .from(examResponses)
+    .innerJoin(questions, eq(questions.id, examResponses.questionId))
+    .innerJoin(domains, eq(domains.id, questions.domainId))
+    .where(eq(examResponses.userId, userId))
+    .groupBy(domains.id);
+
+  // Query study/drill responses by domain
+  const studyStats = await db
+    .select({
+      domainId: domains.id,
+      totalAttempts: sql<number>`count(*)`.as('total_attempts'),
+      correctAttempts:
+        sql<number>`sum(case when ${studySessionResponses.isCorrect} = 1 then 1 else 0 end)`.as(
+          'correct_attempts'
+        ),
+    })
+    .from(studySessionResponses)
+    .innerJoin(questions, eq(questions.id, studySessionResponses.questionId))
+    .innerJoin(domains, eq(domains.id, questions.domainId))
+    .where(eq(studySessionResponses.userId, userId))
+    .groupBy(domains.id);
+
+  // Merge stats across both response sources
+  const merged = new Map<number, { total: number; correct: number }>();
+  for (const stat of examStats) {
+    merged.set(stat.domainId, {
+      total: stat.totalAttempts,
+      correct: stat.correctAttempts,
+    });
+  }
+  for (const stat of studyStats) {
+    const existing = merged.get(stat.domainId);
+    if (existing) {
+      existing.total += stat.totalAttempts;
+      existing.correct += stat.correctAttempts;
+    } else {
+      merged.set(stat.domainId, {
+        total: stat.totalAttempts,
+        correct: stat.correctAttempts,
+      });
+    }
+  }
+
+  // Find the best qualifying domain and check once
+  for (const [, stats] of merged) {
+    const accuracy = stats.total > 0 ? (stats.correct / stats.total) * 100 : 0;
+    if (accuracy >= 90 && stats.total >= 5) {
+      return checkAndUnlock(userId, {
+        domainAccuracy: accuracy,
+        domainAttempts: stats.total,
+      });
+    }
+  }
+
+  return [];
 }

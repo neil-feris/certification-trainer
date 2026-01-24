@@ -29,7 +29,11 @@ import { checkAnswerCorrect } from '../utils/scoring.js';
 import { resolveCertificationId } from '../db/certificationUtils.js';
 import { authenticate } from '../middleware/auth.js';
 import { awardCustomXP } from '../services/xpService.js';
-import { checkAndUnlock, AchievementContext } from '../services/achievementService.js';
+import {
+  checkAndUnlock,
+  checkDomainExpert,
+  AchievementContext,
+} from '../services/achievementService.js';
 import type { AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function drillRoutes(fastify: FastifyInstance) {
@@ -442,49 +446,27 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const avgTimePerQuestion = totalCount > 0 ? Math.round(totalTimeSpent / totalCount) : 0;
     const finalScore = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
 
-    // Check achievements: speed-demon (100% accuracy drill under 60s)
+    // Check achievements (skip for timed-out/abandoned drills)
     let achievementsUnlocked: AchievementUnlockResponse[] = [];
-    try {
-      const achievementContext: AchievementContext = {
-        activity: 'drill',
-        score: correctCount,
-        totalQuestions: totalCount,
-        durationSeconds: totalTimeSeconds,
-      };
-      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+    if (!timedOut) {
+      try {
+        const achievementContext: AchievementContext = {
+          activity: 'drill',
+          score: correctCount,
+          totalQuestions: totalCount,
+          durationSeconds: totalTimeSpent,
+        };
+        achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
 
-      // Check domain-expert: query domain-level accuracy from drill responses
-      const domainStats = await db
-        .select({
-          domainId: domains.id,
-          totalAttempts: sql<number>`count(*)`.as('total_attempts'),
-          correctAttempts:
-            sql<number>`sum(case when ${studySessionResponses.isCorrect} = 1 then 1 else 0 end)`.as(
-              'correct_attempts'
-            ),
-        })
-        .from(studySessionResponses)
-        .innerJoin(questions, eq(questions.id, studySessionResponses.questionId))
-        .innerJoin(domains, eq(domains.id, questions.domainId))
-        .where(eq(studySessionResponses.userId, userId))
-        .groupBy(domains.id);
-
-      for (const stat of domainStats) {
-        const accuracy =
-          stat.totalAttempts > 0 ? (stat.correctAttempts / stat.totalAttempts) * 100 : 0;
-        if (accuracy >= 90 && stat.totalAttempts >= 5) {
-          const domainUnlocks = await checkAndUnlock(userId, {
-            domainAccuracy: accuracy,
-            domainAttempts: stat.totalAttempts,
-          });
-          achievementsUnlocked.push(...domainUnlocks);
-        }
+        // Check domain-expert across all response sources
+        const domainUnlocks = await checkDomainExpert(userId);
+        achievementsUnlocked.push(...domainUnlocks);
+      } catch (error) {
+        fastify.log.error(
+          { userId, drillId, error: error instanceof Error ? error.message : String(error) },
+          'Failed to check achievements after drill completion'
+        );
       }
-    } catch (error) {
-      fastify.log.error(
-        { userId, drillId, error: error instanceof Error ? error.message : String(error) },
-        'Failed to check achievements after drill completion'
-      );
     }
 
     return {

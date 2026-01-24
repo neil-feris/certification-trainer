@@ -43,7 +43,11 @@ import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
 import { XP_AWARDS, XPAwardResponse } from '@ace-prep/shared';
-import { checkAndUnlock, AchievementContext } from '../services/achievementService.js';
+import {
+  checkAndUnlock,
+  checkDomainExpert,
+  AchievementContext,
+} from '../services/achievementService.js';
 import type { AchievementUnlockResponse } from '@ace-prep/shared';
 
 export async function studyRoutes(fastify: FastifyInstance) {
@@ -1077,7 +1081,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     if (!bodyResult.success) {
       return reply.status(400).send(formatZodError(bodyResult.error));
     }
-    const { responses, totalTimeSeconds } = bodyResult.data;
+    const { responses, totalTimeSeconds, clientHour } = bodyResult.data;
 
     // Verify session ownership
     const [session] = await db
@@ -1262,46 +1266,24 @@ export async function studyRoutes(fastify: FastifyInstance) {
       xpUpdate = undefined;
     }
 
-    // Check achievements: night-owl, early-bird (time of day), streak badges
+    // Check achievements: night-owl, early-bird (time of day), streak badges, domain-expert
     let achievementsUnlocked: AchievementUnlockResponse[] = [];
     try {
-      const currentHour = new Date().getHours();
+      // Use client-provided hour for timezone-correct time-of-day badges
+      const timeOfDay = clientHour ?? new Date().getHours();
+
       const achievementContext: AchievementContext = {
         activity: 'study',
-        timeOfDay: currentHour,
+        timeOfDay,
         score: actualCorrect,
         totalQuestions: actualTotal,
         streak: currentStreak,
       };
       achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
 
-      // Check domain-expert: query domain-level accuracy from study responses
-      const domainStats = await db
-        .select({
-          domainId: domains.id,
-          totalAttempts: sql<number>`count(*)`.as('total_attempts'),
-          correctAttempts:
-            sql<number>`sum(case when ${studySessionResponses.isCorrect} = 1 then 1 else 0 end)`.as(
-              'correct_attempts'
-            ),
-        })
-        .from(studySessionResponses)
-        .innerJoin(questions, eq(questions.id, studySessionResponses.questionId))
-        .innerJoin(domains, eq(domains.id, questions.domainId))
-        .where(eq(studySessionResponses.userId, userId))
-        .groupBy(domains.id);
-
-      for (const stat of domainStats) {
-        const accuracy =
-          stat.totalAttempts > 0 ? (stat.correctAttempts / stat.totalAttempts) * 100 : 0;
-        if (accuracy >= 90 && stat.totalAttempts >= 5) {
-          const domainUnlocks = await checkAndUnlock(userId, {
-            domainAccuracy: accuracy,
-            domainAttempts: stat.totalAttempts,
-          });
-          achievementsUnlocked.push(...domainUnlocks);
-        }
-      }
+      // Check domain-expert across all response sources
+      const domainUnlocks = await checkDomainExpert(userId);
+      achievementsUnlocked.push(...domainUnlocks);
     } catch (error) {
       fastify.log.error(
         {
