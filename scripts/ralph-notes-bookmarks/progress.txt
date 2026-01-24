@@ -25,8 +25,12 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
 - New common components: create in `components/common/`, export from `components/common/index.ts`
 - TanStack Query mutations with conditional API calls (e.g., delete vs save): use `async/await` with `void` return to avoid TS union type errors
 - Page component pattern: container div with `max-width: 900px; margin: 0 auto; padding: 32px`
+- Notes list API returns nested objects: `{ ...note, question: { id, text, options, correctAnswers, gcpServices, explanation }, domain: Domain, topic: Topic }`
+- For sub-pages accessible from a parent (not standalone nav items), add a Link in the parent page header
 - New pages need: route in App.tsx (ProtectedRoute+AppShell+RouteErrorBoundary), NAV_ITEMS entry in AppShell, mobile BottomSheet link
 - CSS variables available: `--bg-secondary/tertiary`, `--border-color`, `--accent-primary`, `--text-primary/muted/secondary`, `--border-radius/lg`, `--transition-fast`, `--font-mono`, `--color-success/error`
+- ExamContainer question header layout: `questionHeaderLeft` (domain/difficulty/caseStudy) + `questionHeaderRight` (bookmark/flag buttons)
+- Use `useQueries` from TanStack Query for batching per-item bookmark status checks in lists/grids
 
 ---
 
@@ -140,4 +144,35 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
   - Expandable card pattern: `expandedId` state tracking which card is open, toggle on click
   - The Docker-based browser MCP can't reach localhost - build verification + dev server curl is sufficient
   - CSS var patterns: `--bg-secondary`, `--bg-tertiary`, `--border-color`, `--accent-primary`, `--text-primary/muted/secondary`, `--border-radius`, `--border-radius-lg`, `--transition-fast`, `--font-mono`, `--color-success`, `--color-error`
+---
+
+## 2026-01-24 - US-009
+- Implemented NotesPage component at `/notes` route
+- Features: note content preview (100 chars), expandable cards with full question + options + explanation, inline NotesPanel for editing, delete with click-to-confirm (3s timeout), domain/topic dropdown filters, sort by updated/created, full-text search, empty state, no-results with clear filters, loading skeletons
+- Added "My Notes" link to BookmarksPage header (accessible from Bookmarks page)
+- Fixed `NoteWithQuestion` shared type to match actual API response shape (nested `question`, `domain`, `topic` objects instead of flat `questionText`, `topicName`, `domainName`)
+- Files changed: `packages/client/src/components/notes/NotesPage.tsx` (new), `packages/client/src/components/notes/NotesPage.module.css` (new), `packages/client/src/App.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.module.css`, `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - The `/notes` list endpoint returns nested objects (`question`, `domain`, `topic`) NOT flat fields — the shared `NoteWithQuestion` type was wrong and needed fixing
+  - API response shape: `{ ...note, question: { id, text, options, correctAnswers, gcpServices, explanation }, domain: Domain, topic: Topic }`
+  - `pushd`/`popd` works for cd in this shell environment; `cd` may trigger zoxide alias issues
+  - Vite build must run from within the package directory (needs `index.html` entry point)
+  - Delete-with-confirm pattern: track `confirmDeleteId` state, require double-click, auto-dismiss via `setTimeout(3000)`
+  - For routes accessible from another page (not nav), add a `Link` in the parent page header instead of a NAV_ITEMS entry
+---
+
+## 2026-01-24 - US-010
+- Integrated BookmarkButton and NotesPanel into exam and study views
+- ExamContainer: BookmarkButton added next to flag button in questionHeaderRight div, bookmark dot indicator on navigation grid using `useQueries` for batch bookmark checks
+- TopicPractice: BookmarkButton in topicBadgeRow (flex row with bookmark right-aligned), NotesPanel after feedback section (shown when isRevealed)
+- ExamReview: BookmarkButton in question header (margin-left: auto to push right), NotesPanel after explanation for each question
+- Files changed: `packages/client/src/components/exam/ExamContainer.tsx`, `packages/client/src/components/exam/ExamContainer.module.css`, `packages/client/src/components/exam/ExamReview.tsx`, `packages/client/src/components/exam/ExamReview.module.css`, `packages/client/src/components/study/practice/TopicPractice.tsx`, `packages/client/src/components/study/practice/Practice.module.css`
+- **Learnings for future iterations:**
+  - ExamContainer questionHeader has `questionHeaderLeft` and now `questionHeaderRight` divs for layout
+  - `useQueries` from TanStack Query allows batching multiple queries (one per question for bookmark status check)
+  - Grid items need `position: relative` for pseudo-element indicators — `gridFlagged` already had it, added it to `gridBookmarked` too
+  - TopicPractice's topicBadge had `margin-bottom: 16px` which needed to move to the new wrapper `topicBadgeRow`
+  - ExamReview question items use `border-left: 4px solid` for correct/incorrect status indication
+  - NotesPanel accepts `className` prop for spacing control — use `margin-top: 16px` to separate from explanation
+  - The BookmarkButton `size="sm"` works well in header contexts where space is limited
 ---

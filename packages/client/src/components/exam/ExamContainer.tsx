@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { examApi } from '../../api/client';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { examApi, bookmarksApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { ExamRecoveryModal } from './ExamRecoveryModal';
 import { LevelUpModal } from '../common/LevelUpModal';
+import { BookmarkButton } from '../common/BookmarkButton';
 import styles from './ExamContainer.module.css';
 
 const DIFFICULTY_STYLES: Record<string, string> = {
@@ -50,6 +51,16 @@ export function ExamContainer() {
     queryKey: ['exam', id],
     queryFn: () => examApi.get(parseInt(id!)),
     enabled: !!id,
+  });
+
+  // Check bookmark status for all questions in the grid
+  const bookmarkQueries = useQueries({
+    queries: questions.map((q) => ({
+      queryKey: ['bookmarkCheck', 'question', q.id],
+      queryFn: () => bookmarksApi.check('question', q.id),
+      staleTime: 60_000,
+      enabled: questions.length > 0,
+    })),
   });
 
   // Check for incomplete exam on mount
@@ -334,12 +345,15 @@ export function ExamContainer() {
                 </Link>
               )}
             </div>
-            <button
-              className={`${styles.flagBtn} ${currentResponse?.flagged ? styles.flagged : ''}`}
-              onClick={() => toggleFlag(currentQuestion.id)}
-            >
-              {currentResponse?.flagged ? '★ Flagged' : '☆ Flag'}
-            </button>
+            <div className={styles.questionHeaderRight}>
+              <BookmarkButton targetType="question" targetId={currentQuestion.id} size="sm" />
+              <button
+                className={`${styles.flagBtn} ${currentResponse?.flagged ? styles.flagged : ''}`}
+                onClick={() => toggleFlag(currentQuestion.id)}
+              >
+                {currentResponse?.flagged ? '★ Flagged' : '☆ Flag'}
+              </button>
+            </div>
           </div>
 
           <div className={styles.questionText}>{currentQuestion.questionText}</div>
@@ -406,11 +420,12 @@ export function ExamContainer() {
             const isAnswered = resp && resp.selectedAnswers.length > 0;
             const isFlagged = resp?.flagged;
             const isCurrent = i === currentQuestionIndex;
+            const isBookmarked = bookmarkQueries[i]?.data?.bookmarked;
 
             return (
               <button
                 key={q.id}
-                className={`${styles.gridItem} ${isCurrent ? styles.gridCurrent : ''} ${isAnswered ? styles.gridAnswered : ''} ${isFlagged ? styles.gridFlagged : ''}`}
+                className={`${styles.gridItem} ${isCurrent ? styles.gridCurrent : ''} ${isAnswered ? styles.gridAnswered : ''} ${isFlagged ? styles.gridFlagged : ''} ${isBookmarked ? styles.gridBookmarked : ''}`}
                 onClick={() => setCurrentQuestion(i)}
               >
                 {i + 1}

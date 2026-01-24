@@ -74,6 +74,13 @@
   width: 100%;
 }
 
+.topicBadgeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .topicBadge {
   display: flex;
   flex-wrap: wrap;
@@ -81,7 +88,10 @@
   gap: 8px;
   font-size: 0.75rem;
   color: var(--text-muted);
-  margin-bottom: 16px;
+}
+
+.notesSection {
+  margin-top: 16px;
 }
 
 .caseStudyBadge {

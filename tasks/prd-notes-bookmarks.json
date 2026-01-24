@@ -172,8 +172,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented NotesPage with: /notes route linked from BookmarksPage header, note content preview (100 chars), expandable cards with full question + options + explanation + inline NotesPanel editing, delete with click-to-confirm, domain/topic dropdown filters, sort by updated/created, search across notes/questions, empty state, no-results state with clear filters, loading skeletons, CSS Module styling. Updated NoteWithQuestion shared type to match actual API response shape."
     },
     {
       "id": "US-010",
@@ -189,8 +189,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Integrated BookmarkButton into ExamContainer (next to flag button) and TopicPractice (in topic badge row). Added NotesPanel to TopicPractice (after answer reveal) and ExamReview (after explanation for each question). Added bookmark dot indicator to ExamContainer navigation grid via useQueries. All collapsed by default."
     },
     {
       "id": "US-011",
