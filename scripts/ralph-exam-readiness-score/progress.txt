@@ -83,3 +83,14 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - The readiness route already has inline history (10 items) - dedicated endpoint provides configurable access
   - Route ordering matters in Fastify: `/readiness/history` must be registered before parameterized routes on `/readiness`
 ---
+
+## 2026-01-25 - US-006
+- Added `getReadiness(certificationId)` and `getReadinessHistory(certificationId, limit)` methods to `progressApi`
+- Imported `ReadinessResponse` and `ReadinessSnapshot` types from `@ace-prep/shared`
+- Files changed: `packages/client/src/api/client.ts`
+- **Learnings for future iterations:**
+  - API client methods go inside the relevant domain object (`progressApi`, `studyApi`, etc.) not as standalone exports
+  - Use `URLSearchParams` for methods with multiple optional query params, simple ternary for single param
+  - Types from shared package are imported at the top of client.ts alongside other type imports
+  - `request<T>()` generic determines the return type - use shared interfaces directly
+---
