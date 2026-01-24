@@ -872,6 +872,71 @@ export interface AchievementUnlockResponse {
   xpAwarded: number;
 }
 
+// ============ BOOKMARK & NOTES TYPES ============
+
+export type BookmarkTargetType = 'question' | 'topic' | 'domain';
+
+export interface Bookmark {
+  id: number;
+  userId: number;
+  targetType: BookmarkTargetType;
+  targetId: number;
+  createdAt: Date | string;
+}
+
+export interface Note {
+  id: number;
+  userId: number;
+  questionId: number;
+  content: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface BookmarkedQuestion extends Question {
+  isBookmarked: boolean;
+  note?: Note | null;
+}
+
+// Bookmark API types
+export interface ToggleBookmarkRequest {
+  targetType: BookmarkTargetType;
+  targetId: number;
+}
+
+export interface ToggleBookmarkResponse {
+  bookmarked: boolean;
+}
+
+export interface CheckBookmarkResponse {
+  bookmarked: boolean;
+}
+
+// Note API types
+export interface SaveNoteRequest {
+  questionId: number;
+  content: string;
+}
+
+export interface SaveNoteResponse {
+  note: Note;
+}
+
+export interface NoteQuestionDetail {
+  id: number;
+  text: string;
+  options: string[];
+  correctAnswers: number[];
+  gcpServices: string[];
+  explanation: string | null;
+}
+
+export interface NoteWithQuestion extends Note {
+  question: NoteQuestionDetail;
+  domain: Domain;
+  topic: Topic;
+}
+
 export const ACHIEVEMENTS: AchievementDefinition[] = [
   {
     code: 'first-steps',

@@ -7,6 +7,10 @@ export interface ToastConfig {
   message: string;
   type?: ToastType;
   duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 // Global toast state management
@@ -86,6 +90,11 @@ export function Toast() {
         )}
       </div>
       <span className={styles.message}>{toast.message}</span>
+      {toast.action && (
+        <button className={styles.action} onClick={toast.action.onClick}>
+          {toast.action.label}
+        </button>
+      )}
     </div>
   );
 }

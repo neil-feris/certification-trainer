@@ -1,0 +1,229 @@
+{
+  "project": "ace-prep",
+  "feature": "notes-bookmarks",
+  "branchName": "ralph/notes-bookmarks",
+  "description": "Bookmark questions/topics/domains and add personal notes to questions with auto-save",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Shared Types & Interfaces",
+      "description": "As a developer, I need shared TypeScript types for bookmarks and notes so both client and server have consistent API contracts.",
+      "acceptanceCriteria": [
+        "Bookmark interface with id, userId, targetType (question|topic|domain), targetId, createdAt",
+        "Note interface with id, userId, questionId, content, createdAt, updatedAt",
+        "Request/response DTOs: ToggleBookmarkRequest, ToggleBookmarkResponse, SaveNoteRequest, SaveNoteResponse",
+        "BookmarkTargetType union type: 'question' | 'topic' | 'domain'",
+        "BookmarkedQuestion extending Question with isBookmarked and optional note",
+        "Types exported from @ace-prep/shared",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented: BookmarkTargetType, Bookmark, Note, BookmarkedQuestion, ToggleBookmarkRequest/Response, CheckBookmarkResponse, SaveNoteRequest/Response, NoteWithQuestion"
+    },
+    {
+      "id": "US-002",
+      "title": "Database Schema",
+      "description": "As a developer, I need database tables for bookmarks and notes with proper indices and foreign keys.",
+      "acceptanceCriteria": [
+        "bookmarks table: id, user_id, target_type (text), target_id (integer), created_at",
+        "Unique index on (user_id, target_type, target_id) to prevent duplicates",
+        "Index on (user_id) for listing queries",
+        "user_notes table: id, user_id, question_id (FK to questions), content (text), created_at, updated_at",
+        "Unique index on (user_id, question_id) for one note per question per user",
+        "Foreign keys with onDelete cascade for user cleanup",
+        "Schema types exported",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Implemented bookmarks and user_notes tables in schema.ts with proper indices, FK cascades, and type exports. Added startup migration (version 5) and SQL migration file 0011."
+    },
+    {
+      "id": "US-003",
+      "title": "Backend API - Bookmarks",
+      "description": "As a user, I want API endpoints to toggle bookmarks and list my bookmarked items.",
+      "acceptanceCriteria": [
+        "POST /api/bookmarks - toggle bookmark, body: { targetType, targetId }, returns { bookmarked: boolean }",
+        "GET /api/bookmarks - list user bookmarks, optional query: ?type=question|topic|domain",
+        "GET /api/bookmarks/questions - list bookmarked questions with full question data joined",
+        "GET /api/bookmarks/check?targetType=question&targetId=5 - check if item is bookmarked",
+        "All routes authenticated with authenticate preHandler",
+        "Zod validation on all request bodies/params",
+        "Sentry spans on toggle and list operations",
+        "Routes registered in server index",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Implemented POST /api/bookmarks (toggle), GET /api/bookmarks (list with type filter), GET /api/bookmarks/questions (full question data joined), GET /api/bookmarks/check (check status). All routes authenticated, Zod validated, with Sentry spans on toggle and list operations."
+    },
+    {
+      "id": "US-004",
+      "title": "Backend API - Notes",
+      "description": "As a user, I want API endpoints to save and retrieve notes on questions.",
+      "acceptanceCriteria": [
+        "POST /api/notes - upsert note, body: { questionId, content }, returns saved note",
+        "GET /api/notes/:questionId - get note for specific question (returns null if none)",
+        "GET /api/notes - list all user notes with associated question text and topic",
+        "DELETE /api/notes/:questionId - delete note for question",
+        "Content limited to 5000 characters via Zod validation",
+        "Empty content on POST deletes existing note",
+        "Sentry spans on save operations",
+        "Routes authenticated and registered",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Implemented POST /api/notes (upsert with empty content deletion), GET /api/notes/:questionId (single note), GET /api/notes (list with joined question/domain/topic data), DELETE /api/notes/:questionId. All authenticated, Zod validated (5000 char limit), Sentry spans on save."
+    },
+    {
+      "id": "US-005",
+      "title": "Client API Layer",
+      "description": "As a developer, I need client-side API functions for bookmarks and notes using existing fetchJson utility.",
+      "acceptanceCriteria": [
+        "bookmarksApi.toggle(targetType, targetId) - toggle bookmark",
+        "bookmarksApi.list(type?) - get all bookmarks with optional type filter",
+        "bookmarksApi.listQuestions() - get bookmarked questions with full data",
+        "bookmarksApi.check(targetType, targetId) - check bookmark status",
+        "notesApi.save(questionId, content) - create/update note",
+        "notesApi.get(questionId) - get note for question",
+        "notesApi.list() - get all notes with question data",
+        "notesApi.delete(questionId) - remove note",
+        "Functions use existing fetchJson utility pattern",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Implemented bookmarksApi (toggle, list, listQuestions, check) and notesApi (save, get, list, delete) in packages/client/src/api/client.ts using the existing request<T>() utility pattern. All type-safe with shared types."
+    },
+    {
+      "id": "US-006",
+      "title": "BookmarkButton Component",
+      "description": "As a user, I want a bookmark toggle button I can click to save/unsave any question, topic, or domain.",
+      "acceptanceCriteria": [
+        "Reusable BookmarkButton component accepting targetType and targetId props",
+        "Shows filled star/pin icon when bookmarked, outline when not",
+        "Optimistic UI update on click (immediate visual feedback)",
+        "Uses TanStack Query mutation with query cache invalidation",
+        "Subtle loading state during API call (non-blocking)",
+        "Error rollback with toast if toggle fails",
+        "CSS Module styling using project CSS variables",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Implemented BookmarkButton component with TanStack Query mutation, optimistic UI via local state, error rollback with toast, bookmark icon (filled/outline), CSS Module styling, sm/md sizes, and query cache invalidation."
+    },
+    {
+      "id": "US-007",
+      "title": "NotesPanel Component",
+      "description": "As a user, I want a notes textarea on questions that auto-saves with a visible saved indicator.",
+      "acceptanceCriteria": [
+        "NotesPanel component accepting questionId prop",
+        "Textarea with placeholder Add your notes...",
+        "Auto-save with 1s debounce after typing stops",
+        "Visual save status: idle (hidden), Saving... during save, Saved after success (fades after 2s), Error - retry on failure",
+        "Fetches existing note on mount via TanStack Query",
+        "Empty content triggers note deletion",
+        "Collapsible: shows Add note link when empty, expands to textarea",
+        "CSS Module styling with project variables",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Implemented NotesPanel component with TanStack Query for fetching/saving, 1s debounced auto-save, save status indicators (idle/Saving.../Saved/Error-retry), collapsible UI (Add note link when empty, textarea when expanded), empty content triggers deletion, CSS Module styling with project variables."
+    },
+    {
+      "id": "US-008",
+      "title": "Bookmarks Page",
+      "description": "As a user, I want a dedicated Bookmarks page showing all my saved items with tabs and filtering.",
+      "acceptanceCriteria": [
+        "New route /bookmarks with BookmarksPage component",
+        "Tabs: All | Questions | Topics | Domains",
+        "Questions tab: shows question text preview, domain badge, topic, note indicator",
+        "Topics/Domains tabs: show name with link to study that topic/domain",
+        "Search within bookmarks (client-side filter on displayed text)",
+        "Remove bookmark button on each card",
+        "Click question card to expand and show full question + note editor",
+        "Empty state per tab when no bookmarks of that type",
+        "Nav item added to AppShell (after Review, before Settings)",
+        "CSS Module styling",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Implemented BookmarksPage with tabs (All/Questions/Topics/Domains), client-side search filter, remove bookmark button, question card expand with full question + options + explanation + note editor (NotesPanel), distinct empty states per tab, loading skeletons, nav item in AppShell (after Review, before Settings), mobile bottom sheet link, CSS Module styling."
+    },
+    {
+      "id": "US-009",
+      "title": "My Notes Page",
+      "description": "As a user, I want a dedicated Notes page showing all questions I have annotated so I can review and edit my notes.",
+      "acceptanceCriteria": [
+        "New route /notes accessible from Bookmarks page (tab or link)",
+        "List all questions with notes, showing note content preview (first 100 chars)",
+        "Expand to view full note and question in-place",
+        "Edit note inline with same auto-save behavior as NotesPanel",
+        "Delete note option with confirmation",
+        "Filter by domain/topic",
+        "Sort by: recently updated, recently created",
+        "Empty state when no notes",
+        "CSS Module styling",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Implemented NotesPage with: /notes route linked from BookmarksPage header, note content preview (100 chars), expandable cards with full question + options + explanation + inline NotesPanel editing, delete with click-to-confirm, domain/topic dropdown filters, sort by updated/created, search across notes/questions, empty state, no-results state with clear filters, loading skeletons, CSS Module styling. Updated NoteWithQuestion shared type to match actual API response shape."
+    },
+    {
+      "id": "US-010",
+      "title": "Integrate into Exam & Study Views",
+      "description": "As a user, I want to bookmark questions and add notes during exams and study sessions without leaving my flow.",
+      "acceptanceCriteria": [
+        "BookmarkButton added to ExamContainer question header (next to flag button)",
+        "BookmarkButton added to PracticeQuestion component header",
+        "NotesPanel shown in exam review mode (after submitting answer, collapsed by default)",
+        "NotesPanel shown in study mode after revealing answer",
+        "NotesPanel shown on exam review page for each question",
+        "Bookmark status visible in question navigation grid (small dot indicator)",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Integrated BookmarkButton into ExamContainer (next to flag button) and TopicPractice (in topic badge row). Added NotesPanel to TopicPractice (after answer reveal) and ExamReview (after explanation for each question). Added bookmark dot indicator to ExamContainer navigation grid via useQueries. All collapsed by default."
+    },
+    {
+      "id": "US-011",
+      "title": "Integrate into Question Bank",
+      "description": "As a user, I want to see bookmark status in the Question Bank and filter by bookmarked questions.",
+      "acceptanceCriteria": [
+        "BookmarkButton on each question card in question browser",
+        "Bookmarked filter toggle in Question Bank filter bar",
+        "Note indicator icon on questions that have notes",
+        "Bookmark filter combinable with existing domain/topic/certification filters",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Integrated BookmarkButton on each QuestionCard and in QuestionDetailModal. Added bookmarked filter toggle to QuestionFilters with URL param support. Added note indicator icon on cards using useQueries per-question note check. Server-side bookmarked filter uses subquery on bookmarks table. BookmarkButton and NotesPanel added to detail modal. Filter combines with all existing filters via URL params."
+    },
+    {
+      "id": "US-012",
+      "title": "Loading, Empty & Error States",
+      "description": "As a user, I want clear feedback when bookmarks/notes are loading, empty, or encounter errors.",
+      "acceptanceCriteria": [
+        "Bookmarks page: loading skeleton while fetching",
+        "Bookmarks page: distinct empty state message per tab",
+        "Notes page: loading skeleton while fetching",
+        "NotesPanel: loading state on initial note fetch",
+        "BookmarkButton: error toast if toggle fails with retry option",
+        "NotesPanel: inline error with retry if save fails",
+        "Graceful handling when offline (show cached state if available)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Verified all loading/empty/error states complete. Added Toast action button support (retry), BookmarkButton error toast with Retry action, error states with retry in BookmarksPage and NotesPage, and offlineFirst networkMode for TanStack Query to serve cached data when offline. Existing OfflineBanner and PWA service worker already handle offline UX."
+    }
+  ]
+}

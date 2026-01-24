@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import { useStudyStore } from '../../../stores/studyStore';
 import { useSwipeNavigation } from '../../../hooks/useSwipeNavigation';
 import { showToast } from '../../common/Toast';
+import { BookmarkButton } from '../../common/BookmarkButton';
+import { NotesPanel } from '../../common/NotesPanel';
 import { PracticeQuestion } from './PracticeQuestion';
 import { PracticeSummary } from './PracticeSummary';
 import styles from './Practice.module.css';
@@ -105,20 +107,23 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
       </div>
 
       <div className={styles.questionArea}>
-        <div className={styles.topicBadge}>
-          {currentQuestion.domain.name} → {currentQuestion.topic.name}
-          {currentQuestion.caseStudy && (
-            <Link
-              to={`/case-studies/${currentQuestion.caseStudy.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.caseStudyBadge}
-              title={`View ${currentQuestion.caseStudy.name} case study`}
-            >
-              <span className={styles.caseStudyIcon}>📋</span>
-              {currentQuestion.caseStudy.name}
-            </Link>
-          )}
+        <div className={styles.topicBadgeRow}>
+          <div className={styles.topicBadge}>
+            {currentQuestion.domain.name} → {currentQuestion.topic.name}
+            {currentQuestion.caseStudy && (
+              <Link
+                to={`/case-studies/${currentQuestion.caseStudy.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.caseStudyBadge}
+                title={`View ${currentQuestion.caseStudy.name} case study`}
+              >
+                <span className={styles.caseStudyIcon}>📋</span>
+                {currentQuestion.caseStudy.name}
+              </Link>
+            )}
+          </div>
+          <BookmarkButton targetType="question" targetId={currentQuestion.id} size="sm" />
         </div>
 
         <PracticeQuestion
@@ -146,6 +151,10 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
               <strong>Explanation:</strong> {currentQuestion.explanation}
             </div>
           </div>
+        )}
+
+        {isRevealed && (
+          <NotesPanel questionId={currentQuestion.id} className={styles.notesSection} />
         )}
       </div>
 

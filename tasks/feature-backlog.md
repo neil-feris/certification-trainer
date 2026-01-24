@@ -2,7 +2,7 @@
 
 Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks/feature-backlog.md`
 
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-01-24
 **Status Legend**: `[ ]` Todo | `[~]` In Progress | `[x]` Done
 
 ---
@@ -31,7 +31,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-002: XP & Leveling System
-- **Status**: `[~]`
+- **Status**: `[x]`
 - **Priority**: P0 (High Impact, Low Effort)
 - **Category**: Gamification
 
@@ -51,7 +51,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-003: Achievement Badges
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P1 (High Impact, Medium Effort)
 - **Category**: Gamification
 
@@ -81,7 +81,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-004: Notes & Bookmarks
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P0 (High Impact, Low Effort)
 - **Category**: Study Tools
 
@@ -441,7 +441,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ## Phase 6: Operational & Technical
 
 ### FEAT-020: Error Tracking (Sentry)
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P0 (Critical for Production)
 - **Category**: Operations
 

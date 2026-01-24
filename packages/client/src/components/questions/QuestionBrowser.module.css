@@ -64,11 +64,18 @@
   transform: translateY(-2px);
 }
 
+.cardHeader {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
 .questionText {
   font-size: 0.9375rem;
   line-height: 1.5;
   color: var(--text-primary);
   margin-bottom: 12px;
+  flex: 1;
 }
 
 .meta {
@@ -105,6 +112,44 @@
 .difficulty.hard {
   background: var(--error-bg);
   color: var(--error);
+}
+
+.noteIndicator {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-primary);
+  opacity: 0.8;
+}
+
+.bookmarkedToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.bookmarkedToggle:hover {
+  background: var(--bg-tertiary);
+}
+
+.bookmarkedToggle.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.bookmarkedToggle svg {
+  width: 14px;
+  height: 14px;
 }
 
 .loading,

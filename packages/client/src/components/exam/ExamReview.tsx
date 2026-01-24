@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { examApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
 import { useEffect } from 'react';
+import { BookmarkButton } from '../common/BookmarkButton';
+import { NotesPanel } from '../common/NotesPanel';
 import styles from './ExamReview.module.css';
 
 export function ExamReview() {
@@ -130,6 +132,12 @@ export function ExamReview() {
                   {isCorrect ? 'Correct' : 'Incorrect'}
                 </span>
                 <span className="badge">{question.domain.name}</span>
+                <BookmarkButton
+                  targetType="question"
+                  targetId={question.id}
+                  size="sm"
+                  className={styles.reviewBookmark}
+                />
               </div>
 
               <div className={styles.questionText}>{question.questionText}</div>
@@ -156,6 +164,8 @@ export function ExamReview() {
               <div className={styles.explanation}>
                 <strong>Explanation:</strong> {question.explanation}
               </div>
+
+              <NotesPanel questionId={question.id} className={styles.notesSection} />
             </div>
           );
         })}

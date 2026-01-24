@@ -6,10 +6,17 @@ interface QuestionListProps {
   questions: QuestionWithDomain[];
   isLoading: boolean;
   error: Error | null;
+  noteStatusMap: Map<number, boolean>;
   onQuestionClick: (question: QuestionWithDomain) => void;
 }
 
-export function QuestionList({ questions, isLoading, error, onQuestionClick }: QuestionListProps) {
+export function QuestionList({
+  questions,
+  isLoading,
+  error,
+  noteStatusMap,
+  onQuestionClick,
+}: QuestionListProps) {
   if (isLoading) {
     return (
       <div className={styles.loading}>
@@ -42,6 +49,7 @@ export function QuestionList({ questions, isLoading, error, onQuestionClick }: Q
         <QuestionCard
           key={question.id}
           question={question}
+          hasNote={noteStatusMap.get(question.id) ?? false}
           onClick={() => onQuestionClick(question)}
         />
       ))}

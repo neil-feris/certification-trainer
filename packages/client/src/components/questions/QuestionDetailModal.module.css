@@ -45,7 +45,16 @@
 .header {
   display: flex;
   gap: 8px;
+  align-items: center;
   margin-bottom: 16px;
+}
+
+.bookmarkBtn {
+  margin-left: auto;
+}
+
+.notesPanel {
+  margin-top: 16px;
 }
 
 .domain {

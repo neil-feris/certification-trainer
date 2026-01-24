@@ -1,0 +1,133 @@
+.notesPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loading {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Collapsed: "Add note" link */
+.addNoteLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color var(--transition-fast);
+}
+
+.addNoteLink:hover {
+  color: var(--accent-primary);
+}
+
+.noteIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Expanded state */
+.expanded {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Save status */
+.status {
+  font-size: 0.75rem;
+  transition: opacity var(--transition-fast);
+}
+
+.status.saving {
+  color: var(--text-muted);
+}
+
+.status.saved {
+  color: var(--success);
+  animation: fadeOut 2s ease forwards;
+  animation-delay: 0.5s;
+}
+
+.status.error {
+  color: var(--error);
+}
+
+.retryBtn {
+  background: none;
+  border: none;
+  color: var(--error);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.retryBtn:hover {
+  color: var(--text-primary);
+}
+
+/* Textarea */
+.textarea {
+  width: 100%;
+  min-height: 80px;
+  max-height: 200px;
+  resize: vertical;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  transition: border-color var(--transition-fast);
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

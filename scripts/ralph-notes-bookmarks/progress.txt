@@ -1,0 +1,222 @@
+# Ralph Progress Log
+Started: Sat 24 Jan 2026 18:29:29 SAST
+---
+
+## Codebase Patterns
+- Shared types are all in `packages/shared/src/index.ts` - single file, section-commented
+- Use `Date | string` for date fields in shared types (DB returns Date, JSON returns string)
+- Follow section comment pattern: `// ============ SECTION NAME ============`
+- Build order: shared → server → client (shared must build first)
+- npm/nvm has lazy-loading issues in shell; use direct binary path: `$HOME/.nvm/versions/node/v22.2.0/bin/node` and `$HOME/.nvm/versions/node/v22.2.0/lib/node_modules/npm/bin/npm-cli.js`
+- lint-staged runs on commit via husky hooks (eslint --fix, prettier --write)
+- New DB tables need: (1) Drizzle definition in `schema.ts`, (2) SQL migration file in `migrations/`, (3) entry in `startupMigrations.ts`
+- Schema type exports: `XxxRecord = typeof xxx.$inferSelect`, `NewXxx = typeof xxx.$inferInsert`
+- Startup migrations are versioned sequentially; latest is version 5 (bookmarks/notes)
+- Routes: export async function, `fastify.addHook('preHandler', authenticate)`, Zod validation with `formatZodError`
+- JSON fields (options, correctAnswers, gcpServices) must be `JSON.parse(field as string)` - gcpServices can be null so check first
+- Route registration: import in `index.ts`, register with `fastify.register(fn, { prefix: '/api/xxx' })`
+- Sentry spans: `import * as Sentry from '@sentry/node'`, wrap with `Sentry.startSpan({ op, name }, async (span) => { ... })`
+- Questions table field is `questionText` (not `text`) for the question content
+- Upsert pattern: check existing → update set + run → else insert values + returning().get()
+- Client API: all in `packages/client/src/api/client.ts`, use `request<T>()` utility, export as object literals (e.g., `export const fooApi = { ... }`)
+- Client API types: import shared types in the type-only import block at the top of `client.ts`
+- Shared bookmark types use `bookmarked` field name (not `isBookmarked`)
+- Optimistic UI: `useState<T | null>(null)` where null = use server data; set on mutate, reset on success/error
+- New common components: create in `components/common/`, export from `components/common/index.ts`
+- TanStack Query mutations with conditional API calls (e.g., delete vs save): use `async/await` with `void` return to avoid TS union type errors
+- Page component pattern: container div with `max-width: 900px; margin: 0 auto; padding: 32px`
+- Notes list API returns nested objects: `{ ...note, question: { id, text, options, correctAnswers, gcpServices, explanation }, domain: Domain, topic: Topic }`
+- For sub-pages accessible from a parent (not standalone nav items), add a Link in the parent page header
+- New pages need: route in App.tsx (ProtectedRoute+AppShell+RouteErrorBoundary), NAV_ITEMS entry in AppShell, mobile BottomSheet link
+- CSS variables available: `--bg-secondary/tertiary`, `--border-color`, `--accent-primary`, `--text-primary/muted/secondary`, `--border-radius/lg`, `--transition-fast`, `--font-mono`, `--color-success/error`
+- ExamContainer question header layout: `questionHeaderLeft` (domain/difficulty/caseStudy) + `questionHeaderRight` (bookmark/flag buttons)
+- Use `useQueries` from TanStack Query for batching per-item bookmark status checks in lists/grids
+- Server-side filtered subqueries: `inArray(table.id, db.select({field}).from(other).where(...))` for exists-style filters
+- QuestionCard shares `QuestionBrowser.module.css` — all question browser styles are in one CSS module
+- Boolean URL filter params: use presence/absence of string `'true'` (not actual boolean)
+- Toast `action` prop: `{ label: string, onClick: () => void }` renders a button in the toast
+- QueryClient uses `networkMode: 'offlineFirst'` — serves cached data when offline, queues mutations
+- Error states: only show when `isError && data.length === 0` — stale cache data should still be displayed
+- Existing offline infrastructure: `OfflineBanner`, `useOnlineStatus` hook, PWA service worker
+
+---
+
+## 2026-01-24 - US-001
+- Implemented shared TypeScript types for bookmarks and notes feature
+- Added: BookmarkTargetType, Bookmark, Note, BookmarkedQuestion, ToggleBookmarkRequest/Response, CheckBookmarkResponse, SaveNoteRequest/Response, NoteWithQuestion
+- Files changed: `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - All shared types live in a single file with section comments
+  - Interface naming follows pattern: `XxxRequest`, `XxxResponse` for DTOs
+  - Extended types use `extends BaseType` pattern (e.g., `BookmarkedQuestion extends Question`)
+  - `Date | string` union used for date fields since JSON serialization converts to string
+  - The project has existing patterns for paginated responses, filter options, etc. that can be reused
+  - The PRD file lives at `tasks/prd-notes-bookmarks.json` (not `scripts/ralph-notes-bookmarks/prd.json`)
+---
+
+## 2026-01-24 - US-002
+- Implemented database schema for bookmarks and user_notes tables
+- Added Drizzle ORM table definitions with proper indices and FK cascades
+- Created SQL migration `0011_add_bookmarks_notes.sql`
+- Added startup migration (version 5) in `startupMigrations.ts`
+- Exported types: `BookmarkRecord`, `NewBookmark`, `UserNoteRecord`, `NewUserNote`
+- Files changed: `packages/server/src/db/schema.ts`, `packages/server/src/db/startupMigrations.ts`, `packages/server/src/db/migrations/0011_add_bookmarks_notes.sql`
+- **Learnings for future iterations:**
+  - Schema uses section comments `// ============ SECTION ============` for organization
+  - Tables follow pattern: `userId` references `users.id` with `onDelete: 'cascade'`
+  - Indices use drizzle helpers: `uniqueIndex()`, `index()` in 3rd arg function
+  - Type exports follow pattern: `XxxRecord` for select, `NewXxx` for insert
+  - Startup migrations use version numbers and are tracked in `_startup_migrations` table
+  - For typecheck, use direct path: `/Users/neil.feris/.nvm/versions/node/v22.2.0/bin/node /Users/neil.feris/.nvm/versions/node/v22.2.0/bin/npx tsc --noEmit -p <tsconfig>`
+---
+
+## 2026-01-24 - US-003
+- Implemented backend API routes for bookmarks
+- Endpoints: POST /api/bookmarks (toggle), GET /api/bookmarks (list with ?type filter), GET /api/bookmarks/questions (joined question data), GET /api/bookmarks/check (check status)
+- All routes use `authenticate` preHandler, Zod validation, and Sentry spans on toggle/list operations
+- Files changed: `packages/server/src/routes/bookmarks.ts` (new), `packages/server/src/index.ts` (route registration)
+- **Learnings for future iterations:**
+  - Toggle pattern: check if exists → delete if yes, insert if no → return `{ bookmarked: boolean }`
+  - The unique index on (userId, targetType, targetId) prevents duplicate bookmarks at DB level
+  - Bookmark `/questions` endpoint joins bookmarks → questions → domains → topics for full data
+  - Query params need `.transform(Number)` in Zod for string-to-number conversion (GET requests send strings)
+  - No existing routes use Sentry spans; this is the first to add them. Import `* as Sentry from '@sentry/node'`
+---
+
+## 2026-01-24 - US-004
+- Implemented backend API routes for notes
+- Endpoints: POST /api/notes (upsert, empty content deletes), GET /api/notes/:questionId (single), GET /api/notes (list with question/domain/topic join), DELETE /api/notes/:questionId
+- All routes use `authenticate` preHandler, Zod validation (5000 char max), Sentry spans on save
+- Files changed: `packages/server/src/routes/notes.ts` (new), `packages/server/src/index.ts` (route registration)
+- **Learnings for future iterations:**
+  - The questions table uses `questionText` not `text` for the question content field
+  - Upsert pattern: check existing → update if found, insert if not → use `.returning().get()` for insert
+  - Delete-on-empty pattern: check `content.trim() === ''` before any DB lookups to short-circuit
+  - The `returning()` method on inserts gives back the full row (good for returning created notes)
+  - Route param validation uses same Zod pattern as query: `.transform(Number)` for string params
+---
+
+## 2026-01-24 - US-005
+- Implemented client-side API functions for bookmarks and notes
+- Added `bookmarksApi` with: toggle, list (with optional type filter), listQuestions, check
+- Added `notesApi` with: save, get, list, delete
+- All functions use the existing `request<T>()` utility with proper type annotations from shared types
+- Files changed: `packages/client/src/api/client.ts`
+- **Learnings for future iterations:**
+  - All API modules live in a single file `packages/client/src/api/client.ts` as exported object literals
+  - The utility is `request<T>()` not `fetchJson` - includes Sentry tracing, auth headers, and token refresh
+  - Import shared types in the type import block at the top of the file
+  - API methods that take body data use `JSON.stringify()` with `method: 'POST'`
+  - Query params are built inline as template strings for simple cases
+  - No need for separate files per API domain - everything in one file
+---
+
+## 2026-01-24 - US-006
+- Implemented BookmarkButton reusable component
+- Features: TanStack Query mutation with optimistic UI, error rollback with toast, filled/outline bookmark icon SVG, sm/md sizes, CSS Module styling with project variables, aria labels
+- Uses `useQuery` to check initial bookmark status and `useMutation` with `onMutate` for optimistic updates
+- Exported from `components/common/index.ts`
+- Files changed: `packages/client/src/components/common/BookmarkButton.tsx` (new), `packages/client/src/components/common/BookmarkButton.module.css` (new), `packages/client/src/components/common/index.ts`
+- **Learnings for future iterations:**
+  - Shared types use `bookmarked` (not `isBookmarked`) for `ToggleBookmarkResponse` and `CheckBookmarkResponse`
+  - Optimistic UI pattern: use local `useState<boolean | null>(null)` where `null` means "use server data" — set non-null on mutate, reset to null on success/error
+  - `queryClient.setQueryData` for immediate cache updates, then `invalidateQueries` for background refresh
+  - `e.stopPropagation()` + `e.preventDefault()` needed on buttons inside clickable cards
+  - The browser MCP tool runs in Docker so can't access `localhost` - use `curl` for verification instead
+---
+
+## 2026-01-24 - US-007
+- Implemented NotesPanel reusable component with auto-save
+- Features: TanStack Query fetch on mount, 1s debounced auto-save via mutation, save status indicators (idle/Saving.../Saved with 2s fade/Error-retry), collapsible UI (collapsed shows "Add note" link, expanded shows textarea), empty content triggers note deletion, 5000 char max
+- Exported from `components/common/index.ts`
+- Files changed: `packages/client/src/components/common/NotesPanel.tsx` (new), `packages/client/src/components/common/NotesPanel.module.css` (new), `packages/client/src/components/common/index.ts`
+- **Learnings for future iterations:**
+  - Mutation return types must be unified — if mutationFn returns different types conditionally (delete vs save), use `async/await` with void return to avoid TS errors
+  - Debounce + auto-save pattern: `useRef` for timeout IDs, cleanup in `useEffect` return, `useCallback` for stable references
+  - Collapsible pattern: `expanded` state defaults to false unless fetched note has content, then auto-expands
+  - `initialized` flag prevents overwriting user edits when query data arrives (only sync on first load)
+  - lint-staged runs eslint --fix + prettier on commit; code will be auto-formatted (e.g., destructured props on one line)
+---
+
+## 2026-01-24 - US-008
+- Implemented BookmarksPage component with full tab-based navigation (All/Questions/Topics/Domains)
+- Features: client-side search filter, remove bookmark with mutation, expandable question cards showing options + explanation + NotesPanel, domain/topic badges, note indicator, per-tab empty states, loading skeletons, responsive design
+- Added `/bookmarks` route to App.tsx, nav item to AppShell (after Review, before Settings), mobile BottomSheet link
+- Files changed: `packages/client/src/components/bookmarks/BookmarksPage.tsx` (new), `packages/client/src/components/bookmarks/BookmarksPage.module.css` (new), `packages/client/src/App.tsx`, `packages/client/src/components/layout/AppShell.tsx`
+- **Learnings for future iterations:**
+  - The `bookmarksApi.listQuestions()` endpoint returns rich data: question fields + `domain`, `topic`, `bookmarkedAt` (not just BookmarkedQuestion type)
+  - The `bookmarksApi.list()` endpoint returns raw Bookmark objects (id, userId, targetType, targetId, createdAt) - no name resolution
+  - For tabs with counts, use `useMemo` to derive filtered lists and a counts record object
+  - Tab pattern: `type Tab = 'all' | 'question' | ...` with `TAB_CONFIG` array and `EMPTY_MESSAGES` record
+  - Expandable card pattern: `expandedId` state tracking which card is open, toggle on click
+  - The Docker-based browser MCP can't reach localhost - build verification + dev server curl is sufficient
+  - CSS var patterns: `--bg-secondary`, `--bg-tertiary`, `--border-color`, `--accent-primary`, `--text-primary/muted/secondary`, `--border-radius`, `--border-radius-lg`, `--transition-fast`, `--font-mono`, `--color-success`, `--color-error`
+---
+
+## 2026-01-24 - US-009
+- Implemented NotesPage component at `/notes` route
+- Features: note content preview (100 chars), expandable cards with full question + options + explanation, inline NotesPanel for editing, delete with click-to-confirm (3s timeout), domain/topic dropdown filters, sort by updated/created, full-text search, empty state, no-results with clear filters, loading skeletons
+- Added "My Notes" link to BookmarksPage header (accessible from Bookmarks page)
+- Fixed `NoteWithQuestion` shared type to match actual API response shape (nested `question`, `domain`, `topic` objects instead of flat `questionText`, `topicName`, `domainName`)
+- Files changed: `packages/client/src/components/notes/NotesPage.tsx` (new), `packages/client/src/components/notes/NotesPage.module.css` (new), `packages/client/src/App.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.module.css`, `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - The `/notes` list endpoint returns nested objects (`question`, `domain`, `topic`) NOT flat fields — the shared `NoteWithQuestion` type was wrong and needed fixing
+  - API response shape: `{ ...note, question: { id, text, options, correctAnswers, gcpServices, explanation }, domain: Domain, topic: Topic }`
+  - `pushd`/`popd` works for cd in this shell environment; `cd` may trigger zoxide alias issues
+  - Vite build must run from within the package directory (needs `index.html` entry point)
+  - Delete-with-confirm pattern: track `confirmDeleteId` state, require double-click, auto-dismiss via `setTimeout(3000)`
+  - For routes accessible from another page (not nav), add a `Link` in the parent page header instead of a NAV_ITEMS entry
+---
+
+## 2026-01-24 - US-010
+- Integrated BookmarkButton and NotesPanel into exam and study views
+- ExamContainer: BookmarkButton added next to flag button in questionHeaderRight div, bookmark dot indicator on navigation grid using `useQueries` for batch bookmark checks
+- TopicPractice: BookmarkButton in topicBadgeRow (flex row with bookmark right-aligned), NotesPanel after feedback section (shown when isRevealed)
+- ExamReview: BookmarkButton in question header (margin-left: auto to push right), NotesPanel after explanation for each question
+- Files changed: `packages/client/src/components/exam/ExamContainer.tsx`, `packages/client/src/components/exam/ExamContainer.module.css`, `packages/client/src/components/exam/ExamReview.tsx`, `packages/client/src/components/exam/ExamReview.module.css`, `packages/client/src/components/study/practice/TopicPractice.tsx`, `packages/client/src/components/study/practice/Practice.module.css`
+- **Learnings for future iterations:**
+  - ExamContainer questionHeader has `questionHeaderLeft` and now `questionHeaderRight` divs for layout
+  - `useQueries` from TanStack Query allows batching multiple queries (one per question for bookmark status check)
+  - Grid items need `position: relative` for pseudo-element indicators — `gridFlagged` already had it, added it to `gridBookmarked` too
+  - TopicPractice's topicBadge had `margin-bottom: 16px` which needed to move to the new wrapper `topicBadgeRow`
+  - ExamReview question items use `border-left: 4px solid` for correct/incorrect status indication
+  - NotesPanel accepts `className` prop for spacing control — use `margin-top: 16px` to separate from explanation
+  - The BookmarkButton `size="sm"` works well in header contexts where space is limited
+---
+
+## 2026-01-24 - US-011
+- Integrated BookmarkButton and note indicator into Question Bank
+- Added server-side `bookmarked` filter to questions API using `inArray` subquery on bookmarks table
+- Added `bookmarked` param to Zod schema, client API interface, and URL param builder
+- BookmarkButton on each QuestionCard (in new cardHeader flex layout) and QuestionDetailModal header
+- Note indicator icon (document SVG) on cards with notes, using `useQueries` for per-question note status checks
+- Bookmarked filter toggle button in QuestionFilters (styled as active/inactive button with bookmark icon)
+- NotesPanel added to QuestionDetailModal after explanation section
+- All filters work combinatorially via URL search params
+- Files changed: `packages/server/src/validation/schemas.ts`, `packages/server/src/routes/questions.ts`, `packages/client/src/api/client.ts`, `packages/client/src/components/questions/QuestionBrowser.tsx`, `packages/client/src/components/questions/QuestionBrowser.module.css`, `packages/client/src/components/questions/QuestionCard.tsx`, `packages/client/src/components/questions/QuestionFilters.tsx`, `packages/client/src/components/questions/QuestionList.tsx`, `packages/client/src/components/questions/QuestionDetailModal.tsx`, `packages/client/src/components/questions/QuestionDetailModal.module.css`
+- **Learnings for future iterations:**
+  - Server-side bookmark filter uses `inArray(questions.id, subquery)` pattern — subquery selects `targetId` from bookmarks where user+type match
+  - `questionBrowseQuerySchema` is an extension of `questionQuerySchema` — add new browse-only filters to the browse schema
+  - QuestionCard has a clickable container, so BookmarkButton needs `e.stopPropagation()` + `e.preventDefault()` (already built into BookmarkButton)
+  - `useQueries` for per-item status checks creates N queries — use `staleTime: 60_000` to avoid excessive refetching
+  - The QuestionCard component uses `QuestionBrowser.module.css` (shared CSS module, not its own file)
+  - Filter toggle button pattern: `className` conditional with `active` class, `onClick` toggles between value and `undefined`
+  - `bookmarked` URL param uses string `'true'` presence/absence (not boolean) since URL params are strings
+---
+
+## 2026-01-24 - US-012
+- Verified all existing loading/empty/error states (skeletons, per-tab empty messages, NotesPanel loading, save error+retry)
+- Added `action` prop to Toast component (label + onClick) for actionable toasts
+- Updated BookmarkButton error toast with Retry action button (5s duration)
+- Added error state with retry button to BookmarksPage (shows when fetch fails and no cached data)
+- Added error state with retry button to NotesPage (shows when fetch fails and no cached data)
+- Configured TanStack QueryClient with `networkMode: 'offlineFirst'` for queries and mutations to serve cached data when offline
+- Existing OfflineBanner component and PWA service worker already provide offline UX infrastructure
+- Files changed: `packages/client/src/components/common/Toast.tsx`, `packages/client/src/components/common/Toast.module.css`, `packages/client/src/components/common/BookmarkButton.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.module.css`, `packages/client/src/components/notes/NotesPage.tsx`, `packages/client/src/lib/queryClient.ts`
+- **Learnings for future iterations:**
+  - Toast component uses a simple global listener pattern (`toastListener`); `action` prop is `{ label, onClick }` rendered as a button
+  - `networkMode: 'offlineFirst'` on QueryClient means queries will use cache first and attempt network; mutations queue offline
+  - The project already has an `OfflineBanner` component, `useOnlineStatus` hook, and PWA service worker — no need to build offline UI from scratch
+  - Error states should only show when there's no cached data (`isError && data.length === 0`) — if there's stale cached data, show it with the error as a secondary indicator
+  - The `clearFiltersBtn` style from NotesPage can be reused for generic "try again" buttons in error states
+---

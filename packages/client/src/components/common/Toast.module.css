@@ -41,6 +41,24 @@
   white-space: nowrap;
 }
 
+.action {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  margin-left: 4px;
+}
+
+.action:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 /* Type variants */
 .info {
   border-color: rgba(59, 130, 246, 0.3);

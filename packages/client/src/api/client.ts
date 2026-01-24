@@ -42,6 +42,14 @@ import type {
   AchievementRarity,
   AchievementCriteria,
   AchievementUnlockResponse,
+  BookmarkTargetType,
+  Bookmark,
+  ToggleBookmarkResponse,
+  CheckBookmarkResponse,
+  BookmarkedQuestion,
+  Note,
+  SaveNoteResponse,
+  NoteWithQuestion,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -356,6 +364,7 @@ export interface QuestionListParams {
   topicId?: number;
   caseStudyId?: number;
   difficulty?: Difficulty;
+  bookmarked?: boolean;
   search?: string;
   sortBy?: 'createdAt' | 'difficulty' | 'domain';
   sortOrder?: 'asc' | 'desc';
@@ -378,6 +387,7 @@ export const questionApi = {
     if (params?.caseStudyId !== undefined)
       searchParams.set('caseStudyId', String(params.caseStudyId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
+    if (params?.bookmarked) searchParams.set('bookmarked', 'true');
     if (params?.search) searchParams.set('search', params.search);
     if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
     if (params?.sortOrder) searchParams.set('sortOrder', params.sortOrder);
@@ -645,4 +655,37 @@ export interface AchievementProgressResponse {
 export const achievementApi = {
   getAll: () => request<AchievementsResponse>('/achievements'),
   getProgress: () => request<AchievementProgressResponse>('/achievements/progress'),
+};
+
+// Bookmarks
+export const bookmarksApi = {
+  toggle: (targetType: BookmarkTargetType, targetId: number) =>
+    request<ToggleBookmarkResponse>('/bookmarks', {
+      method: 'POST',
+      body: JSON.stringify({ targetType, targetId }),
+    }),
+  list: (type?: BookmarkTargetType) => {
+    const params = type ? `?type=${type}` : '';
+    return request<Bookmark[]>(`/bookmarks${params}`);
+  },
+  listQuestions: () => request<BookmarkedQuestion[]>('/bookmarks/questions'),
+  check: (targetType: BookmarkTargetType, targetId: number) =>
+    request<CheckBookmarkResponse>(
+      `/bookmarks/check?targetType=${targetType}&targetId=${targetId}`
+    ),
+};
+
+// Notes
+export const notesApi = {
+  save: (questionId: number, content: string) =>
+    request<SaveNoteResponse>('/notes', {
+      method: 'POST',
+      body: JSON.stringify({ questionId, content }),
+    }),
+  get: (questionId: number) => request<Note | null>(`/notes/${questionId}`),
+  list: () => request<NoteWithQuestion[]>('/notes'),
+  delete: (questionId: number) =>
+    request<{ success: boolean }>(`/notes/${questionId}`, {
+      method: 'DELETE',
+    }),
 };

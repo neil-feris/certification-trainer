@@ -111,6 +111,12 @@
   gap: 10px;
 }
 
+.questionHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .difficultyBadge {
   padding: 4px 10px;
   border-radius: var(--border-radius);
@@ -298,6 +304,22 @@
   right: -4px;
   font-size: 12px;
   color: var(--warning);
+}
+
+.gridBookmarked {
+  position: relative;
+}
+
+.gridBookmarked::before {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: var(--accent-primary);
+  border-radius: 50%;
 }
 
 .modal {

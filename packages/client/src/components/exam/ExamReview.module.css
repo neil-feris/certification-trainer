@@ -228,6 +228,14 @@
   color: var(--accent-primary);
 }
 
+.reviewBookmark {
+  margin-left: auto;
+}
+
+.notesSection {
+  margin-top: 16px;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 16px;

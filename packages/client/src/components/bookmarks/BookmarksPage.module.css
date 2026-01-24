@@ -1,0 +1,402 @@
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.notesLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-primary);
+  text-decoration: none;
+  transition: opacity var(--transition-fast);
+}
+
+.notesLink:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-secondary);
+  padding: 4px;
+  border-radius: var(--border-radius);
+  width: fit-content;
+}
+
+.tab {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  background: var(--bg-tertiary);
+  color: var(--accent-primary);
+}
+
+.tabCount {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+  font-family: var(--font-mono);
+}
+
+/* Search */
+.searchBar {
+  margin: 16px 0;
+}
+
+.searchInput {
+  width: 100%;
+  max-width: 360px;
+  padding: 10px 14px 10px 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: border-color var(--transition-fast);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.searchWrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 360px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Card list */
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 16px 20px;
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.cardExpanded {
+  border-color: var(--accent-primary);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cardContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.questionText {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.questionTextFull {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 99px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.domainBadge {
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  color: var(--accent-primary);
+}
+
+.noteIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.noteIndicatorIcon {
+  width: 12px;
+  height: 12px;
+}
+
+.removeBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--border-radius);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.removeBtn:hover {
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}
+
+.removeBtnIcon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Expanded question detail */
+.expandedContent {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.optionsList {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  padding: 10px 14px;
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+
+.optionCorrect {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.explanation {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.explanationLabel {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+/* Topic/Domain bookmark cards */
+.itemName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.itemLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.itemLink:hover {
+  text-decoration: underline;
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  font-size: 40px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.emptyTitle {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.emptyText {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 320px;
+}
+
+.retryBtn {
+  margin-top: 16px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--accent-primary);
+  padding: 8px 20px;
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.retryBtn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-primary);
+}
+
+/* Loading skeleton */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.skeletonCard {
+  height: 72px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .container {
+    padding: 16px;
+  }
+
+  .header h1 {
+    font-size: 22px;
+  }
+
+  .tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .card {
+    padding: 12px 16px;
+  }
+}

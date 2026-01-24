@@ -85,6 +85,7 @@ export const questionBrowseQuerySchema = questionQuerySchema.extend({
     .transform(Number)
     .refine((n) => n >= 0, 'Case Study ID must be non-negative')
     .optional(),
+  bookmarked: z.enum(['true']).optional(),
   sortBy: z.enum(['createdAt', 'difficulty', 'domain']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });
