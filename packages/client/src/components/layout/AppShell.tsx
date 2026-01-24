@@ -36,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/progress', label: 'Progress', icon: '◔' },
   { path: '/achievements', label: 'Achievements', icon: '🏆' },
   { path: '/review', label: 'Review', icon: '↻' },
+  { path: '/bookmarks', label: 'Bookmarks', icon: '◆' },
   { path: '/settings', label: 'Settings', icon: '⚙' },
 ];
 
@@ -208,6 +209,14 @@ export function AppShell({ children }: AppShellProps) {
                   <span>Case Studies</span>
                 </Link>
               )}
+              <Link
+                to="/bookmarks"
+                className={styles.moreNavLink}
+                onClick={() => setIsMoreSheetOpen(false)}
+              >
+                <span className={styles.moreNavIcon}>◆</span>
+                <span>Bookmarks</span>
+              </Link>
               <Link
                 to="/exam"
                 className={styles.moreNavLink}

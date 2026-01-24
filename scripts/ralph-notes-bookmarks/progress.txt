@@ -23,6 +23,10 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
 - Shared bookmark types use `bookmarked` field name (not `isBookmarked`)
 - Optimistic UI: `useState<T | null>(null)` where null = use server data; set on mutate, reset on success/error
 - New common components: create in `components/common/`, export from `components/common/index.ts`
+- TanStack Query mutations with conditional API calls (e.g., delete vs save): use `async/await` with `void` return to avoid TS union type errors
+- Page component pattern: container div with `max-width: 900px; margin: 0 auto; padding: 32px`
+- New pages need: route in App.tsx (ProtectedRoute+AppShell+RouteErrorBoundary), NAV_ITEMS entry in AppShell, mobile BottomSheet link
+- CSS variables available: `--bg-secondary/tertiary`, `--border-color`, `--accent-primary`, `--text-primary/muted/secondary`, `--border-radius/lg`, `--transition-fast`, `--font-mono`, `--color-success/error`
 
 ---
 
@@ -108,4 +112,32 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
   - `queryClient.setQueryData` for immediate cache updates, then `invalidateQueries` for background refresh
   - `e.stopPropagation()` + `e.preventDefault()` needed on buttons inside clickable cards
   - The browser MCP tool runs in Docker so can't access `localhost` - use `curl` for verification instead
+---
+
+## 2026-01-24 - US-007
+- Implemented NotesPanel reusable component with auto-save
+- Features: TanStack Query fetch on mount, 1s debounced auto-save via mutation, save status indicators (idle/Saving.../Saved with 2s fade/Error-retry), collapsible UI (collapsed shows "Add note" link, expanded shows textarea), empty content triggers note deletion, 5000 char max
+- Exported from `components/common/index.ts`
+- Files changed: `packages/client/src/components/common/NotesPanel.tsx` (new), `packages/client/src/components/common/NotesPanel.module.css` (new), `packages/client/src/components/common/index.ts`
+- **Learnings for future iterations:**
+  - Mutation return types must be unified — if mutationFn returns different types conditionally (delete vs save), use `async/await` with void return to avoid TS errors
+  - Debounce + auto-save pattern: `useRef` for timeout IDs, cleanup in `useEffect` return, `useCallback` for stable references
+  - Collapsible pattern: `expanded` state defaults to false unless fetched note has content, then auto-expands
+  - `initialized` flag prevents overwriting user edits when query data arrives (only sync on first load)
+  - lint-staged runs eslint --fix + prettier on commit; code will be auto-formatted (e.g., destructured props on one line)
+---
+
+## 2026-01-24 - US-008
+- Implemented BookmarksPage component with full tab-based navigation (All/Questions/Topics/Domains)
+- Features: client-side search filter, remove bookmark with mutation, expandable question cards showing options + explanation + NotesPanel, domain/topic badges, note indicator, per-tab empty states, loading skeletons, responsive design
+- Added `/bookmarks` route to App.tsx, nav item to AppShell (after Review, before Settings), mobile BottomSheet link
+- Files changed: `packages/client/src/components/bookmarks/BookmarksPage.tsx` (new), `packages/client/src/components/bookmarks/BookmarksPage.module.css` (new), `packages/client/src/App.tsx`, `packages/client/src/components/layout/AppShell.tsx`
+- **Learnings for future iterations:**
+  - The `bookmarksApi.listQuestions()` endpoint returns rich data: question fields + `domain`, `topic`, `bookmarkedAt` (not just BookmarkedQuestion type)
+  - The `bookmarksApi.list()` endpoint returns raw Bookmark objects (id, userId, targetType, targetId, createdAt) - no name resolution
+  - For tabs with counts, use `useMemo` to derive filtered lists and a counts record object
+  - Tab pattern: `type Tab = 'all' | 'question' | ...` with `TAB_CONFIG` array and `EMPTY_MESSAGES` record
+  - Expandable card pattern: `expandedId` state tracking which card is open, toggle on click
+  - The Docker-based browser MCP can't reach localhost - build verification + dev server curl is sufficient
+  - CSS var patterns: `--bg-secondary`, `--bg-tertiary`, `--border-color`, `--accent-primary`, `--text-primary/muted/secondary`, `--border-radius`, `--border-radius-lg`, `--transition-fast`, `--font-mono`, `--color-success`, `--color-error`
 ---

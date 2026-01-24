@@ -131,8 +131,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented NotesPanel component with TanStack Query for fetching/saving, 1s debounced auto-save, save status indicators (idle/Saving.../Saved/Error-retry), collapsible UI (Add note link when empty, textarea when expanded), empty content triggers deletion, CSS Module styling with project variables."
     },
     {
       "id": "US-008",
@@ -152,8 +152,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented BookmarksPage with tabs (All/Questions/Topics/Domains), client-side search filter, remove bookmark button, question card expand with full question + options + explanation + note editor (NotesPanel), distinct empty states per tab, loading skeletons, nav item in AppShell (after Review, before Settings), mobile bottom sheet link, CSS Module styling."
     },
     {
       "id": "US-009",
