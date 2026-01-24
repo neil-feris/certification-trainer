@@ -204,8 +204,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Integrated BookmarkButton on each QuestionCard and in QuestionDetailModal. Added bookmarked filter toggle to QuestionFilters with URL param support. Added note indicator icon on cards using useQueries per-question note check. Server-side bookmarked filter uses subquery on bookmarks table. BookmarkButton and NotesPanel added to detail modal. Filter combines with all existing filters via URL params."
     },
     {
       "id": "US-012",

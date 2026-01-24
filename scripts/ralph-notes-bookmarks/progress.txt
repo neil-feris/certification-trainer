@@ -31,6 +31,9 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
 - CSS variables available: `--bg-secondary/tertiary`, `--border-color`, `--accent-primary`, `--text-primary/muted/secondary`, `--border-radius/lg`, `--transition-fast`, `--font-mono`, `--color-success/error`
 - ExamContainer question header layout: `questionHeaderLeft` (domain/difficulty/caseStudy) + `questionHeaderRight` (bookmark/flag buttons)
 - Use `useQueries` from TanStack Query for batching per-item bookmark status checks in lists/grids
+- Server-side filtered subqueries: `inArray(table.id, db.select({field}).from(other).where(...))` for exists-style filters
+- QuestionCard shares `QuestionBrowser.module.css` — all question browser styles are in one CSS module
+- Boolean URL filter params: use presence/absence of string `'true'` (not actual boolean)
 
 ---
 
@@ -175,4 +178,24 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
   - ExamReview question items use `border-left: 4px solid` for correct/incorrect status indication
   - NotesPanel accepts `className` prop for spacing control — use `margin-top: 16px` to separate from explanation
   - The BookmarkButton `size="sm"` works well in header contexts where space is limited
+---
+
+## 2026-01-24 - US-011
+- Integrated BookmarkButton and note indicator into Question Bank
+- Added server-side `bookmarked` filter to questions API using `inArray` subquery on bookmarks table
+- Added `bookmarked` param to Zod schema, client API interface, and URL param builder
+- BookmarkButton on each QuestionCard (in new cardHeader flex layout) and QuestionDetailModal header
+- Note indicator icon (document SVG) on cards with notes, using `useQueries` for per-question note status checks
+- Bookmarked filter toggle button in QuestionFilters (styled as active/inactive button with bookmark icon)
+- NotesPanel added to QuestionDetailModal after explanation section
+- All filters work combinatorially via URL search params
+- Files changed: `packages/server/src/validation/schemas.ts`, `packages/server/src/routes/questions.ts`, `packages/client/src/api/client.ts`, `packages/client/src/components/questions/QuestionBrowser.tsx`, `packages/client/src/components/questions/QuestionBrowser.module.css`, `packages/client/src/components/questions/QuestionCard.tsx`, `packages/client/src/components/questions/QuestionFilters.tsx`, `packages/client/src/components/questions/QuestionList.tsx`, `packages/client/src/components/questions/QuestionDetailModal.tsx`, `packages/client/src/components/questions/QuestionDetailModal.module.css`
+- **Learnings for future iterations:**
+  - Server-side bookmark filter uses `inArray(questions.id, subquery)` pattern — subquery selects `targetId` from bookmarks where user+type match
+  - `questionBrowseQuerySchema` is an extension of `questionQuerySchema` — add new browse-only filters to the browse schema
+  - QuestionCard has a clickable container, so BookmarkButton needs `e.stopPropagation()` + `e.preventDefault()` (already built into BookmarkButton)
+  - `useQueries` for per-item status checks creates N queries — use `staleTime: 60_000` to avoid excessive refetching
+  - The QuestionCard component uses `QuestionBrowser.module.css` (shared CSS module, not its own file)
+  - Filter toggle button pattern: `className` conditional with `active` class, `onClick` toggles between value and `undefined`
+  - `bookmarked` URL param uses string `'true'` presence/absence (not boolean) since URL params are strings
 ---
