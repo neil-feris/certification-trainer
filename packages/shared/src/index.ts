@@ -1035,3 +1035,50 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     criteria: { type: 'cumulative_count', activity: 'exam_complete', count: 10 },
   },
 ];
+
+// Readiness Score Types
+
+export type ConfidenceLevel = 'low' | 'medium' | 'high';
+
+export interface DomainReadiness {
+  domainId: number;
+  domainName: string;
+  domainWeight: number;
+  score: number;
+  coverage: number;
+  accuracy: number;
+  recency: number;
+  volume: number;
+  totalAttempts: number;
+  lastAttemptAt: string | null;
+}
+
+export interface ReadinessScore {
+  overall: number;
+  confidence: ConfidenceLevel;
+  domains: DomainReadiness[];
+  calculatedAt: string;
+}
+
+export interface ReadinessRecommendation {
+  domainId: number;
+  domainName: string;
+  action: string;
+  priority: number;
+  currentScore: number;
+}
+
+export interface ReadinessSnapshot {
+  id: number;
+  userId: string;
+  certificationId: number;
+  overallScore: number;
+  domainScoresJson: string;
+  calculatedAt: string;
+}
+
+export interface ReadinessResponse {
+  score: ReadinessScore;
+  recommendations: ReadinessRecommendation[];
+  history: ReadinessSnapshot[];
+}
