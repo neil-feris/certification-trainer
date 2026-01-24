@@ -18,7 +18,12 @@ export function NotesPage() {
   const [filterTopic, setFilterTopic] = useState<string>('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  const { data: notes = [], isLoading } = useQuery({
+  const {
+    data: notes = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['notes', 'list'],
     queryFn: notesApi.list,
     staleTime: 30_000,
@@ -305,6 +310,19 @@ export function NotesPage() {
 
       {isLoading ? (
         renderLoadingSkeleton()
+      ) : isError && notes.length === 0 ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className={styles.emptyTitle}>Failed to load notes</div>
+          <div className={styles.emptyText}>Something went wrong while fetching your notes.</div>
+          <button className={styles.clearFiltersBtn} onClick={() => refetch()}>
+            Try again
+          </button>
+        </div>
       ) : filteredNotes.length > 0 ? (
         <div className={styles.cardList}>{filteredNotes.map(renderNoteCard)}</div>
       ) : notes.length > 0 && (search || filterDomain || filterTopic) ? (

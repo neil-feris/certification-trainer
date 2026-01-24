@@ -51,8 +51,13 @@ export function BookmarkButton({
       // Rollback optimistic update
       setOptimisticBookmarked(null);
       showToast({
-        message: 'Failed to update bookmark. Try again.',
+        message: 'Failed to update bookmark.',
         type: 'error',
+        duration: 5000,
+        action: {
+          label: 'Retry',
+          onClick: () => toggleMutation.mutate(),
+        },
       });
     },
   });

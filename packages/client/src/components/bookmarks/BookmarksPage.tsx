@@ -55,20 +55,31 @@ export function BookmarksPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   // Fetch bookmarked questions (with full joined data)
-  const { data: bookmarkedQuestions = [], isLoading: questionsLoading } = useQuery({
+  const {
+    data: bookmarkedQuestions = [],
+    isLoading: questionsLoading,
+    isError: questionsError,
+    refetch: refetchQuestions,
+  } = useQuery({
     queryKey: ['bookmarks', 'questions'],
     queryFn: bookmarksApi.listQuestions,
     staleTime: 30_000,
   });
 
   // Fetch all bookmarks (for topics/domains)
-  const { data: allBookmarks = [], isLoading: bookmarksLoading } = useQuery({
+  const {
+    data: allBookmarks = [],
+    isLoading: bookmarksLoading,
+    isError: bookmarksError,
+    refetch: refetchBookmarks,
+  } = useQuery({
     queryKey: ['bookmarks', 'all'],
     queryFn: () => bookmarksApi.list(),
     staleTime: 30_000,
   });
 
   const isLoading = questionsLoading || bookmarksLoading;
+  const isError = questionsError || bookmarksError;
 
   // Remove bookmark mutation
   const removeMutation = useMutation({
@@ -282,8 +293,28 @@ export function BookmarksPage() {
     </div>
   );
 
+  const renderErrorState = () => (
+    <div className={styles.emptyState}>
+      <div className={styles.emptyIcon}>⚠</div>
+      <div className={styles.emptyTitle}>Failed to load bookmarks</div>
+      <div className={styles.emptyText}>Something went wrong while fetching your bookmarks.</div>
+      <button
+        className={styles.retryBtn}
+        onClick={() => {
+          refetchQuestions();
+          refetchBookmarks();
+        }}
+      >
+        Try again
+      </button>
+    </div>
+  );
+
   const renderContent = () => {
     if (isLoading) return renderLoadingSkeleton();
+    if (isError && bookmarkedQuestions.length === 0 && allBookmarks.length === 0) {
+      return renderErrorState();
+    }
 
     switch (activeTab) {
       case 'question':

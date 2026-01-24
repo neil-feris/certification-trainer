@@ -335,6 +335,26 @@
   max-width: 320px;
 }
 
+.retryBtn {
+  margin-top: 16px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--accent-primary);
+  padding: 8px 20px;
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.retryBtn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-primary);
+}
+
 /* Loading skeleton */
 .skeleton {
   display: flex;
