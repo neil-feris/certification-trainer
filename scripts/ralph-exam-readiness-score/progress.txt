@@ -13,6 +13,9 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
 - Timestamps stored as integers with `{ mode: 'timestamp' }`, JSON as `text` columns
 - Services: typed DB param as `BetterSQLite3Database<typeof schemaTypes>`, dynamic schema import
 - `npm install --ignore-scripts` works when native builds fail in sandbox
+- Common UI components: `packages/client/src/components/common/` with `ComponentName.tsx` + `ComponentName.module.css`
+- Dashboard stats grid: `repeat(4, 1fr)`, cards wrap naturally for overflow
+- TanStack Query in dashboard: parallel queries with independent loading states, `staleTime` for infrequent data
 
 ---
 
@@ -93,4 +96,21 @@ Started: Sun 25 Jan 2026 00:27:50 SAST
   - Use `URLSearchParams` for methods with multiple optional query params, simple ternary for single param
   - Types from shared package are imported at the top of client.ts alongside other type imports
   - `request<T>()` generic determines the return type - use shared interfaces directly
+---
+
+## 2026-01-25 - US-007
+- Created ReadinessWidget component with SVG circular progress gauge
+- Color-coded score: red (<50%), yellow (50-70%), green (>70%)
+- Confidence badge with data-level attribute for CSS styling
+- Top 3 domains shown as mini progress bars (sorted by weight)
+- View Details button navigates to /readiness
+- Loading state with placeholder gauge, empty state with hint text
+- Integrated into Dashboard stats grid with TanStack Query (5min staleTime)
+- Files changed: `packages/client/src/components/common/ReadinessWidget.tsx`, `packages/client/src/components/common/ReadinessWidget.module.css`, `packages/client/src/components/dashboard/Dashboard.tsx`
+- **Learnings for future iterations:**
+  - SVG circular gauge: use `stroke-dasharray` = circumference, `stroke-dashoffset` = remaining. Rotate -90deg for top start.
+  - Dashboard stats grid is `repeat(4, 1fr)` - cards wrap naturally, no CSS change needed for additions
+  - `color-mix(in srgb, var(--color) 15%, transparent)` works for tinted backgrounds in CSS
+  - `staleTime: 300000` (5min) is appropriate for readiness scores since they change infrequently
+  - Common components go in `packages/client/src/components/common/` with paired `.module.css`
 ---

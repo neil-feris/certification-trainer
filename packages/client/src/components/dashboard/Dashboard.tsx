@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { ReadinessWidget } from '../common/ReadinessWidget';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { XPHistoryPanel } from '../common/XPHistoryPanel';
@@ -112,6 +113,14 @@ export function Dashboard() {
     queryFn: () => progressApi.getXpHistory(20),
   });
 
+  // Fetch readiness score
+  const { data: readiness, isLoading: readinessLoading } = useQuery({
+    queryKey: ['readiness', selectedCertificationId],
+    queryFn: () => progressApi.getReadiness(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null,
+    staleTime: 300000, // 5 min cache
+  });
+
   if (isLoading) {
     return (
       <div className={styles.loading}>
@@ -218,6 +227,10 @@ export function Dashboard() {
         <div className={styles.statCard}>
           <div className={styles.statValue}>{dashboard?.overallAccuracy?.toFixed(1) || 0}%</div>
           <div className={styles.statLabel}>Overall Accuracy</div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={styles.statLabel}>Exam Readiness</div>
+          <ReadinessWidget readiness={readiness ?? null} isLoading={readinessLoading} />
         </div>
         <div className={styles.statCard}>
           {streakLoading ? (
