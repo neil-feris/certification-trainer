@@ -1,0 +1,161 @@
+name: Security
+
+on:
+  push:
+    branches: [main, uat]
+  pull_request:
+    branches: [main, uat]
+  schedule:
+    # Monday 6am UTC - catch newly disclosed CVEs
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.2.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit (high + critical)
+        run: npm audit --audit-level=high
+
+      - name: Audit individual workspaces
+        if: always()
+        run: |
+          echo "## Workspace Audit Results" >> $GITHUB_STEP_SUMMARY
+          for pkg in packages/shared packages/server packages/client; do
+            echo "### $pkg" >> $GITHUB_STEP_SUMMARY
+            if npm audit --audit-level=high -w "$pkg" 2>&1; then
+              echo "No high/critical vulnerabilities found." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "Vulnerabilities detected - see logs." >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+          # Scan all workspace packages
+          config: |
+            paths:
+              - packages/client/src
+              - packages/server/src
+              - packages/shared/src
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    # Only run on main pushes (images are built there) and schedule
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'schedule'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image for scanning
+        run: |
+          docker build \
+            --tag ace-prep:security-scan \
+            --build-arg NODE_ENV=production \
+            .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ace-prep:security-scan'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-trivy'
+
+      - name: Trivy summary (table)
+        uses: aquasecurity/trivy-action@master
+        if: always()
+        with:
+          image-ref: 'ace-prep:security-scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'
+
+  container-scan-dockerfile:
+    name: Dockerfile Misconfiguration Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy config scanner on Dockerfile
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-config.sarif'
+          severity: 'CRITICAL,HIGH'
+          # Informational on PRs, fail on main
+          exit-code: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
+          trivyignores: '.trivyignore'
+
+      - name: Upload Trivy config SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-config.sarif'
+          category: 'dockerfile-trivy'
