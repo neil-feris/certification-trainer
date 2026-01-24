@@ -9,14 +9,16 @@ import {
   performanceStats,
   certifications,
   xpHistory,
+  readinessSnapshots,
 } from '../db/schema.js';
 import { eq, sql, desc, and } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
-import type { Granularity, TrendDataPoint, TrendsResponse } from '@ace-prep/shared';
+import type { Granularity, TrendDataPoint, TrendsResponse, ReadinessResponse, ReadinessSnapshot } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { getStreak } from '../services/streakService.js';
 import { getXP } from '../services/xpService.js';
+import { calculateReadinessScore } from '../services/readinessService.js';
 
 /**
  * Calculate ISO 8601 week number.
@@ -185,6 +187,71 @@ export async function progressRoutes(fastify: FastifyInstance) {
       .limit(limit);
 
     return history;
+  });
+
+  // Get readiness score with recommendations and recent history
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/readiness', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Calculate current readiness score
+    const { score, recommendations } = await calculateReadinessScore(userId, certId, db);
+
+    // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const [lastSnapshot] = await db
+      .select({ calculatedAt: readinessSnapshots.calculatedAt })
+      .from(readinessSnapshots)
+      .where(
+        and(
+          eq(readinessSnapshots.userId, userId),
+          eq(readinessSnapshots.certificationId, certId)
+        )
+      )
+      .orderBy(desc(readinessSnapshots.calculatedAt))
+      .limit(1);
+
+    const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
+    if (shouldSave) {
+      await db.insert(readinessSnapshots).values({
+        userId,
+        certificationId: certId,
+        overallScore: score.overall,
+        domainScoresJson: JSON.stringify(score.domains),
+        calculatedAt: new Date(),
+      });
+    }
+
+    // Fetch recent history (last 10 snapshots for context)
+    const historyRows = await db
+      .select()
+      .from(readinessSnapshots)
+      .where(
+        and(
+          eq(readinessSnapshots.userId, userId),
+          eq(readinessSnapshots.certificationId, certId)
+        )
+      )
+      .orderBy(desc(readinessSnapshots.calculatedAt))
+      .limit(10);
+
+    const history: ReadinessSnapshot[] = historyRows.map((row) => ({
+      id: row.id,
+      userId: String(row.userId),
+      certificationId: row.certificationId,
+      overallScore: row.overallScore,
+      domainScoresJson: row.domainScoresJson,
+      calculatedAt: row.calculatedAt.toISOString(),
+    }));
+
+    return {
+      score,
+      recommendations,
+      history,
+    } satisfies ReadinessResponse;
   });
 
   // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)
