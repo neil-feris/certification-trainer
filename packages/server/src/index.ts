@@ -36,6 +36,7 @@ import { settingsRoutes } from './routes/settings.js';
 import { drillRoutes } from './routes/drills.js';
 import { achievementRoutes } from './routes/achievements.js';
 import { bookmarkRoutes } from './routes/bookmarks.js';
+import { noteRoutes } from './routes/notes.js';
 import { authRoutes } from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -98,6 +99,7 @@ fastify.register(settingsRoutes, { prefix: '/api/settings' });
 fastify.register(drillRoutes, { prefix: '/api/drills' });
 fastify.register(achievementRoutes, { prefix: '/api/achievements' });
 fastify.register(bookmarkRoutes, { prefix: '/api/bookmarks' });
+fastify.register(noteRoutes, { prefix: '/api/notes' });
 
 // Health check
 fastify.get('/api/health', async () => {
