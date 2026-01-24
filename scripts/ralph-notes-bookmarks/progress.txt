@@ -34,6 +34,10 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
 - Server-side filtered subqueries: `inArray(table.id, db.select({field}).from(other).where(...))` for exists-style filters
 - QuestionCard shares `QuestionBrowser.module.css` — all question browser styles are in one CSS module
 - Boolean URL filter params: use presence/absence of string `'true'` (not actual boolean)
+- Toast `action` prop: `{ label: string, onClick: () => void }` renders a button in the toast
+- QueryClient uses `networkMode: 'offlineFirst'` — serves cached data when offline, queues mutations
+- Error states: only show when `isError && data.length === 0` — stale cache data should still be displayed
+- Existing offline infrastructure: `OfflineBanner`, `useOnlineStatus` hook, PWA service worker
 
 ---
 
@@ -198,4 +202,21 @@ Started: Sat 24 Jan 2026 18:29:29 SAST
   - The QuestionCard component uses `QuestionBrowser.module.css` (shared CSS module, not its own file)
   - Filter toggle button pattern: `className` conditional with `active` class, `onClick` toggles between value and `undefined`
   - `bookmarked` URL param uses string `'true'` presence/absence (not boolean) since URL params are strings
+---
+
+## 2026-01-24 - US-012
+- Verified all existing loading/empty/error states (skeletons, per-tab empty messages, NotesPanel loading, save error+retry)
+- Added `action` prop to Toast component (label + onClick) for actionable toasts
+- Updated BookmarkButton error toast with Retry action button (5s duration)
+- Added error state with retry button to BookmarksPage (shows when fetch fails and no cached data)
+- Added error state with retry button to NotesPage (shows when fetch fails and no cached data)
+- Configured TanStack QueryClient with `networkMode: 'offlineFirst'` for queries and mutations to serve cached data when offline
+- Existing OfflineBanner component and PWA service worker already provide offline UX infrastructure
+- Files changed: `packages/client/src/components/common/Toast.tsx`, `packages/client/src/components/common/Toast.module.css`, `packages/client/src/components/common/BookmarkButton.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.tsx`, `packages/client/src/components/bookmarks/BookmarksPage.module.css`, `packages/client/src/components/notes/NotesPage.tsx`, `packages/client/src/lib/queryClient.ts`
+- **Learnings for future iterations:**
+  - Toast component uses a simple global listener pattern (`toastListener`); `action` prop is `{ label, onClick }` rendered as a button
+  - `networkMode: 'offlineFirst'` on QueryClient means queries will use cache first and attempt network; mutations queue offline
+  - The project already has an `OfflineBanner` component, `useOnlineStatus` hook, and PWA service worker — no need to build offline UI from scratch
+  - Error states should only show when there's no cached data (`isError && data.length === 0`) — if there's stale cached data, show it with the error as a secondary indicator
+  - The `clearFiltersBtn` style from NotesPage can be reused for generic "try again" buttons in error states
 ---
