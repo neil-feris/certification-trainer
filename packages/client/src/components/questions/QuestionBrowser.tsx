@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useQueries, keepPreviousData } from '@tanstack/react-query';
 import type { QuestionWithDomain, Difficulty } from '@ace-prep/shared';
 import { useCertificationStore } from '../../stores/certificationStore';
-import { questionApi } from '../../api/client';
+import { questionApi, notesApi } from '../../api/client';
 import { QuestionFilters } from './QuestionFilters';
 import { QuestionList } from './QuestionList';
 import { QuestionDetailModal } from './QuestionDetailModal';
@@ -35,6 +35,7 @@ export function QuestionBrowser() {
   const difficultyParam = searchParams.get('difficulty');
   const certIdParam = searchParams.get('certificationId');
   const caseStudyIdParam = searchParams.get('caseStudyId');
+  const bookmarkedParam = searchParams.get('bookmarked');
   const params = {
     certificationId: certIdParam ? Number(certIdParam) : undefined,
     domainId: searchParams.get('domainId') ? Number(searchParams.get('domainId')) : undefined,
@@ -45,6 +46,7 @@ export function QuestionBrowser() {
     difficultyParam === 'hard'
       ? difficultyParam
       : undefined) as Difficulty | undefined,
+    bookmarked: bookmarkedParam === 'true' ? true : undefined,
     search: searchParams.get('search') || undefined,
     sortBy: (searchParams.get('sortBy') as 'createdAt' | 'difficulty' | 'domain') || 'createdAt',
     sortOrder: (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc',
@@ -65,6 +67,27 @@ export function QuestionBrowser() {
     queryFn: () => questionApi.getFilterOptions(params.certificationId),
     staleTime: 5 * 60_000,
   });
+
+  // Check note status for each visible question
+  const questionIds = useMemo(() => data?.items.map((q) => q.id) ?? [], [data?.items]);
+  const noteQueries = useQueries({
+    queries: questionIds.map((qId) => ({
+      queryKey: ['note', qId],
+      queryFn: () => notesApi.get(qId),
+      staleTime: 60_000,
+      enabled: questionIds.length > 0,
+    })),
+  });
+  const noteStatusMap = useMemo(() => {
+    const map = new Map<number, boolean>();
+    questionIds.forEach((qId, idx) => {
+      const result = noteQueries[idx];
+      if (result?.data) {
+        map.set(qId, true);
+      }
+    });
+    return map;
+  }, [questionIds, noteQueries]);
 
   const updateFilter = useCallback(
     (key: string, value: string | undefined) => {
@@ -113,6 +136,7 @@ export function QuestionBrowser() {
         questions={data?.items ?? []}
         isLoading={isLoading}
         error={error}
+        noteStatusMap={noteStatusMap}
         onQuestionClick={setSelectedQuestion}
       />
 

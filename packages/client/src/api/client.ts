@@ -364,6 +364,7 @@ export interface QuestionListParams {
   topicId?: number;
   caseStudyId?: number;
   difficulty?: Difficulty;
+  bookmarked?: boolean;
   search?: string;
   sortBy?: 'createdAt' | 'difficulty' | 'domain';
   sortOrder?: 'asc' | 'desc';
@@ -386,6 +387,7 @@ export const questionApi = {
     if (params?.caseStudyId !== undefined)
       searchParams.set('caseStudyId', String(params.caseStudyId));
     if (params?.difficulty) searchParams.set('difficulty', params.difficulty);
+    if (params?.bookmarked) searchParams.set('bookmarked', 'true');
     if (params?.search) searchParams.set('search', params.search);
     if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
     if (params?.sortOrder) searchParams.set('sortOrder', params.sortOrder);

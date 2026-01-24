@@ -9,6 +9,7 @@ interface QuestionFiltersProps {
     topicId?: number;
     caseStudyId?: number;
     difficulty?: string;
+    bookmarked?: boolean;
     search?: string;
     sortBy?: string;
     sortOrder?: string;
@@ -125,6 +126,22 @@ export function QuestionFilters({
         <option value="medium">Medium</option>
         <option value="hard">Hard</option>
       </select>
+
+      <button
+        className={`${styles.bookmarkedToggle} ${params.bookmarked ? styles.active : ''}`}
+        onClick={() => onFilterChange('bookmarked', params.bookmarked ? undefined : 'true')}
+        title={params.bookmarked ? 'Show all questions' : 'Show bookmarked only'}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill={params.bookmarked ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+        </svg>
+        Bookmarked
+      </button>
 
       {showCaseStudyFilter && (
         <select

@@ -7,6 +7,7 @@ import {
   spacedRepetition,
   certifications,
   caseStudies,
+  bookmarks,
 } from '../db/schema.js';
 import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull, isNotNull } from 'drizzle-orm';
 import { generateQuestions, fetchCaseStudyById } from '../services/questionGenerator.js';
@@ -52,6 +53,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       topicId?: string;
       difficulty?: string;
       caseStudyId?: string;
+      bookmarked?: string;
       search?: string;
       sortBy?: string;
       sortOrder?: string;
@@ -69,12 +71,16 @@ export async function questionRoutes(fastify: FastifyInstance) {
       topicId,
       difficulty,
       caseStudyId,
+      bookmarked,
       search,
       sortBy = 'createdAt',
       sortOrder = 'desc',
       limit = PAGINATION_DEFAULTS.limit,
       offset = PAGINATION_DEFAULTS.offset,
     } = parseResult.data;
+
+    // Used for bookmarked filter
+    const userId = bookmarked ? parseInt(request.user!.id, 10) : undefined;
 
     // Build WHERE conditions dynamically
     const conditions = [];
@@ -103,6 +109,18 @@ export async function questionRoutes(fastify: FastifyInstance) {
     if (search) {
       const escaped = escapeLikePattern(search);
       conditions.push(like(questions.questionText, `%${escaped}%`));
+    }
+    if (bookmarked && userId) {
+      // Filter to only questions that are bookmarked by this user
+      conditions.push(
+        inArray(
+          questions.id,
+          db
+            .select({ targetId: bookmarks.targetId })
+            .from(bookmarks)
+            .where(and(eq(bookmarks.userId, userId), eq(bookmarks.targetType, 'question')))
+        )
+      );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { QuestionWithDomain } from '@ace-prep/shared';
+import { BookmarkButton, NotesPanel } from '../common';
 import styles from './QuestionDetailModal.module.css';
 
 interface QuestionDetailModalProps {
@@ -31,6 +32,12 @@ export function QuestionDetailModal({ question, onClose }: QuestionDetailModalPr
           <span className={`${styles.difficulty} ${styles[question.difficulty]}`}>
             {question.difficulty}
           </span>
+          <BookmarkButton
+            targetType="question"
+            targetId={question.id}
+            size="sm"
+            className={styles.bookmarkBtn}
+          />
         </div>
 
         <p className={styles.questionText}>{question.questionText}</p>
@@ -54,6 +61,8 @@ export function QuestionDetailModal({ question, onClose }: QuestionDetailModalPr
             <p>{question.explanation}</p>
           </div>
         )}
+
+        <NotesPanel questionId={question.id} className={styles.notesPanel} />
       </div>
     </div>
   );
