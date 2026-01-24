@@ -1132,3 +1132,11 @@ export interface CompleteFlashcardSessionResponse {
   streakUpdate?: StreakUpdateResponse;
   achievementsUnlocked?: AchievementUnlockResponse[];
 }
+
+export interface LastFlashcardSessionResponse {
+  sessionId: number;
+  totalCards: number;
+  cardsReviewed: number;
+  completedAt: string;
+  ratingDistribution: Record<ReviewQuality, number>;
+}

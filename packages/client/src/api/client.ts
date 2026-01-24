@@ -57,6 +57,7 @@ import type {
   RateFlashcardResponse,
   CompleteFlashcardSessionRequest,
   CompleteFlashcardSessionResponse,
+  LastFlashcardSessionResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -701,6 +702,8 @@ export const flashcardApi = {
       method: 'PATCH',
       body: JSON.stringify(data || {}),
     }),
+  getLastSession: () =>
+    request<{ session: LastFlashcardSessionResponse | null }>('/study/flashcards/last-session'),
 };
 
 // Notes

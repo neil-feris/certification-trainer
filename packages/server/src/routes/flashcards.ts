@@ -362,6 +362,42 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/study/flashcards/last-session - Get last completed flashcard session stats
+  fastify.get('/last-session', async (request) => {
+    const userId = (request as any).userId as number;
+
+    const [session] = await db
+      .select()
+      .from(flashcardSessions)
+      .where(and(eq(flashcardSessions.userId, userId), eq(flashcardSessions.status, 'completed')))
+      .orderBy(sql`${flashcardSessions.completedAt} DESC`)
+      .limit(1);
+
+    if (!session) {
+      return { session: null };
+    }
+
+    const ratings = await db
+      .select()
+      .from(flashcardSessionRatings)
+      .where(eq(flashcardSessionRatings.sessionId, session.id));
+
+    const ratingDistribution: Record<string, number> = { again: 0, hard: 0, good: 0, easy: 0 };
+    for (const r of ratings) {
+      ratingDistribution[r.rating] = (ratingDistribution[r.rating] || 0) + 1;
+    }
+
+    return {
+      session: {
+        sessionId: session.id,
+        totalCards: session.totalCards,
+        cardsReviewed: session.cardsReviewed,
+        completedAt: session.completedAt?.toISOString() ?? new Date().toISOString(),
+        ratingDistribution,
+      },
+    };
+  });
+
   // PATCH /api/study/flashcards/:sessionId/complete - Complete a flashcard session
   fastify.patch<{ Params: { sessionId: string }; Body: CompleteFlashcardSessionRequest }>(
     '/:sessionId/complete',
