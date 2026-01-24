@@ -254,6 +254,48 @@ export async function progressRoutes(fastify: FastifyInstance) {
     } satisfies ReadinessResponse;
   });
 
+  // Get readiness score history for trend visualization
+  fastify.get<{
+    Querystring: { certificationId?: string; limit?: string };
+  }>('/readiness/history', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Default 30, max 90
+    let limit = 30;
+    const limitStr = request.query.limit;
+    if (limitStr) {
+      const parsed = parseInt(limitStr, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limit = Math.min(parsed, 90);
+      }
+    }
+
+    const historyRows = await db
+      .select()
+      .from(readinessSnapshots)
+      .where(
+        and(
+          eq(readinessSnapshots.userId, userId),
+          eq(readinessSnapshots.certificationId, certId)
+        )
+      )
+      .orderBy(desc(readinessSnapshots.calculatedAt))
+      .limit(limit);
+
+    const history: ReadinessSnapshot[] = historyRows.map((row) => ({
+      id: row.id,
+      userId: String(row.userId),
+      certificationId: row.certificationId,
+      overallScore: row.overallScore,
+      domainScoresJson: row.domainScoresJson,
+      calculatedAt: row.calculatedAt.toISOString(),
+    }));
+
+    return history;
+  });
+
   // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(
     '/dashboard',
