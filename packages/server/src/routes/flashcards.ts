@@ -16,6 +16,7 @@ import {
   startFlashcardSessionSchema,
   sessionIdParamSchema,
   rateFlashcardSchema,
+  completeFlashcardSessionSchema,
   formatZodError,
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
@@ -25,9 +26,13 @@ import type {
   StartFlashcardSessionRequest,
   FlashcardCard,
   RateFlashcardRequest,
+  CompleteFlashcardSessionRequest,
   XPAwardResponse,
+  StreakUpdateResponse,
+  ReviewQuality,
 } from '@ace-prep/shared';
 import { XP_AWARDS } from '@ace-prep/shared';
+import { updateStreak } from '../services/streakService.js';
 
 export async function flashcardRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -353,6 +358,107 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
         updated: true,
         nextReviewAt: srResult.nextReviewAt.toISOString(),
         xpUpdate,
+      };
+    }
+  );
+
+  // PATCH /api/study/flashcards/:sessionId/complete - Complete a flashcard session
+  fastify.patch<{ Params: { sessionId: string }; Body: CompleteFlashcardSessionRequest }>(
+    '/:sessionId/complete',
+    async (request, reply) => {
+      const paramResult = sessionIdParamSchema.safeParse(request.params);
+      if (!paramResult.success) {
+        return reply.status(400).send(formatZodError(paramResult.error));
+      }
+
+      const bodyResult = completeFlashcardSessionSchema.safeParse(request.body || {});
+      if (!bodyResult.success) {
+        return reply.status(400).send(formatZodError(bodyResult.error));
+      }
+
+      const { sessionId } = paramResult.data;
+      const userId = parseInt(request.user!.id, 10);
+
+      // Verify session exists, belongs to user, and is in_progress
+      const [session] = await db
+        .select()
+        .from(flashcardSessions)
+        .where(and(eq(flashcardSessions.id, sessionId), eq(flashcardSessions.userId, userId)));
+
+      if (!session) {
+        return reply.status(404).send({ error: 'Flashcard session not found' });
+      }
+
+      if (session.status !== 'in_progress') {
+        return reply.status(400).send({ error: 'Session is not in progress' });
+      }
+
+      // Mark session as completed
+      await db
+        .update(flashcardSessions)
+        .set({
+          status: 'completed',
+          completedAt: new Date(),
+        })
+        .where(eq(flashcardSessions.id, sessionId));
+
+      // Calculate rating distribution from session ratings
+      const ratings = await db
+        .select({ rating: flashcardSessionRatings.rating })
+        .from(flashcardSessionRatings)
+        .where(eq(flashcardSessionRatings.sessionId, sessionId));
+
+      const ratingDistribution: Record<ReviewQuality, number> = {
+        again: 0,
+        hard: 0,
+        good: 0,
+        easy: 0,
+      };
+      for (const r of ratings) {
+        const quality = r.rating as ReviewQuality;
+        if (quality in ratingDistribution) {
+          ratingDistribution[quality]++;
+        }
+      }
+
+      // Award XP for session completion (non-critical)
+      let xpUpdate: XPAwardResponse | undefined;
+      try {
+        const xpSource = `FLASHCARD_SESSION_COMPLETE_${sessionId}`;
+        xpUpdate =
+          (await awardCustomXP(userId, XP_AWARDS.STUDY_SESSION_COMPLETE, xpSource)) ?? undefined;
+      } catch (error) {
+        fastify.log.error(
+          {
+            userId,
+            sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to award XP after flashcard session completion'
+        );
+      }
+
+      // Update streak (non-critical)
+      let streakUpdate: StreakUpdateResponse | undefined;
+      try {
+        const streakResult = await updateStreak(userId);
+        streakUpdate = streakResult.streakUpdate;
+      } catch (error) {
+        fastify.log.error(
+          {
+            userId,
+            sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to update streak after flashcard session completion'
+        );
+      }
+
+      return {
+        cardsReviewed: session.cardsReviewed,
+        ratingDistribution,
+        xpUpdate,
+        streakUpdate,
       };
     }
   );
