@@ -50,6 +50,8 @@ import type {
   Note,
   SaveNoteResponse,
   NoteWithQuestion,
+  GenerateCertificateResponse,
+  CertificateVerification,
   StartFlashcardSessionRequest,
   StartFlashcardSessionResponse,
   GetFlashcardSessionResponse,
@@ -793,4 +795,15 @@ export const shareApi = {
     request<CreateShareLinkResponse>(`/exams/${examId}/share`, {
       method: 'POST',
     }),
+};
+
+// Certificates
+export const certificateApi = {
+  generate: (examId: number) =>
+    request<GenerateCertificateResponse>(`/exams/${examId}/certificate`, {
+      method: 'POST',
+    }),
+  verify: (hash: string) =>
+    request<CertificateVerification>(`/certificates/${hash}/verify`, {}, false),
+  getDownloadUrl: (hash: string) => `${API_BASE}/certificates/${hash}/download`,
 };

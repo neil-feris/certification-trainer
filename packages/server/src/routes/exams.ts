@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { createHash } from 'crypto';
 import { db } from '../db/index.js';
 import {
   exams,
@@ -8,6 +9,7 @@ import {
   topics,
   caseStudies,
   examShares,
+  certificates,
 } from '../db/schema.js';
 import { randomBytes } from 'crypto';
 import { eq, sql, and, inArray } from 'drizzle-orm';
@@ -34,6 +36,7 @@ import {
   type XPAwardResponse,
   type AchievementUnlockResponse,
   type CreateShareLinkResponse,
+  type GenerateCertificateResponse,
 } from '@ace-prep/shared';
 import { invalidateReadinessCache } from '../services/readinessService.js';
 
@@ -641,6 +644,89 @@ export async function examRoutes(fastify: FastifyInstance) {
       createdAt: newShare.createdAt.toISOString(),
     };
 
+    return response;
+  });
+
+  // Generate certificate for a passing exam
+  fastify.post<{
+    Params: { id: string };
+    Body: { userName?: string };
+  }>('/:id/certificate', async (request, reply) => {
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Get exam with ownership check
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
+
+    if (!exam) {
+      return reply.status(404).send({ error: 'Exam not found' });
+    }
+
+    // Check if exam belongs to user (ownership check)
+    if (exam.userId !== userId) {
+      return reply
+        .status(403)
+        .send({ error: 'You do not have permission to generate a certificate for this exam' });
+    }
+
+    // Check if exam is completed
+    if (exam.status !== 'completed') {
+      return reply.status(400).send({ error: 'Exam must be completed to generate a certificate' });
+    }
+
+    // Check if score is passing (>= 70%)
+    const PASSING_SCORE = 70;
+    if (exam.score === null || exam.score < PASSING_SCORE) {
+      return reply.status(403).send({
+        error: `Score must be at least ${PASSING_SCORE}% to earn a certificate`,
+        score: exam.score,
+        passingScore: PASSING_SCORE,
+      });
+    }
+
+    // Check if certificate already exists
+    const [existingCert] = await db
+      .select()
+      .from(certificates)
+      .where(eq(certificates.examId, examId));
+
+    if (existingCert) {
+      // Return existing certificate
+      const response: GenerateCertificateResponse = {
+        certificateHash: existingCert.certificateHash,
+        downloadUrl: `/api/certificates/${existingCert.certificateHash}/download`,
+      };
+      return response;
+    }
+
+    // Generate certificate hash from exam_id + score + date
+    const hashInput = `${examId}-${exam.score}-${exam.completedAt?.toISOString() || new Date().toISOString()}`;
+    const certificateHash = createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
+
+    // Create certificate record
+    const [newCert] = await db
+      .insert(certificates)
+      .values({
+        examId,
+        userId,
+        certificationId: exam.certificationId,
+        certificateHash,
+        score: exam.score,
+        issuedAt: new Date(),
+      })
+      .returning();
+
+    const response: GenerateCertificateResponse = {
+      certificateHash: newCert.certificateHash,
+      downloadUrl: `/api/certificates/${newCert.certificateHash}/download`,
+    };
     return response;
   });
 }

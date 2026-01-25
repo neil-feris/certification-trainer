@@ -522,6 +522,30 @@ export const userNotes = sqliteTable(
   ]
 );
 
+// ============ CERTIFICATES ============
+export const certificates = sqliteTable(
+  'certificates',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    examId: integer('exam_id')
+      .notNull()
+      .references(() => exams.id, { onDelete: 'cascade' }),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'restrict' }),
+    certificateHash: text('certificate_hash').notNull().unique(),
+    score: real('score').notNull(),
+    issuedAt: integer('issued_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('certificates_hash_idx').on(table.certificateHash),
+    index('certificates_exam_idx').on(table.examId),
+    index('certificates_user_idx').on(table.userId),
+    index('certificates_certification_idx').on(table.certificationId),
+  ]
+);
+
 // Settings (API keys stored encrypted) - global settings for anonymous users
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -732,3 +756,5 @@ export type StudyPlanTaskRecord = typeof studyPlanTasks.$inferSelect;
 export type NewStudyPlanTask = typeof studyPlanTasks.$inferInsert;
 export type ExamShareRecord = typeof examShares.$inferSelect;
 export type NewExamShare = typeof examShares.$inferInsert;
+export type CertificateRecord = typeof certificates.$inferSelect;
+export type NewCertificate = typeof certificates.$inferInsert;

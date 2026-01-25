@@ -1354,3 +1354,36 @@ export interface CreateShareLinkResponse {
 export interface GetSharedResultResponse {
   result: ShareableResult;
 }
+
+// ============ CERTIFICATE TYPES ============
+
+export interface Certificate {
+  id: number;
+  examId: number;
+  userId: number;
+  certificateHash: string;
+  score: number;
+  certificationId: number;
+  issuedAt: Date | string;
+}
+
+export interface CertificateResponse {
+  certificate: Certificate;
+  downloadUrl: string;
+}
+
+export interface CertificateVerification {
+  valid: boolean;
+  certificationName: string | null;
+  score: number | null;
+  issuedAt: string | null;
+}
+
+export interface GenerateCertificateRequest {
+  userName?: string; // Optional: uses authenticated user's name if not provided
+}
+
+export interface GenerateCertificateResponse {
+  certificateHash: string;
+  downloadUrl: string;
+}

@@ -1,0 +1,81 @@
+.certificateBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary, #00b894));
+  border: none;
+  border-radius: var(--border-radius);
+  color: var(--bg-primary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    opacity var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(0, 212, 170, 0.3);
+}
+
+.certificateBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4);
+}
+
+.certificateBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.certificateBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.certificateBtn.loading {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+/* Icon */
+.icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Spinner */
+.spinner {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Label */
+.label {
+  white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .certificateBtn {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+
+  .icon,
+  .spinner {
+    width: 16px;
+    height: 16px;
+  }
+}
