@@ -2,15 +2,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { examApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
+import { useCertificationStore } from '../../stores/certificationStore';
 import { useEffect } from 'react';
 import { BookmarkButton } from '../common/BookmarkButton';
 import { NotesPanel } from '../common/NotesPanel';
+import { ShareButton } from '../share/ShareButton';
 import styles from './ExamReview.module.css';
 
 export function ExamReview() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { resetExam } = useExamStore();
+  const { certifications } = useCertificationStore();
 
   useEffect(() => {
     resetExam();
@@ -49,6 +52,10 @@ export function ExamReview() {
   const passingScore = 70;
   const passed = exam.score >= passingScore;
 
+  // Find certification name for sharing
+  const certification = certifications.find((c) => c.id === exam.certificationId);
+  const certificationName = certification?.name ?? 'Certification';
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -57,9 +64,18 @@ export function ExamReview() {
           ← Dashboard
         </button>
         <h1>Exam Review</h1>
-        <button className="btn btn-primary" onClick={() => navigate('/exam')}>
-          Take New Exam
-        </button>
+        <div className={styles.headerActions}>
+          {exam.status === 'completed' && (
+            <ShareButton
+              examId={exam.id}
+              score={exam.score ?? 0}
+              certificationName={certificationName}
+            />
+          )}
+          <button className="btn btn-primary" onClick={() => navigate('/exam')}>
+            Take New Exam
+          </button>
+        </div>
       </header>
 
       {/* Score Summary */}
