@@ -29,6 +29,68 @@ Started: Sun 25 Jan 2026 15:26:41 SAST
 - Server deduplicates via `offlineExamId` column in exams table
 - Toast system exists at `components/common/Toast.tsx` with `showToast()` function for global toast notifications
 - OfflineStatusIndicator component shows in header (MobileHeader) and sidebar footer (AppShell)
+- OfflineSettings component in Settings page for cache management UI
+- Offline exam UI: route `/exam/offline` for offline exam sessions
+- ExamSetup shows 'Start Offline Exam' when offline with cached questions
+- ExamContainer shows 'Offline' badge and modified submit flow
+- useOfflineSyncNotifications hook for exam sync notifications
+
+---
+
+## 2026-01-26T00:30:00+02:00 - US-010
+- **What was implemented**: Updated Exam Page for full offline exam support
+- **Files changed**:
+  - `packages/client/src/components/exam/ExamSetup.tsx` - Added offline exam option
+  - `packages/client/src/components/exam/ExamSetup.module.css` - Styles for offline ready state
+  - `packages/client/src/components/exam/ExamContainer.tsx` - Offline badge and submit handling
+  - `packages/client/src/components/exam/ExamContainer.module.css` - Styles for offline badge
+  - `packages/client/src/hooks/useOfflineSyncNotifications.ts` (new) - Sync notification hook
+  - `packages/client/src/App.tsx` - Added sync notifications hook
+- **Features implemented**:
+  - ExamSetup: 'Start Offline Exam' button visible when offline with cached questions
+  - ExamSetup: Shows cache status (X questions cached) when offline
+  - ExamSetup: Warning message when offline without cached questions
+  - ExamContainer: 'Offline' badge in header during offline exams
+  - ExamContainer: Modified submit confirmation modal for offline exams
+  - ExamContainer: 'Queued for sync' toast message on offline submit
+  - ExamContainer: Navigates to dashboard after offline submit
+  - Sync notifications: Toast notification when offline exam syncs successfully
+  - Sync notifications: Error toast when exam fails to sync permanently
+- **Route handling**:
+  - `/exam/offline` route handled by ExamContainer with `isOfflineRoute` check
+  - Skips API fetch for offline exams (questions already in store from ExamSetup)
+- **Learnings for future iterations**:
+  - Use `hasValidCache()` and `getCacheStatus()` to check offline exam availability
+  - ExamContainer distinguishes online vs offline via `id === 'offline'` route check
+  - Offline exams don't have a server exam ID, so navigate to `/exam/offline`
+  - examStore `isOfflineExam` flag persists across page refreshes via zustand/persist
+  - Custom events `ace:sync:item:success` and `ace:sync:item:dead-letter` for sync notifications
+  - Toast action can include callback, used for 'View' button to navigate to dashboard
+
+---
+
+## 2026-01-25T23:15:00+02:00 - US-009
+- **What was implemented**: Cache Management UI in Settings page
+- **Files changed**:
+  - `packages/client/src/components/settings/OfflineSettings.tsx` (new) - Main component
+  - `packages/client/src/components/settings/OfflineSettings.module.css` (new) - Styles
+  - `packages/client/src/components/settings/Settings.tsx` - Integrated OfflineSettings
+- **Features implemented**:
+  - Section in Settings page for 'Offline Mode' with header and connection status badge
+  - Cache status display per certification (X questions cached, expires Y date, days until expiry)
+  - 'Download for Offline' button per certification
+  - Spinner during download with event-driven status updates
+  - 'Refresh' button for existing non-expired caches
+  - 'Clear Cache' button with inline Yes/No confirmation dialog
+  - Storage usage indicator showing total used/quota with progress bar
+  - Info box explaining offline mode functionality
+  - Responsive design for mobile (stacked layout)
+- **Learnings for future iterations**:
+  - Use CacheService events for async feedback: `ace:cache:started`, `ace:cache:completed`, `ace:cache:failed`, `ace:cache:cleared`
+  - `navigator.storage.estimate()` returns total storage usage, not per-app specific
+  - certificationStore provides `certifications` array with id, code, shortName
+  - Format expiry dates with `getDaysUntilExpiry()` for user-friendly display
+  - Inline confirmation pattern: track `confirmClear` state with certificationId to show Yes/No buttons
 
 ---
 
