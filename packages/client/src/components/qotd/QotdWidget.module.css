@@ -1,0 +1,363 @@
+.widget {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-primary);
+}
+
+.badge::before {
+  content: "☀️";
+  font-size: 14px;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topic {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.difficulty {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--border-radius);
+  letter-spacing: 0.3px;
+}
+
+.difficulty[data-difficulty="easy"] {
+  background: rgba(0, 200, 83, 0.15);
+  color: var(--success);
+}
+
+.difficulty[data-difficulty="medium"] {
+  background: rgba(255, 171, 0, 0.15);
+  color: var(--warning);
+}
+
+.difficulty[data-difficulty="hard"] {
+  background: rgba(255, 82, 82, 0.15);
+  color: var(--error);
+}
+
+.content {
+  padding: 20px;
+}
+
+.questionType {
+  font-size: 11px;
+  color: var(--accent-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+.questionText {
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin: 0 0 20px 0;
+}
+
+/* Options */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.option:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  border-color: var(--border-color);
+}
+
+.option.selected {
+  background: rgba(0, 212, 170, 0.1);
+  border-color: var(--accent-primary);
+}
+
+.option.correct {
+  background: rgba(0, 200, 83, 0.15);
+  border-color: var(--success);
+}
+
+.option.incorrect {
+  background: rgba(255, 82, 82, 0.15);
+  border-color: var(--error);
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.optionIndicator {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+}
+
+.option.selected .radio {
+  border-color: var(--accent-primary);
+}
+
+.radioFill {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.option.selected .checkbox {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.checkmark {
+  color: var(--bg-primary);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.optionText {
+  flex: 1;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.correctMark {
+  color: var(--success);
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Feedback */
+.feedback {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--border-radius-md);
+  animation: slideIn 0.3s ease;
+}
+
+.feedback.correct {
+  background: rgba(0, 200, 83, 0.1);
+  border: 1px solid var(--success);
+}
+
+.feedback.incorrect {
+  background: rgba(255, 82, 82, 0.1);
+  border: 1px solid var(--error);
+}
+
+.feedbackHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.feedbackIcon {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.feedback.correct .feedbackIcon {
+  color: var(--success);
+}
+
+.feedback.incorrect .feedbackIcon {
+  color: var(--error);
+}
+
+.xpBadge {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border-radius: var(--border-radius);
+  font-weight: 600;
+}
+
+.explanation {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Submit button */
+.submitBtn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Completed message */
+.completedMessage {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Loading skeleton */
+.skeleton {
+  padding: 20px;
+}
+
+.skeletonLine {
+  height: 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  margin-bottom: 12px;
+  animation: pulse 1.5s infinite;
+}
+
+.skeletonOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.skeletonOption {
+  height: 48px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius-md);
+  animation: pulse 1.5s infinite;
+}
+
+/* Error state */
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.errorState p {
+  margin: 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .meta {
+    gap: 8px;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .questionText {
+    font-size: 14px;
+  }
+
+  .option {
+    padding: 12px 14px;
+    min-height: 48px;
+  }
+
+  .optionText {
+    font-size: 13px;
+  }
+}
+
+/* Touch feedback */
+@media (hover: none) {
+  .option:active:not(:disabled) {
+    transform: scale(0.98);
+    background: var(--bg-elevated);
+  }
+}

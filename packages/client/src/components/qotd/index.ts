@@ -1,0 +1,1 @@
+export { QotdWidget } from './QotdWidget';
