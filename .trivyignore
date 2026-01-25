@@ -1,0 +1,38 @@
+# Trivy Ignore File
+# =================
+# Vulnerabilities listed here are temporarily ignored during security scans.
+# Each entry must be reviewed and either:
+#   1. Fixed by updating dependencies
+#   2. Removed when a fix becomes available
+#   3. Risk-accepted with documented justification
+
+# --- Node.js Base Image Transitive Dependencies ---
+# These CVEs are in npm's bundled dependencies within the Node.js Alpine base image.
+# We cannot directly patch these; they require Node.js upstream fixes.
+
+# glob 10.4.5 - Command Injection via Malicious Filenames
+# Impact: Low (requires malicious filename input to application)
+# Node.js bundled npm dependency - awaiting Node.js image update
+# Review date: 2026-01-25
+CVE-2025-64756
+
+# tar 6.2.1/7.4.3 - Arbitrary file overwrite via symlink poisoning
+# Impact: Medium (requires processing malicious tar archives)
+# Node.js bundled npm dependency - awaiting Node.js image update
+# Review date: 2026-01-25
+CVE-2026-23745
+CVE-2026-23950
+
+# --- esbuild Transitive Dependencies (Go stdlib) ---
+# These CVEs are in esbuild's Go runtime, a build-time dependency.
+# esbuild is only used at build time, not runtime.
+
+# Go archive/tar unbounded allocation
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-58183
+
+# Go crypto/x509 DoS via crafted certificate
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-61729

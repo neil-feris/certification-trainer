@@ -113,7 +113,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-          skip-version-check: 'true'
+          trivyignores: '.trivyignore'
           # Fail on main push only; PRs and schedule are informational
           exit-code: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
 
@@ -131,7 +131,7 @@ jobs:
           image-ref: 'ace-prep:security-scan'
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          skip-version-check: 'true'
+          trivyignores: '.trivyignore'
           exit-code: '0'
 
   container-scan-dockerfile:
@@ -152,7 +152,8 @@ jobs:
           format: 'sarif'
           output: 'trivy-config.sarif'
           severity: 'CRITICAL,HIGH'
-          skip-version-check: 'true'
+          # Limit scan to Dockerfile only, skip other config files
+          skip-dirs: 'node_modules,.git,.worktrees,data,packages'
           # Informational on PRs, fail on main
           exit-code: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
 
