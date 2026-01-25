@@ -15,9 +15,12 @@ function getScoreColor(score: number): string {
 
 function getConfidenceLabel(confidence: 'low' | 'medium' | 'high'): string {
   switch (confidence) {
-    case 'high': return 'High Confidence';
-    case 'medium': return 'Medium Confidence';
-    case 'low': return 'Low Confidence';
+    case 'high':
+      return 'High Confidence';
+    case 'medium':
+      return 'Medium Confidence';
+    case 'low':
+      return 'Low Confidence';
   }
 }
 
@@ -54,22 +57,13 @@ export function ReadinessWidget({ readiness, isLoading }: ReadinessWidgetProps) 
   const strokeDashoffset = circumference - (overall / 100) * circumference;
 
   // Top 3 domains by weight
-  const topDomains = [...score.domains]
-    .sort((a, b) => b.domainWeight - a.domainWeight)
-    .slice(0, 3);
+  const topDomains = [...score.domains].sort((a, b) => b.domainWeight - a.domainWeight).slice(0, 3);
 
   return (
     <div className={styles.widget}>
       <div className={styles.gaugeSection}>
         <svg className={styles.gauge} viewBox="0 0 100 100">
-          <circle
-            className={styles.gaugeBg}
-            cx="50"
-            cy="50"
-            r="42"
-            fill="none"
-            strokeWidth="8"
-          />
+          <circle className={styles.gaugeBg} cx="50" cy="50" r="42" fill="none" strokeWidth="8" />
           <circle
             className={styles.gaugeFill}
             cx="50"
@@ -84,7 +78,9 @@ export function ReadinessWidget({ readiness, isLoading }: ReadinessWidgetProps) 
           />
         </svg>
         <div className={styles.gaugeValue}>
-          <span className={styles.scoreNumber} style={{ color }}>{overall}</span>
+          <span className={styles.scoreNumber} style={{ color }}>
+            {overall}
+          </span>
           <span className={styles.scorePercent}>%</span>
         </div>
       </div>
@@ -118,10 +114,7 @@ export function ReadinessWidget({ readiness, isLoading }: ReadinessWidgetProps) 
         })}
       </div>
 
-      <button
-        className={styles.detailsLink}
-        onClick={() => navigate('/readiness')}
-      >
+      <button className={styles.detailsLink} onClick={() => navigate('/readiness')}>
         View Details
       </button>
     </div>

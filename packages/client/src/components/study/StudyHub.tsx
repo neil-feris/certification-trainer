@@ -12,10 +12,11 @@ import { DomainList } from './domains/DomainList';
 import { TopicPractice } from './practice/TopicPractice';
 import { SummaryBrowser } from './summaries/SummaryBrowser';
 import { DrillHub } from './drills/DrillHub';
+import { FlashcardHub } from './flashcards/FlashcardHub';
 import { SessionRecoveryModal } from './SessionRecoveryModal';
 import styles from './StudyHub.module.css';
 
-type Tab = 'path' | 'domains' | 'practice' | 'drills' | 'summaries';
+type Tab = 'path' | 'domains' | 'practice' | 'drills' | 'flashcards' | 'summaries';
 
 export function StudyHub() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -160,6 +161,12 @@ export function StudyHub() {
             Drills
           </button>
           <button
+            className={`${styles.tab} ${activeTab === 'flashcards' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('flashcards')}
+          >
+            Flashcards
+          </button>
+          <button
             className={`${styles.tab} ${activeTab === 'summaries' ? styles.tabActive : ''}`}
             onClick={() => setActiveTab('summaries')}
           >
@@ -177,6 +184,7 @@ export function StudyHub() {
           />
         )}
         {activeTab === 'drills' && <DrillHub />}
+        {activeTab === 'flashcards' && <FlashcardHub />}
         {activeTab === 'summaries' && <SummaryBrowser />}
       </div>
     </div>

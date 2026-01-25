@@ -80,23 +80,14 @@ export function invalidateAllReadinessCacheForUser(userId: number): void {
   }
 }
 
-const COVERAGE_WEIGHT = 0.20;
-const ACCURACY_WEIGHT = 0.50;
-const RECENCY_WEIGHT = 0.20;
-const VOLUME_WEIGHT = 0.10;
+const COVERAGE_WEIGHT = 0.2;
+const ACCURACY_WEIGHT = 0.5;
+const RECENCY_WEIGHT = 0.2;
+const VOLUME_WEIGHT = 0.1;
 
 const COVERAGE_THRESHOLD = 10; // attempts per domain to count as "covered"
 const VOLUME_THRESHOLD = 100; // total attempts for max volume score
 const RECENCY_HALF_LIFE_DAYS = 30; // decay constant for recency
-
-interface DomainStats {
-  domainId: number;
-  domainName: string;
-  domainWeight: number;
-  totalAttempts: number;
-  correctAttempts: number;
-  lastAttemptAt: Date | null;
-}
 
 /**
  * Calculate the readiness score for a user on a specific certification.
@@ -152,20 +143,29 @@ export async function calculateReadinessScore(
     .where(
       and(
         eq(performanceStats.userId, userId),
-        inArray(performanceStats.domainId, certDomains.map(d => d.id)),
+        inArray(
+          performanceStats.domainId,
+          certDomains.map((d) => d.id)
+        ),
         isNull(performanceStats.topicId)
       )
     )
     .all();
 
   // Build domain stats map
-  const statsMap = new Map<number, { totalAttempts: number; correctAttempts: number; lastAttemptedAt: Date | null }>();
+  const statsMap = new Map<
+    number,
+    { totalAttempts: number; correctAttempts: number; lastAttemptedAt: Date | null }
+  >();
   for (const stat of stats) {
     const existing = statsMap.get(stat.domainId);
     if (existing) {
       existing.totalAttempts += stat.totalAttempts;
       existing.correctAttempts += stat.correctAttempts;
-      if (stat.lastAttemptedAt && (!existing.lastAttemptedAt || stat.lastAttemptedAt > existing.lastAttemptedAt)) {
+      if (
+        stat.lastAttemptedAt &&
+        (!existing.lastAttemptedAt || stat.lastAttemptedAt > existing.lastAttemptedAt)
+      ) {
         existing.lastAttemptedAt = stat.lastAttemptedAt;
       }
     } else {
@@ -202,12 +202,12 @@ export async function calculateReadinessScore(
     const volume = Math.min(totalAttempts / VOLUME_THRESHOLD, 1.0);
 
     // Composite domain score (0-100)
-    const score = (
-      coverage * COVERAGE_WEIGHT +
-      accuracy * ACCURACY_WEIGHT +
-      recency * RECENCY_WEIGHT +
-      volume * VOLUME_WEIGHT
-    ) * 100;
+    const score =
+      (coverage * COVERAGE_WEIGHT +
+        accuracy * ACCURACY_WEIGHT +
+        recency * RECENCY_WEIGHT +
+        volume * VOLUME_WEIGHT) *
+      100;
 
     return {
       domainId: domain.id,
@@ -225,13 +225,16 @@ export async function calculateReadinessScore(
 
   // Overall score: weighted average by domain weight
   const totalWeight = domainReadiness.reduce((sum, d) => sum + d.domainWeight, 0);
-  const overall = totalWeight > 0
-    ? domainReadiness.reduce((sum, d) => sum + d.score * d.domainWeight, 0) / totalWeight
-    : 0;
+  const overall =
+    totalWeight > 0
+      ? domainReadiness.reduce((sum, d) => sum + d.score * d.domainWeight, 0) / totalWeight
+      : 0;
 
   // Confidence level
-  const domainsAttempted = domainReadiness.filter(d => d.totalAttempts > 0).length;
-  const domainsWithSufficientData = domainReadiness.filter(d => d.totalAttempts >= COVERAGE_THRESHOLD).length;
+  const domainsAttempted = domainReadiness.filter((d) => d.totalAttempts > 0).length;
+  const domainsWithSufficientData = domainReadiness.filter(
+    (d) => d.totalAttempts >= COVERAGE_THRESHOLD
+  ).length;
 
   let confidence: ConfidenceLevel;
   if (domainsAttempted < 5) {
@@ -266,7 +269,7 @@ export async function calculateReadinessScore(
  */
 function generateRecommendations(domains: DomainReadiness[]): ReadinessRecommendation[] {
   return domains
-    .filter(d => d.score < 70) // Only recommend domains below passing threshold
+    .filter((d) => d.score < 70) // Only recommend domains below passing threshold
     .sort((a, b) => a.score - b.score)
     .map((domain, index) => {
       let action: string;

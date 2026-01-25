@@ -95,7 +95,9 @@ export function ReadinessPage() {
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>📊</div>
           <span className={styles.emptyText}>No readiness data available</span>
-          <span className={styles.emptyHint}>Complete some exams or study sessions to generate your readiness score</span>
+          <span className={styles.emptyHint}>
+            Complete some exams or study sessions to generate your readiness score
+          </span>
         </div>
       </div>
     );
@@ -128,10 +130,7 @@ export function ReadinessPage() {
           <p className={styles.subtitle}>Predicted pass likelihood with weighted domain analysis</p>
         </div>
         <div className={styles.certSelector} ref={dropdownRef}>
-          <button
-            className={styles.certButton}
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          >
+          <button className={styles.certButton} onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
             {selectedCertName} ▾
           </button>
           {isDropdownOpen && certifications && (
@@ -160,13 +159,19 @@ export function ReadinessPage() {
           <svg className={styles.gauge} viewBox="0 0 128 128">
             <circle
               className={styles.gaugeBg}
-              cx="64" cy="64" r="56"
-              fill="none" strokeWidth="10"
+              cx="64"
+              cy="64"
+              r="56"
+              fill="none"
+              strokeWidth="10"
             />
             <circle
               className={styles.gaugeFill}
-              cx="64" cy="64" r="56"
-              fill="none" strokeWidth="10"
+              cx="64"
+              cy="64"
+              r="56"
+              fill="none"
+              strokeWidth="10"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
@@ -174,7 +179,9 @@ export function ReadinessPage() {
             />
           </svg>
           <div className={styles.gaugeValue}>
-            <span className={styles.scoreNumber} style={{ color }}>{overall}</span>
+            <span className={styles.scoreNumber} style={{ color }}>
+              {overall}
+            </span>
             <span className={styles.scorePercent}>%</span>
           </div>
         </div>

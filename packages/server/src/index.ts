@@ -38,6 +38,7 @@ import { achievementRoutes } from './routes/achievements.js';
 import { bookmarkRoutes } from './routes/bookmarks.js';
 import { noteRoutes } from './routes/notes.js';
 import { authRoutes } from './routes/auth.js';
+import { flashcardRoutes } from './routes/flashcards.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -95,6 +96,7 @@ fastify.register(examRoutes, { prefix: '/api/exams' });
 fastify.register(questionRoutes, { prefix: '/api/questions' });
 fastify.register(progressRoutes, { prefix: '/api/progress' });
 fastify.register(studyRoutes, { prefix: '/api/study' });
+fastify.register(flashcardRoutes, { prefix: '/api/study/flashcards' });
 fastify.register(settingsRoutes, { prefix: '/api/settings' });
 fastify.register(drillRoutes, { prefix: '/api/drills' });
 fastify.register(achievementRoutes, { prefix: '/api/achievements' });

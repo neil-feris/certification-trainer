@@ -51,7 +51,9 @@
 }
 
 .gaugeFill {
-  transition: stroke-dashoffset 0.6s ease-out, stroke 0.3s ease;
+  transition:
+    stroke-dashoffset 0.6s ease-out,
+    stroke 0.3s ease;
 }
 
 .gaugeValue {

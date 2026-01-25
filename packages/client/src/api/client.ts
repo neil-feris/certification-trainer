@@ -50,6 +50,14 @@ import type {
   Note,
   SaveNoteResponse,
   NoteWithQuestion,
+  StartFlashcardSessionRequest,
+  StartFlashcardSessionResponse,
+  GetFlashcardSessionResponse,
+  RateFlashcardRequest,
+  RateFlashcardResponse,
+  CompleteFlashcardSessionRequest,
+  CompleteFlashcardSessionResponse,
+  LastFlashcardSessionResponse,
   ReadinessResponse,
   ReadinessSnapshot,
 } from '@ace-prep/shared';
@@ -481,7 +489,10 @@ export const progressApi = {
     const params = limit ? `?limit=${limit}` : '';
     return request<XPHistoryRecord[]>(`/progress/xp/history${params}`);
   },
-  getReadiness: (certificationId: number, options?: { saveSnapshot?: boolean; include?: string[] }) => {
+  getReadiness: (
+    certificationId: number,
+    options?: { saveSnapshot?: boolean; include?: string[] }
+  ) => {
     const params = new URLSearchParams();
     params.set('certificationId', String(certificationId));
     if (options?.saveSnapshot) params.set('snapshot', 'true');
@@ -689,6 +700,29 @@ export const bookmarksApi = {
     request<CheckBookmarkResponse>(
       `/bookmarks/check?targetType=${targetType}&targetId=${targetId}`
     ),
+};
+
+// Flashcards
+export const flashcardApi = {
+  startSession: (data: StartFlashcardSessionRequest) =>
+    request<StartFlashcardSessionResponse>('/study/flashcards', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getSession: (sessionId: number) =>
+    request<GetFlashcardSessionResponse>(`/study/flashcards/${sessionId}`),
+  rateCard: (sessionId: number, data: RateFlashcardRequest) =>
+    request<RateFlashcardResponse>(`/study/flashcards/${sessionId}/rate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  completeSession: (sessionId: number, data?: CompleteFlashcardSessionRequest) =>
+    request<CompleteFlashcardSessionResponse>(`/study/flashcards/${sessionId}/complete`, {
+      method: 'PATCH',
+      body: JSON.stringify(data || {}),
+    }),
+  getLastSession: () =>
+    request<{ session: LastFlashcardSessionResponse | null }>('/study/flashcards/last-session'),
 };
 
 // Notes
