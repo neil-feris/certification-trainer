@@ -20,6 +20,56 @@ import type {
 
 type DB = BetterSQLite3Database<typeof schemaTypes>;
 
+// =============================================================================
+// In-memory cache with TTL
+// =============================================================================
+
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+type ReadinessResult = { score: ReadinessScore; recommendations: ReadinessRecommendation[] };
+
+const cache = new Map<string, CacheEntry<ReadinessResult>>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCached(key: string): ReadinessResult | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setCache(key: string, value: ReadinessResult): void {
+  cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+/**
+ * Invalidate cached readiness score for a user/certification.
+ * Call this when exam results are submitted or stats change.
+ *
+ * TODO: Wire this up in exam completion flow and study session completion.
+ */
+export function invalidateReadinessCache(userId: number, certificationId: number): void {
+  cache.delete(`readiness:${userId}:${certificationId}`);
+}
+
+/**
+ * Invalidate all cached readiness scores for a user (all certifications).
+ * Useful when bulk stats change.
+ */
+export function invalidateAllReadinessCacheForUser(userId: number): void {
+  for (const key of cache.keys()) {
+    if (key.startsWith(`readiness:${userId}:`)) {
+      cache.delete(key);
+    }
+  }
+}
+
 const COVERAGE_WEIGHT = 0.20;
 const ACCURACY_WEIGHT = 0.50;
 const RECENCY_WEIGHT = 0.20;
@@ -40,12 +90,21 @@ interface DomainStats {
 
 /**
  * Calculate the readiness score for a user on a specific certification.
+ * Results are cached for 5 minutes to reduce database load.
  */
 export async function calculateReadinessScore(
   userId: number,
   certificationId: number,
   db: DB
-): Promise<{ score: ReadinessScore; recommendations: ReadinessRecommendation[] }> {
+): Promise<ReadinessResult> {
+  const cacheKey = `readiness:${userId}:${certificationId}`;
+
+  // Check cache first
+  const cached = getCached(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const { domains, performanceStats } = await import('../db/schema.js');
 
   // Get all domains for this certification
@@ -182,7 +241,12 @@ export async function calculateReadinessScore(
   // Generate recommendations sorted by lowest domain score
   const recommendations = generateRecommendations(domainReadiness);
 
-  return { score, recommendations };
+  const result: ReadinessResult = { score, recommendations };
+
+  // Cache result before returning
+  setCache(cacheKey, result);
+
+  return result;
 }
 
 /**
