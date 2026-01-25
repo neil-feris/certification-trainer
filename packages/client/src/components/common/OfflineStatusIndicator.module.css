@@ -1,0 +1,293 @@
+/* Offline Status Indicator Styles */
+
+.container {
+  position: relative;
+}
+
+/* Indicator Button */
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--border-radius);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.indicator:hover {
+  background: var(--bg-tertiary);
+}
+
+.indicator:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Status States */
+.online {
+  color: var(--success);
+}
+
+.offline {
+  color: var(--warning);
+}
+
+/* Status Icon */
+.statusIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.statusIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Spinning animation for sync icon */
+.spinIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Badge */
+.badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--error);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Label (full variant only) */
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  color: inherit;
+}
+
+/* Variants */
+.compact .label {
+  display: none;
+}
+
+.full {
+  min-width: 90px;
+}
+
+.full .indicator {
+  padding: 8px 12px;
+}
+
+.full .badge {
+  position: static;
+  margin-left: 4px;
+}
+
+/* Panel */
+.panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: slideDown 0.15s ease-out;
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Panel Header */
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.statusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusDotOnline {
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+
+.statusDotOffline {
+  background: var(--warning);
+  box-shadow: 0 0 8px var(--warning);
+}
+
+.statusText {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Panel Body */
+.panelBody {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Status Rows */
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.statusLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.statusValue {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Sync Button */
+.syncButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  margin-top: 4px;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.syncButton:hover:not(:disabled) {
+  background: var(--accent-secondary);
+  transform: translateY(-1px);
+}
+
+.syncButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.syncButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.syncButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Offline Message */
+.offlineMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(255, 171, 0, 0.1);
+  border-radius: var(--border-radius);
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.infoIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Synced Message */
+.syncedMessage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: var(--border-radius);
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.checkIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .panel {
+    position: fixed;
+    top: auto;
+    bottom: 80px; /* Above mobile nav */
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .full {
+    min-width: auto;
+  }
+
+  .full .indicator {
+    padding: 6px 10px;
+  }
+}
