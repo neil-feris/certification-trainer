@@ -189,15 +189,21 @@ export async function progressRoutes(fastify: FastifyInstance) {
     return history;
   });
 
-  // Get readiness score with recommendations and recent history
+  // Get readiness score with optional recommendations and history
+  // Use ?include=recommendations,history to request additional fields
   fastify.get<{
-    Querystring: { certificationId?: string; snapshot?: string };
+    Querystring: { certificationId?: string; snapshot?: string; include?: string };
   }>('/readiness', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
     const userId = parseInt(request.user!.id, 10);
 
-    // Calculate current readiness score
+    // Parse include param to determine which fields to return
+    const includeSet = new Set((request.query.include || '').split(',').filter(Boolean));
+    const includeRecommendations = includeSet.has('recommendations');
+    const includeHistory = includeSet.has('history');
+
+    // Calculate current readiness score (recommendations computed only if needed)
     const { score, recommendations } = await calculateReadinessScore(userId, certId, db);
 
     // Only save snapshot if client explicitly requests it (opt-in for REST idempotency)
@@ -233,33 +239,38 @@ export async function progressRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Fetch recent history (last 10 snapshots for context)
-    const historyRows = await db
-      .select()
-      .from(readinessSnapshots)
-      .where(
-        and(
-          eq(readinessSnapshots.userId, userId),
-          eq(readinessSnapshots.certificationId, certId)
+    // Build response with only requested fields
+    const response: { score: typeof score; recommendations?: typeof recommendations; history?: ReadinessSnapshot[] } = { score };
+
+    if (includeRecommendations) {
+      response.recommendations = recommendations;
+    }
+
+    if (includeHistory) {
+      // Fetch recent history (last 10 snapshots for context)
+      const historyRows = await db
+        .select()
+        .from(readinessSnapshots)
+        .where(
+          and(
+            eq(readinessSnapshots.userId, userId),
+            eq(readinessSnapshots.certificationId, certId)
+          )
         )
-      )
-      .orderBy(desc(readinessSnapshots.calculatedAt))
-      .limit(10);
+        .orderBy(desc(readinessSnapshots.calculatedAt))
+        .limit(10);
 
-    const history: ReadinessSnapshot[] = historyRows.map((row) => ({
-      id: row.id,
-      userId: String(row.userId),
-      certificationId: row.certificationId,
-      overallScore: row.overallScore,
-      domainScoresJson: row.domainScoresJson,
-      calculatedAt: row.calculatedAt.toISOString(),
-    }));
+      response.history = historyRows.map((row) => ({
+        id: row.id,
+        userId: String(row.userId),
+        certificationId: row.certificationId,
+        overallScore: row.overallScore,
+        domainScoresJson: row.domainScoresJson,
+        calculatedAt: row.calculatedAt.toISOString(),
+      }));
+    }
 
-    return {
-      score,
-      recommendations,
-      history,
-    } satisfies ReadinessResponse;
+    return response;
   });
 
   // Get readiness score history for trend visualization

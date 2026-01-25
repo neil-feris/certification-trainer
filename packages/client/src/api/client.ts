@@ -481,10 +481,11 @@ export const progressApi = {
     const params = limit ? `?limit=${limit}` : '';
     return request<XPHistoryRecord[]>(`/progress/xp/history${params}`);
   },
-  getReadiness: (certificationId?: number, saveSnapshot = false) => {
+  getReadiness: (certificationId?: number, options?: { saveSnapshot?: boolean; include?: string[] }) => {
     const params = new URLSearchParams();
     if (certificationId) params.set('certificationId', String(certificationId));
-    if (saveSnapshot) params.set('snapshot', 'true');
+    if (options?.saveSnapshot) params.set('snapshot', 'true');
+    if (options?.include?.length) params.set('include', options.include.join(','));
     const query = params.toString();
     return request<ReadinessResponse>(`/progress/readiness${query ? `?${query}` : ''}`);
   },
