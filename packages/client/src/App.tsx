@@ -10,6 +10,7 @@ import { ExamReview } from './components/exam/ExamReview';
 import { StudyHub } from './components/study/StudyHub';
 import { FlashcardSetup, FlashcardStudy, FlashcardSummary } from './components/study/flashcards';
 import { LearningPathDetail } from './components/study/learning-path/LearningPathDetail';
+import { StudyPlanPage } from './components/study-plan';
 import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
 import { QuestionBrowser } from './components/questions';
@@ -194,6 +195,18 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <LearningPathDetail />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/study-plan"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <StudyPlanPage />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>

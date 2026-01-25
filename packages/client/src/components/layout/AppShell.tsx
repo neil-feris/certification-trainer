@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: '◉' },
   { path: '/exam', label: 'Practice Exam', icon: '◈' },
   { path: '/study', label: 'Study', icon: '◎' },
+  { path: '/study-plan', label: 'Study Plan', icon: '📅' },
   { path: '/case-studies', label: 'Case Studies', icon: '📋', requiresCaseStudies: true },
   { path: '/questions', label: 'Question Bank', icon: '☰' },
   { path: '/progress', label: 'Progress', icon: '◔' },
@@ -225,6 +226,14 @@ export function AppShell({ children }: AppShellProps) {
               >
                 <span className={styles.moreNavIcon}>◈</span>
                 <span>Practice Exam</span>
+              </Link>
+              <Link
+                to="/study-plan"
+                className={styles.moreNavLink}
+                onClick={() => setIsMoreSheetOpen(false)}
+              >
+                <span className={styles.moreNavIcon}>📅</span>
+                <span>Study Plan</span>
               </Link>
               {cachedQuestionCount > 0 && (
                 <div className={styles.moreNavInfo}>
