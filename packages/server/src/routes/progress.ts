@@ -193,7 +193,14 @@ export async function progressRoutes(fastify: FastifyInstance) {
   // Use ?include=recommendations,history to request additional fields
   fastify.get<{
     Querystring: { certificationId?: string; snapshot?: string; include?: string };
-  }>('/readiness', async (request, reply) => {
+  }>('/readiness', {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute'
+      }
+    }
+  }, async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
     const userId = parseInt(request.user!.id, 10);
@@ -276,7 +283,14 @@ export async function progressRoutes(fastify: FastifyInstance) {
   // Get readiness score history for trend visualization
   fastify.get<{
     Querystring: { certificationId?: string; limit?: string };
-  }>('/readiness/history', async (request, reply) => {
+  }>('/readiness/history', {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute'
+      }
+    }
+  }, async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
     const userId = parseInt(request.user!.id, 10);
