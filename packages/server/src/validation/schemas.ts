@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { EXAM_SIZE_OPTIONS, DRILL_QUESTION_COUNTS, DRILL_TIME_LIMITS } from '@ace-prep/shared';
+import {
+  EXAM_SIZE_OPTIONS,
+  DRILL_QUESTION_COUNTS,
+  DRILL_TIME_LIMITS,
+  FLASHCARD_COUNT_OPTIONS,
+} from '@ace-prep/shared';
 
 // ============ Common Schemas ============
 
@@ -249,6 +254,36 @@ export const submitDrillAnswerSchema = z.object({
 export const completeDrillSchema = z.object({
   totalTimeSeconds: z.number().int().min(0),
   timedOut: z.boolean().optional(),
+});
+
+// ============ Flashcard Schemas ============
+
+export const startFlashcardSessionSchema = z.object({
+  certificationId: z.number().int().positive().optional(),
+  domainId: z.number().int().positive().optional(),
+  topicId: z.number().int().positive().optional(),
+  bookmarkedOnly: z.boolean().optional().default(false),
+  count: z
+    .number()
+    .int()
+    .refine((val) => (FLASHCARD_COUNT_OPTIONS as readonly number[]).includes(val), {
+      message: `Card count must be one of: ${FLASHCARD_COUNT_OPTIONS.join(', ')}`,
+    })
+    .optional()
+    .default(20),
+});
+
+export const rateFlashcardSchema = z.object({
+  questionId: z.number().int().positive('Question ID must be a positive integer'),
+  rating: z.enum(['again', 'hard', 'good', 'easy']),
+});
+
+export const completeFlashcardSessionSchema = z.object({
+  totalTimeSeconds: z.number().int().min(0).optional(),
+});
+
+export const sessionIdParamSchema = z.object({
+  sessionId: z.string().regex(/^\d+$/, 'Session ID must be a positive integer').transform(Number),
 });
 
 // ============ Helper for validation errors ============
