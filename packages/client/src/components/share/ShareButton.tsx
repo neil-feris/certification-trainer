@@ -1,27 +1,55 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import html2canvas from 'html2canvas';
+import type { ShareableResult, ShareableDomainScore } from '@ace-prep/shared';
 import { shareApi } from '../../api/client';
 import { showToast } from '../common/Toast';
+import { ShareCard } from './ShareCard';
 import styles from './ShareButton.module.css';
+
+interface DomainPerformance {
+  domain: { id: number; name: string; code?: string };
+  correct: number;
+  total: number;
+  percentage: number;
+}
 
 interface ShareButtonProps {
   examId: number;
   score: number;
   certificationName: string;
+  certificationCode?: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  completedAt: string;
+  domainPerformance: DomainPerformance[];
   className?: string;
 }
 
-type ShareTarget = 'twitter' | 'linkedin' | 'copy';
+type ShareTarget = 'twitter' | 'linkedin' | 'copy' | 'download';
 
 /**
  * ShareButton component with dropdown menu for sharing exam results.
- * Supports Twitter/X, LinkedIn, and copy to clipboard.
+ * Supports Twitter/X, LinkedIn, copy to clipboard, and image download.
  */
-export function ShareButton({ examId, score, certificationName, className }: ShareButtonProps) {
+export function ShareButton({
+  examId,
+  score,
+  certificationName,
+  certificationCode = '',
+  totalQuestions,
+  correctAnswers,
+  completedAt,
+  domainPerformance,
+  className,
+}: ShareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareHash, setShareHash] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const shareCardRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -60,6 +88,7 @@ export function ShareButton({ examId, score, certificationName, className }: Sha
     mutationFn: () => shareApi.createShareLink(examId),
     onSuccess: (data) => {
       setShareUrl(data.shareUrl);
+      setShareHash(data.shareHash);
     },
     onError: () => {
       showToast({
@@ -84,11 +113,18 @@ export function ShareButton({ examId, score, certificationName, className }: Sha
 
   const handleShare = useCallback(
     async (target: ShareTarget) => {
+      // Handle download separately - doesn't need share URL
+      if (target === 'download') {
+        await handleDownloadImage();
+        return;
+      }
+
       // Ensure we have a share URL
       if (!shareUrl && !createShareLinkMutation.isPending) {
         try {
           const result = await createShareLinkMutation.mutateAsync();
           setShareUrl(result.shareUrl);
+          setShareHash(result.shareHash);
           performShare(target, result.shareUrl);
         } catch {
           // Error already handled by mutation onError
@@ -143,7 +179,62 @@ export function ShareButton({ examId, score, certificationName, className }: Sha
     }
   };
 
-  const isLoading = createShareLinkMutation.isPending;
+  const handleDownloadImage = async () => {
+    if (!shareCardRef.current || isDownloading) return;
+
+    setIsDownloading(true);
+    try {
+      const canvas = await html2canvas(shareCardRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+      });
+
+      const link = document.createElement('a');
+      link.download = `ace-exam-${Math.round(score)}%.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      showToast({
+        message: 'Image downloaded successfully!',
+        type: 'success',
+      });
+      setIsOpen(false);
+    } catch {
+      showToast({
+        message: 'Failed to download image. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Build ShareableResult for the ShareCard
+  const shareableResult: ShareableResult = {
+    shareHash: shareHash ?? '',
+    score,
+    passed: score >= 70,
+    certificationCode,
+    certificationName,
+    completedAt,
+    totalQuestions,
+    correctAnswers,
+    domainBreakdown: domainPerformance.map(
+      (dp): ShareableDomainScore => ({
+        domainId: dp.domain.id,
+        domainName: dp.domain.name,
+        domainCode: dp.domain.code ?? '',
+        correctCount: dp.correct,
+        totalCount: dp.total,
+        percentage: dp.percentage,
+      })
+    ),
+    viewCount: 0,
+  };
+
+  const isLoading = createShareLinkMutation.isPending || isDownloading;
 
   return (
     <div className={`${styles.container} ${className ?? ''}`}>
@@ -236,8 +327,33 @@ export function ShareButton({ examId, score, certificationName, className }: Sha
             </svg>
             <span>Copy Link</span>
           </button>
+
+          <button
+            className={styles.dropdownItem}
+            onClick={() => handleShare('download')}
+            role="menuitem"
+            disabled={isDownloading}
+          >
+            <svg
+              className={styles.socialIcon}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>{isDownloading ? 'Downloading...' : 'Download Image'}</span>
+          </button>
         </div>
       )}
+
+      {/* Hidden ShareCard for image capture */}
+      <ShareCard ref={shareCardRef} result={shareableResult} visible={false} />
     </div>
   );
 }

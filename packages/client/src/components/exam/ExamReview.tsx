@@ -70,6 +70,11 @@ export function ExamReview() {
               examId={exam.id}
               score={exam.score ?? 0}
               certificationName={certificationName}
+              certificationCode={certification?.code}
+              totalQuestions={exam.totalQuestions}
+              correctAnswers={exam.correctAnswers}
+              completedAt={exam.completedAt}
+              domainPerformance={domainPerformance}
             />
           )}
           <button className="btn btn-primary" onClick={() => navigate('/exam')}>
