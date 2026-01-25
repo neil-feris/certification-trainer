@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import { createHash } from 'crypto';
 import { db } from '../db/index.js';
 import {
   exams,
@@ -611,24 +610,12 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Only completed exams can be shared' });
     }
 
-    // Check if share already exists for this exam
-    const [existingShare] = await db.select().from(examShares).where(eq(examShares.examId, examId));
-
-    if (existingShare) {
-      // Return existing share link
-      const response: CreateShareLinkResponse = {
-        shareHash: existingShare.shareHash,
-        shareUrl: `/share/exam/${existingShare.shareHash}`,
-        createdAt: existingShare.createdAt.toISOString(),
-      };
-      return response;
-    }
-
     // Generate unique share hash
     const shareHash = randomBytes(16).toString('hex');
 
-    // Create new share record
-    const [newShare] = await db
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If share already exists for this exam, the insert is a no-op
+    await db
       .insert(examShares)
       .values({
         examId,
@@ -636,12 +623,20 @@ export async function examRoutes(fastify: FastifyInstance) {
         viewCount: 0,
         createdAt: new Date(),
       })
-      .returning();
+      .onConflictDoNothing();
+
+    // Fetch the share (either newly inserted or existing)
+    const [share] = await db.select().from(examShares).where(eq(examShares.examId, examId));
+
+    if (!share) {
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create share link' });
+    }
 
     const response: CreateShareLinkResponse = {
-      shareHash: newShare.shareHash,
-      shareUrl: `/share/exam/${newShare.shareHash}`,
-      createdAt: newShare.createdAt.toISOString(),
+      shareHash: share.shareHash,
+      shareUrl: `/share/exam/${share.shareHash}`,
+      createdAt: share.createdAt.toISOString(),
     };
 
     return response;
@@ -691,27 +686,13 @@ export async function examRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Check if certificate already exists
-    const [existingCert] = await db
-      .select()
-      .from(certificates)
-      .where(eq(certificates.examId, examId));
+    // Generate certificate hash using random bytes for unpredictability (fixes security issue #9)
+    // Use randomBytes instead of deterministic SHA256 to prevent hash enumeration
+    const certificateHash = randomBytes(16).toString('hex'); // 32 chars = 128 bits
 
-    if (existingCert) {
-      // Return existing certificate
-      const response: GenerateCertificateResponse = {
-        certificateHash: existingCert.certificateHash,
-        downloadUrl: `/api/certificates/${existingCert.certificateHash}/download`,
-      };
-      return response;
-    }
-
-    // Generate certificate hash from exam_id + score + date
-    const hashInput = `${examId}-${exam.score}-${exam.completedAt?.toISOString() || new Date().toISOString()}`;
-    const certificateHash = createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
-
-    // Create certificate record
-    const [newCert] = await db
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If certificate already exists for this exam, the insert is a no-op
+    await db
       .insert(certificates)
       .values({
         examId,
@@ -721,11 +702,19 @@ export async function examRoutes(fastify: FastifyInstance) {
         score: exam.score,
         issuedAt: new Date(),
       })
-      .returning();
+      .onConflictDoNothing();
+
+    // Fetch the certificate (either newly inserted or existing)
+    const [cert] = await db.select().from(certificates).where(eq(certificates.examId, examId));
+
+    if (!cert) {
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create certificate' });
+    }
 
     const response: GenerateCertificateResponse = {
-      certificateHash: newCert.certificateHash,
-      downloadUrl: `/api/certificates/${newCert.certificateHash}/download`,
+      certificateHash: cert.certificateHash,
+      downloadUrl: `/api/certificates/${cert.certificateHash}/download`,
     };
     return response;
   });
