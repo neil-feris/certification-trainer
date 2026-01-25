@@ -39,6 +39,9 @@ const PRACTICE_TASK_MINUTES = 30; // Time for domain practice
 const REVIEW_TASK_MINUTES = 15; // Time for spaced repetition review
 const DRILL_TASK_MINUTES = 15; // Time for a timed drill
 
+// Maximum plan duration to prevent unbounded memory/DB usage
+const MAX_PLAN_DAYS = 180; // 6 months maximum
+
 // Phase distribution (% of total days)
 const EARLY_PHASE_RATIO = 0.4; // 40% of days - focus on learning
 const MIDDLE_PHASE_RATIO = 0.3; // 30% of days - mixed learning + practice
@@ -73,6 +76,13 @@ export async function generateStudyPlan(
 
   if (totalDays < 1) {
     throw new Error('Target exam date must be in the future');
+  }
+
+  if (totalDays > MAX_PLAN_DAYS) {
+    throw new Error(
+      `Study plan cannot exceed ${MAX_PLAN_DAYS} days (${Math.floor(MAX_PLAN_DAYS / 30)} months). ` +
+        `Please choose a target date within ${MAX_PLAN_DAYS} days.`
+    );
   }
 
   // Get current readiness scores
