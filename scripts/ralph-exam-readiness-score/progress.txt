@@ -1,0 +1,170 @@
+# Ralph Progress Log
+Started: Sun 25 Jan 2026 00:27:50 SAST
+
+## Codebase Patterns
+- All shared types live in a single file: `packages/shared/src/index.ts` (direct exports, no submodules)
+- Build order matters: shared → server → client
+- Use `$HOME/.nvm/versions/node/v22.2.0/bin/node` to bypass shell nvm loading issues in sandbox
+- Server typecheck requires `node_modules` installed (drizzle-orm etc) - pre-existing errors without install
+- Client typecheck works standalone with shared dist built
+- Commit using `git -C <path> commit -m "msg"` to avoid heredoc temp file issues
+- Migrations: raw SQL in `packages/server/src/db/migrations/0NNN_description.sql`, always use `IF NOT EXISTS`
+- Schema type exports: `TypeRecord` (select) and `NewType` (insert) at bottom of schema.ts
+- Timestamps stored as integers with `{ mode: 'timestamp' }`, JSON as `text` columns
+- Services: typed DB param as `BetterSQLite3Database<typeof schemaTypes>`, dynamic schema import
+- `npm install --ignore-scripts` works when native builds fail in sandbox
+- Common UI components: `packages/client/src/components/common/` with `ComponentName.tsx` + `ComponentName.module.css`
+- Dashboard stats grid: `repeat(4, 1fr)`, cards wrap naturally for overflow
+- TanStack Query in dashboard: parallel queries with independent loading states, `staleTime` for infrequent data
+- Page routes: ProtectedRoute > AppShell > RouteErrorBoundary > PageComponent in App.tsx
+- Recharts theming: use CSS variables for stroke/fill colors, `var(--bg-secondary)` for Tooltip contentStyle
+- Certification selector: local state + store sync, dropdown with useRef outside-click handler
+
+---
+
+## 2026-01-25 - US-001
+- Implemented shared TypeScript interfaces for readiness score API contract
+- Added: ConfidenceLevel, DomainReadiness, ReadinessScore, ReadinessRecommendation, ReadinessSnapshot, ReadinessResponse
+- Files changed: `packages/shared/src/index.ts`
+- **Learnings for future iterations:**
+  - Types go at the end of `packages/shared/src/index.ts` grouped by feature with a comment header
+  - No import/export barrel files - everything is flat exported from the single index.ts
+  - Shared package builds with just `tsc` (no bundler)
+---
+
+## 2026-01-25 - US-002
+- Added `readinessSnapshots` Drizzle table definition in `packages/server/src/db/schema.ts`
+- Created SQL migration `packages/server/src/db/migrations/0012_add_readiness_snapshots.sql`
+- Table columns: id, user_id, certification_id, overall_score, domain_scores_json, calculated_at
+- Indexes on user_id, certification_id, and calculated_at for efficient querying
+- Added type exports: `ReadinessSnapshotRecord`, `NewReadinessSnapshot`
+- Files changed: `packages/server/src/db/schema.ts`, `packages/server/src/db/migrations/0012_add_readiness_snapshots.sql`
+- **Learnings for future iterations:**
+  - Schema table definitions use `sqliteTable` with a tuple-returning function for indexes
+  - Migrations use raw SQL with `IF NOT EXISTS` for idempotency
+  - Migration naming: `0NNN_description.sql` (sequential numbering)
+  - Type exports at bottom of schema.ts follow pattern: `Record` for select, `New` for insert
+  - Timestamps use `integer('col_name', { mode: 'timestamp' })` pattern
+  - JSON stored as `text` column with a descriptive comment
+---
+
+## 2026-01-25 - US-003
+- Implemented readiness score calculation service at `packages/server/src/services/readinessService.ts`
+- Algorithm: Coverage (20%) + Accuracy (50%) + Recency (20%) + Volume (10%)
+- Per-domain breakdown with individual component scores
+- Confidence levels: low (<5 domains attempted), medium (5+ but <10 per), high (10+ per domain)
+- Generates actionable recommendations sorted by lowest domain score
+- Files changed: `packages/server/src/services/readinessService.ts`
+- **Learnings for future iterations:**
+  - Services use dynamic `import('../db/schema.js')` for schema access when db is passed as param
+  - DB type: `BetterSQLite3Database<typeof schemaTypes>` for typed Drizzle instance
+  - `performanceStats` table aggregates totalAttempts/correctAttempts per domain per user (may have multiple rows per domain if topic-level)
+  - Use `sql.raw()` for IN clause with computed values
+  - `npm install --ignore-scripts` bypasses native build issues in sandbox
+---
+
+## 2026-01-25 - US-004
+- Implemented GET /api/progress/readiness?certificationId=X endpoint in progress routes
+- Returns ReadinessResponse with score, domain breakdown, recommendations, and history
+- Debounced snapshot saving: checks last snapshot timestamp, only saves if >1 hour old
+- Fetches last 10 history snapshots for trend context
+- Recommendations come pre-sorted by lowest domain score from the service
+- Files changed: `packages/server/src/routes/progress.ts`
+- **Learnings for future iterations:**
+  - Progress routes use `parseCertificationIdFromQuery` helper for cert ID validation
+  - `authenticate` middleware is applied as a preHandler hook to all routes in the file
+  - Routes use `satisfies` keyword for type-safe return values
+  - `readinessSnapshots.calculatedAt` uses `{ mode: 'timestamp' }` so comparisons work with Date objects
+  - userId from `request.user!.id` is a string, needs `parseInt` for DB queries
+---
+
+## 2026-01-25 - US-005
+- Implemented GET /api/progress/readiness/history?certificationId=X&limit=30 endpoint
+- Returns array of ReadinessSnapshot ordered by calculatedAt desc
+- Default limit 30, max 90
+- Reuses same mapping pattern as the /readiness endpoint's inline history fetch
+- Files changed: `packages/server/src/routes/progress.ts`
+- **Learnings for future iterations:**
+  - History endpoints follow the same limit pattern: default N, max M, parsed from query string
+  - The readiness route already has inline history (10 items) - dedicated endpoint provides configurable access
+  - Route ordering matters in Fastify: `/readiness/history` must be registered before parameterized routes on `/readiness`
+---
+
+## 2026-01-25 - US-006
+- Added `getReadiness(certificationId)` and `getReadinessHistory(certificationId, limit)` methods to `progressApi`
+- Imported `ReadinessResponse` and `ReadinessSnapshot` types from `@ace-prep/shared`
+- Files changed: `packages/client/src/api/client.ts`
+- **Learnings for future iterations:**
+  - API client methods go inside the relevant domain object (`progressApi`, `studyApi`, etc.) not as standalone exports
+  - Use `URLSearchParams` for methods with multiple optional query params, simple ternary for single param
+  - Types from shared package are imported at the top of client.ts alongside other type imports
+  - `request<T>()` generic determines the return type - use shared interfaces directly
+---
+
+## 2026-01-25 - US-007
+- Created ReadinessWidget component with SVG circular progress gauge
+- Color-coded score: red (<50%), yellow (50-70%), green (>70%)
+- Confidence badge with data-level attribute for CSS styling
+- Top 3 domains shown as mini progress bars (sorted by weight)
+- View Details button navigates to /readiness
+- Loading state with placeholder gauge, empty state with hint text
+- Integrated into Dashboard stats grid with TanStack Query (5min staleTime)
+- Files changed: `packages/client/src/components/common/ReadinessWidget.tsx`, `packages/client/src/components/common/ReadinessWidget.module.css`, `packages/client/src/components/dashboard/Dashboard.tsx`
+- **Learnings for future iterations:**
+  - SVG circular gauge: use `stroke-dasharray` = circumference, `stroke-dashoffset` = remaining. Rotate -90deg for top start.
+  - Dashboard stats grid is `repeat(4, 1fr)` - cards wrap naturally, no CSS change needed for additions
+  - `color-mix(in srgb, var(--color) 15%, transparent)` works for tinted backgrounds in CSS
+  - `staleTime: 300000` (5min) is appropriate for readiness scores since they change infrequently
+  - Common components go in `packages/client/src/components/common/` with paired `.module.css`
+---
+
+## 2026-01-25 - US-008
+- Created ReadinessPage component at `packages/client/src/components/progress/ReadinessPage.tsx`
+- Route `/readiness` added to App.tsx with ProtectedRoute + AppShell pattern
+- Full domain breakdown table with columns: domain name, weight, score, accuracy, coverage, recency
+- Domains color-coded by score (red <50%, yellow 50-70%, green >70%)
+- Historical readiness line chart using Recharts LineChart with ReferenceLine at 70%
+- Certification selector dropdown (follows PerformanceTrendsChart filter pattern)
+- Score overview section with SVG circular gauge (larger than widget version)
+- Confidence badge, domain coverage count, total attempts, last updated metadata
+- Loading and empty states handled
+- Recommendations preview (max 5) shown at bottom
+- Mobile responsive with grid collapse at 768px
+- Files changed: `packages/client/src/components/progress/ReadinessPage.tsx`, `packages/client/src/components/progress/ReadinessPage.module.css`, `packages/client/src/App.tsx`
+- **Learnings for future iterations:**
+  - Page components go in feature directories (`components/progress/`) not in a `pages/` dir
+  - Routes added in App.tsx follow exact pattern: ProtectedRoute > AppShell > RouteErrorBoundary > Component
+  - Certification selector: local state synced from store, dropdown with outside-click-close pattern (useRef + useEffect)
+  - Chart uses `history` endpoint with 30 items, sorts oldest-first for left-to-right chronological display
+  - ReferenceLine at 70% with dashed stroke follows existing PerformanceTrendsChart pattern exactly
+  - `score.overall` is 0-1 float, multiply by 100 for display percentage
+---
+
+## 2026-01-25 - US-009
+- Added Recommendations section on ReadinessPage with "Practice Now" buttons
+- Each recommendation shows domain name, action text, current score, and a styled CTA button
+- Button navigates to `/study?domainId={domainId}` for deep-linking
+- StudyHub reads `domainId` query param via `useSearchParams`, switches to 'domains' tab
+- DomainList accepts `highlightDomainId` prop, passes `initialExpanded` to DomainCard
+- DomainCard accepts `initialExpanded` prop (defaults to true for backward compatibility)
+- When navigating from readiness, only the targeted domain is expanded; others collapsed
+- Max 5 recommendations shown (slice)
+- Files changed: `packages/client/src/components/progress/ReadinessPage.tsx`, `packages/client/src/components/progress/ReadinessPage.module.css`, `packages/client/src/components/study/StudyHub.tsx`, `packages/client/src/components/study/domains/DomainList.tsx`, `packages/client/src/components/study/domains/DomainCard.tsx`
+- **Learnings for future iterations:**
+  - `useSearchParams` from react-router-dom for reading URL query params in existing routes
+  - Clear query params after reading with `setSearchParams({}, { replace: true })` to avoid re-triggering
+  - DomainCard previously hardcoded `isExpanded=true`; parameterized via `initialExpanded` prop
+  - Navigation with query params: `navigate('/study?domainId=5')` pattern
+---
+
+## 2026-01-25 - US-010
+- Added "Readiness" nav item to AppShell's NAV_ITEMS array (icon: ◐)
+- Placed after "Progress" in nav order for logical grouping
+- Dashboard widget already renders in stats grid (done in US-007)
+- Page title "Exam Readiness" already set in ReadinessPage header (done in US-008)
+- Files changed: `packages/client/src/components/layout/AppShell.tsx`
+- **Learnings for future iterations:**
+  - Nav items use unicode characters as icons (not SVG components)
+  - Adding a nav item is just appending to the NAV_ITEMS array - no other config needed
+  - Nav grouping is implicit via ordering, no sub-nav/folder structure exists
+---

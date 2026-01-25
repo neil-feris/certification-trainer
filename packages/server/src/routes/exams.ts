@@ -21,6 +21,7 @@ import {
   type AchievementContext,
 } from '../services/achievementService.js';
 import { XP_AWARDS, type XPAwardResponse, type AchievementUnlockResponse } from '@ace-prep/shared';
+import { invalidateReadinessCache } from '../services/readinessService.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -462,6 +463,9 @@ export async function examRoutes(fastify: FastifyInstance) {
         'Failed to check achievements after exam completion'
       );
     }
+
+    // Invalidate readiness cache so next fetch reflects updated stats
+    invalidateReadinessCache(userId, txResult.exam.certificationId);
 
     return {
       ...txResult.exam,

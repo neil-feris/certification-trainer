@@ -50,6 +50,8 @@ import type {
   Note,
   SaveNoteResponse,
   NoteWithQuestion,
+  ReadinessResponse,
+  ReadinessSnapshot,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -478,6 +480,20 @@ export const progressApi = {
   getXpHistory: (limit?: number) => {
     const params = limit ? `?limit=${limit}` : '';
     return request<XPHistoryRecord[]>(`/progress/xp/history${params}`);
+  },
+  getReadiness: (certificationId: number, options?: { saveSnapshot?: boolean; include?: string[] }) => {
+    const params = new URLSearchParams();
+    params.set('certificationId', String(certificationId));
+    if (options?.saveSnapshot) params.set('snapshot', 'true');
+    if (options?.include?.length) params.set('include', options.include.join(','));
+    const query = params.toString();
+    return request<ReadinessResponse>(`/progress/readiness${query ? `?${query}` : ''}`);
+  },
+  getReadinessHistory: (certificationId: number, limit?: number) => {
+    const params = new URLSearchParams();
+    params.set('certificationId', String(certificationId));
+    if (limit) params.set('limit', String(limit));
+    return request<ReadinessSnapshot[]>(`/progress/readiness/history?${params}`);
   },
 };
 
