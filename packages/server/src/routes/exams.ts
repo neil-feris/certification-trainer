@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { createHash } from 'crypto';
 import { db } from '../db/index.js';
 import {
   exams,
@@ -749,18 +750,35 @@ export async function examRoutes(fastify: FastifyInstance) {
       completedAt,
     } = request.body;
 
-    // Check for duplicate submission by offlineExamId
-    // We store the offlineExamId in a metadata field to detect duplicates
+    // Generate content hash for secondary deduplication
+    // This catches duplicates even if offlineExamId is lost (e.g., app restart)
+    const contentForHash = {
+      certificationId,
+      questionIds: submittedQuestions.map((q) => q.questionId).sort(),
+      startedAt,
+    };
+    const contentHash = createHash('sha256')
+      .update(JSON.stringify(contentForHash))
+      .digest('hex')
+      .substring(0, 32);
+
+    // Check for duplicate submission by offlineExamId OR content hash
+    // offlineExamId can be lost on app restart, so content hash is backup
     const [existingExam] = await db
       .select()
       .from(exams)
-      .where(and(eq(exams.userId, userId), eq(exams.offlineExamId, offlineExamId)))
+      .where(
+        and(
+          eq(exams.userId, userId),
+          sql`(${exams.offlineExamId} = ${offlineExamId} OR ${exams.contentHash} = ${contentHash})`
+        )
+      )
       .limit(1);
 
     if (existingExam) {
       // Already synced - return existing result (idempotent)
       fastify.log.info(
-        { userId, offlineExamId, existingExamId: existingExam.id },
+        { userId, offlineExamId, contentHash, existingExamId: existingExam.id },
         'Duplicate offline exam submission detected - returning existing result'
       );
 
@@ -840,6 +858,7 @@ export async function examRoutes(fastify: FastifyInstance) {
         score,
         status: 'completed',
         offlineExamId, // Store for duplicate detection
+        contentHash, // Secondary deduplication via content hash
       })
       .returning();
 
