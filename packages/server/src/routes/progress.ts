@@ -201,29 +201,32 @@ export async function progressRoutes(fastify: FastifyInstance) {
     const { score, recommendations } = await calculateReadinessScore(userId, certId, db);
 
     // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
+    // Wrapped in transaction to prevent race condition with concurrent requests
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const [lastSnapshot] = await db
-      .select({ calculatedAt: readinessSnapshots.calculatedAt })
-      .from(readinessSnapshots)
-      .where(
-        and(
-          eq(readinessSnapshots.userId, userId),
-          eq(readinessSnapshots.certificationId, certId)
+    await db.transaction(async (tx) => {
+      const [lastSnapshot] = await tx
+        .select({ calculatedAt: readinessSnapshots.calculatedAt })
+        .from(readinessSnapshots)
+        .where(
+          and(
+            eq(readinessSnapshots.userId, userId),
+            eq(readinessSnapshots.certificationId, certId)
+          )
         )
-      )
-      .orderBy(desc(readinessSnapshots.calculatedAt))
-      .limit(1);
+        .orderBy(desc(readinessSnapshots.calculatedAt))
+        .limit(1);
 
-    const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
-    if (shouldSave) {
-      await db.insert(readinessSnapshots).values({
-        userId,
-        certificationId: certId,
-        overallScore: score.overall,
-        domainScoresJson: JSON.stringify(score.domains),
-        calculatedAt: new Date(),
-      });
-    }
+      const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
+      if (shouldSave) {
+        await tx.insert(readinessSnapshots).values({
+          userId,
+          certificationId: certId,
+          overallScore: score.overall,
+          domainScoresJson: JSON.stringify(score.domains),
+          calculatedAt: new Date(),
+        });
+      }
+    });
 
     // Fetch recent history (last 10 snapshots for context)
     const historyRows = await db
