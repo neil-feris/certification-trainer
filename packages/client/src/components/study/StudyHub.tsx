@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useStudyStore } from '../../stores/studyStore';
 import { useDrillStore } from '../../stores/drillStore';
@@ -18,9 +19,18 @@ import styles from './StudyHub.module.css';
 type Tab = 'path' | 'domains' | 'practice' | 'drills' | 'flashcards' | 'summaries';
 
 export function StudyHub() {
-  const [activeTab, setActiveTab] = useState<Tab>('path');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const domainIdParam = searchParams.get('domainId');
+  const [activeTab, setActiveTab] = useState<Tab>(domainIdParam ? 'domains' : 'path');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const hasCachedRef = useRef(false);
+
+  // Clear domainId param after reading it (prevents re-triggering on tab switch)
+  useEffect(() => {
+    if (domainIdParam) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [domainIdParam, setSearchParams]);
 
   const {
     sessionId,
@@ -167,7 +177,12 @@ export function StudyHub() {
 
       <div className={styles.content}>
         {activeTab === 'path' && <LearningPathList />}
-        {activeTab === 'domains' && <DomainList onStartPractice={handleStartPractice} />}
+        {activeTab === 'domains' && (
+          <DomainList
+            onStartPractice={handleStartPractice}
+            highlightDomainId={domainIdParam ? parseInt(domainIdParam, 10) : undefined}
+          />
+        )}
         {activeTab === 'drills' && <DrillHub />}
         {activeTab === 'flashcards' && <FlashcardHub />}
         {activeTab === 'summaries' && <SummaryBrowser />}

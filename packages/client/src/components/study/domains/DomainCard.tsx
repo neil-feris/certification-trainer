@@ -17,10 +17,11 @@ interface DomainCardProps {
     }>;
   };
   onStartPractice: (topicId: number, domainId: number) => void;
+  initialExpanded?: boolean;
 }
 
-export function DomainCard({ domain, onStartPractice }: DomainCardProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+export function DomainCard({ domain, onStartPractice, initialExpanded = true }: DomainCardProps) {
+  const [isExpanded, setIsExpanded] = useState(initialExpanded);
 
   return (
     <div className={styles.domainCard}>

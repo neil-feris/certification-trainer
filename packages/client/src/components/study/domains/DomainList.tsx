@@ -6,9 +6,10 @@ import styles from './Domains.module.css';
 
 interface DomainListProps {
   onStartPractice: (topicId: number, domainId: number) => void;
+  highlightDomainId?: number;
 }
 
-export function DomainList({ onStartPractice }: DomainListProps) {
+export function DomainList({ onStartPractice, highlightDomainId }: DomainListProps) {
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
@@ -36,7 +37,12 @@ export function DomainList({ onStartPractice }: DomainListProps) {
 
       <div className={styles.domainList}>
         {domains.map((domain: any) => (
-          <DomainCard key={domain.id} domain={domain} onStartPractice={onStartPractice} />
+          <DomainCard
+            key={domain.id}
+            domain={domain}
+            onStartPractice={onStartPractice}
+            initialExpanded={highlightDomainId ? domain.id === highlightDomainId : true}
+          />
         ))}
       </div>
     </div>

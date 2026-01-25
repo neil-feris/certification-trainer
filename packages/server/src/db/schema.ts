@@ -214,6 +214,35 @@ export const performanceStats = sqliteTable(
   (table) => [
     index('stats_domain_idx').on(table.domainId),
     index('stats_user_idx').on(table.userId),
+    // Composite index for readiness query: WHERE userId = ? AND domainId IN (...)
+    index('stats_user_domain_idx').on(table.userId, table.domainId),
+  ]
+);
+
+// Readiness score snapshots (historical tracking)
+export const readinessSnapshots = sqliteTable(
+  'readiness_snapshots',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    overallScore: real('overall_score').notNull(),
+    domainScoresJson: text('domain_scores_json').notNull(), // JSON object of domain scores
+    calculatedAt: integer('calculated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    // Composite index for primary query: WHERE user_id = ? AND certification_id = ? ORDER BY calculated_at DESC
+    index('readiness_snapshots_user_cert_calc_idx').on(
+      table.userId,
+      table.certificationId,
+      table.calculatedAt
+    ),
+    // Single-column index for cleanup/maintenance queries by date
+    index('readiness_snapshots_calculated_idx').on(table.calculatedAt),
   ]
 );
 
@@ -574,3 +603,5 @@ export type FlashcardSessionRecord = typeof flashcardSessions.$inferSelect;
 export type NewFlashcardSession = typeof flashcardSessions.$inferInsert;
 export type FlashcardSessionRatingRecord = typeof flashcardSessionRatings.$inferSelect;
 export type NewFlashcardSessionRating = typeof flashcardSessionRatings.$inferInsert;
+export type ReadinessSnapshotRecord = typeof readinessSnapshots.$inferSelect;
+export type NewReadinessSnapshot = typeof readinessSnapshots.$inferInsert;

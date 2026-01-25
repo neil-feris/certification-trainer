@@ -9,14 +9,21 @@ import {
   performanceStats,
   certifications,
   xpHistory,
+  readinessSnapshots,
 } from '../db/schema.js';
 import { eq, sql, desc, and } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
-import type { Granularity, TrendDataPoint, TrendsResponse } from '@ace-prep/shared';
+import type {
+  Granularity,
+  TrendDataPoint,
+  TrendsResponse,
+  ReadinessSnapshot,
+} from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { getStreak } from '../services/streakService.js';
 import { getXP } from '../services/xpService.js';
+import { calculateReadinessScore } from '../services/readinessService.js';
 
 /**
  * Calculate ISO 8601 week number.
@@ -186,6 +193,155 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     return history;
   });
+
+  // Get readiness score with optional recommendations and history
+  // Use ?include=recommendations,history to request additional fields
+  fastify.get<{
+    Querystring: { certificationId?: string; snapshot?: string; include?: string };
+  }>(
+    '/readiness',
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
+      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+      if (certId === null) return;
+      const userId = parseInt(request.user!.id, 10);
+
+      // Parse include param to determine which fields to return
+      const includeSet = new Set((request.query.include || '').split(',').filter(Boolean));
+      const includeRecommendations = includeSet.has('recommendations');
+      const includeHistory = includeSet.has('history');
+
+      // Calculate current readiness score (recommendations computed only if needed)
+      const { score, recommendations } = await calculateReadinessScore(userId, certId, db);
+
+      // Only save snapshot if client explicitly requests it (opt-in for REST idempotency)
+      const shouldAttemptSave = request.query.snapshot === 'true';
+
+      if (shouldAttemptSave) {
+        // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
+        // Wrapped in transaction to prevent race condition with concurrent requests
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        await db.transaction(async (tx) => {
+          const [lastSnapshot] = await tx
+            .select({ calculatedAt: readinessSnapshots.calculatedAt })
+            .from(readinessSnapshots)
+            .where(
+              and(
+                eq(readinessSnapshots.userId, userId),
+                eq(readinessSnapshots.certificationId, certId)
+              )
+            )
+            .orderBy(desc(readinessSnapshots.calculatedAt))
+            .limit(1);
+
+          const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
+          if (shouldSave) {
+            await tx.insert(readinessSnapshots).values({
+              userId,
+              certificationId: certId,
+              overallScore: score.overall,
+              domainScoresJson: JSON.stringify(score.domains),
+              calculatedAt: new Date(),
+            });
+          }
+        });
+      }
+
+      // Build response with only requested fields
+      const response: {
+        score: typeof score;
+        recommendations?: typeof recommendations;
+        history?: ReadinessSnapshot[];
+      } = { score };
+
+      if (includeRecommendations) {
+        response.recommendations = recommendations;
+      }
+
+      if (includeHistory) {
+        // Fetch recent history (last 10 snapshots for context)
+        const historyRows = await db
+          .select()
+          .from(readinessSnapshots)
+          .where(
+            and(
+              eq(readinessSnapshots.userId, userId),
+              eq(readinessSnapshots.certificationId, certId)
+            )
+          )
+          .orderBy(desc(readinessSnapshots.calculatedAt))
+          .limit(10);
+
+        response.history = historyRows.map((row) => ({
+          id: row.id,
+          userId: row.userId,
+          certificationId: row.certificationId,
+          overallScore: row.overallScore,
+          domainScoresJson: row.domainScoresJson,
+          calculatedAt: row.calculatedAt.toISOString(),
+        }));
+      }
+
+      return response;
+    }
+  );
+
+  // Get readiness score history for trend visualization
+  fastify.get<{
+    Querystring: { certificationId?: string; limit?: string };
+  }>(
+    '/readiness/history',
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
+      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+      if (certId === null) return;
+      const userId = parseInt(request.user!.id, 10);
+
+      // Default 30, max 90
+      let limit = 30;
+      const limitStr = request.query.limit;
+      if (limitStr) {
+        const parsed = parseInt(limitStr, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          limit = Math.min(parsed, 90);
+        }
+      }
+
+      const historyRows = await db
+        .select()
+        .from(readinessSnapshots)
+        .where(
+          and(eq(readinessSnapshots.userId, userId), eq(readinessSnapshots.certificationId, certId))
+        )
+        .orderBy(desc(readinessSnapshots.calculatedAt))
+        .limit(limit);
+
+      const history: ReadinessSnapshot[] = historyRows.map((row) => ({
+        id: row.id,
+        userId: row.userId,
+        certificationId: row.certificationId,
+        overallScore: row.overallScore,
+        domainScoresJson: row.domainScoresJson,
+        calculatedAt: row.calculatedAt.toISOString(),
+      }));
+
+      return history;
+    }
+  );
 
   // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(

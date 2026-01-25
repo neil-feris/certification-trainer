@@ -1,0 +1,165 @@
+{
+  "project": "ace-prep",
+  "feature": "exam-readiness-score",
+  "branchName": "ralph/exam-readiness-score",
+  "description": "Predict exam pass likelihood with weighted domain analysis, actionable recommendations, and historical trend tracking",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Shared Types & Interfaces",
+      "description": "As a developer, I need TypeScript interfaces for the readiness score API contract so frontend and backend stay in sync.",
+      "acceptanceCriteria": [
+        "ReadinessScore interface with overall score, domain breakdown, confidence level",
+        "DomainReadiness interface with domain info, score, coverage, accuracy, recency, volume metrics",
+        "ReadinessRecommendation interface with domain, action text, priority",
+        "ReadinessSnapshot interface for historical data points",
+        "ReadinessResponse wrapping score + recommendations + history",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Readiness Snapshots Schema",
+      "description": "As a developer, I need a database table to store historical readiness score snapshots for trend visualization.",
+      "acceptanceCriteria": [
+        "readinessSnapshots table with: id, userId, certificationId, overallScore, domainScoresJson, calculatedAt",
+        "Drizzle schema definition follows existing patterns in schema.ts",
+        "Migration generated and runnable",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Readiness Score Calculation Service",
+      "description": "As a developer, I need a service that calculates the readiness score using the weighted algorithm (coverage 20%, accuracy 50%, recency 20%, volume 10%).",
+      "acceptanceCriteria": [
+        "calculateReadinessScore(userId, certificationId, db) function",
+        "Coverage component: proportion of domains with 10+ attempts",
+        "Accuracy component: weighted average of domain accuracies (by domain.weight)",
+        "Recency component: exponential decay e^(-days/30) on last attempt per domain",
+        "Volume component: ratio of attempts vs threshold (capped at 1.0)",
+        "Per-domain breakdown with individual component scores",
+        "Confidence level: low (<5 domains attempted), medium (5+ but <10 per), high (10+ per domain)",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Readiness API Endpoint",
+      "description": "As a user, I want to fetch my exam readiness score so I can see how prepared I am.",
+      "acceptanceCriteria": [
+        "GET /api/progress/readiness?certificationId=X endpoint",
+        "Returns ReadinessResponse with score, domain breakdown, recommendations",
+        "Saves snapshot to readinessSnapshots table on each request (debounced: max 1 per hour)",
+        "Recommendations sorted by priority (lowest domain score first)",
+        "Each recommendation includes domainId for actionable navigation",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Readiness History Endpoint",
+      "description": "As a user, I want to see my readiness score trend over time.",
+      "acceptanceCriteria": [
+        "GET /api/progress/readiness/history?certificationId=X&limit=30 endpoint",
+        "Returns array of ReadinessSnapshot ordered by date desc",
+        "Default limit 30, max 90",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Frontend API Client Methods",
+      "description": "As a frontend developer, I need API client methods to fetch readiness data.",
+      "acceptanceCriteria": [
+        "progressApi.getReadiness(certificationId) method",
+        "progressApi.getReadinessHistory(certificationId, limit) method",
+        "Proper TypeScript typing with shared interfaces",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Dashboard Readiness Widget",
+      "description": "As a user, I want to see my readiness score on the dashboard at a glance with a visual indicator.",
+      "acceptanceCriteria": [
+        "Circular progress gauge showing 0-100% score",
+        "Color-coded: red (<50%), yellow (50-70%), green (>70%)",
+        "Shows confidence indicator (low/medium/high)",
+        "Top 3 domain scores shown as mini progress bars",
+        "View Details link navigates to readiness page",
+        "Loading/empty states handled",
+        "Follows existing dashboard card styling patterns",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Readiness Detail Page",
+      "description": "As a user, I want a dedicated page showing full readiness breakdown with domain details and historical trend.",
+      "acceptanceCriteria": [
+        "Route: /readiness accessible from dashboard widget and nav",
+        "Full domain breakdown table: domain name, weight, accuracy, coverage, recency, domain score",
+        "Domains color-coded by score",
+        "Historical readiness line chart (Recharts, follows PerformanceTrendsChart pattern)",
+        "Reference line at 70% (passing threshold)",
+        "Certification selector (follows existing pattern)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Actionable Recommendations",
+      "description": "As a user, I want Practice Now buttons on weak domains that navigate me directly to a study session for that domain.",
+      "acceptanceCriteria": [
+        "Recommendations section on readiness page",
+        "Each recommendation shows domain name, current score, and Practice Now button",
+        "Button navigates to /study with domainId query param pre-set",
+        "Study page reads domainId from URL and pre-selects that domain",
+        "Max 5 recommendations shown",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Navigation & Integration",
+      "description": "As a user, I want to access the readiness page from the main navigation.",
+      "acceptanceCriteria": [
+        "Nav link or sub-nav item for Readiness under progress/analytics",
+        "Dashboard widget renders in the stats section",
+        "Page title and breadcrumb correct",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}
