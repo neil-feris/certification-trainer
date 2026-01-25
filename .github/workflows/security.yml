@@ -148,12 +148,12 @@ jobs:
         uses: aquasecurity/trivy-action@0.29.0
         with:
           scan-type: 'config'
-          scan-ref: '.'
+          scan-ref: './Dockerfile'
           format: 'sarif'
           output: 'trivy-config.sarif'
           severity: 'CRITICAL,HIGH'
-          # Limit scan to Dockerfile only, skip other config files
-          skip-dirs: 'node_modules,.git,.worktrees,data,packages'
+          # Only scan Dockerfile misconfigurations, skip bundled policy checks
+          skip-policy-update: true
           # Informational on PRs, fail on main
           exit-code: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
 

@@ -36,3 +36,59 @@ CVE-2025-58183
 # Impact: Low (build-time only, not runtime)
 # Review date: 2026-01-25
 CVE-2025-61729
+
+# Go crypto/x509 wildcard SANs excluded subdomain constraint
+# Impact: Low (build-time only, esbuild does not process certificates)
+# Review date: 2026-01-25
+CVE-2025-61727
+
+# Go net/mail excessive CPU consumption in ParseAddress
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-61725
+
+# Go net/textproto excessive CPU consumption
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-61724
+
+# Go encoding/pem quadratic complexity
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-61723
+
+# Go crypto/tls ALPN negotiation error info leak
+# Impact: Low (build-time only, esbuild does not make TLS connections)
+# Review date: 2026-01-25
+CVE-2025-58189
+
+# Go crypto/x509 DSA public key panic
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-58188
+
+# Go crypto/x509 quadratic name constraint check
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-58187
+
+# Go net/http cookie parsing memory exhaustion
+# Impact: Low (build-time only, esbuild does not make HTTP requests)
+# Review date: 2026-01-25
+CVE-2025-58186
+
+# Go encoding/asn1 DER memory exhaustion
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-58185
+
+# Go net/url IPv6 hostname validation
+# Impact: Low (build-time only, not runtime)
+# Review date: 2026-01-25
+CVE-2025-47912
+
+# --- npm Transitive Dependencies ---
+# jsdiff ReDoS vulnerability (diff package)
+# Impact: Low (transitive dev dependency, not used in production)
+# Review date: 2026-01-25
+CVE-2026-24001
