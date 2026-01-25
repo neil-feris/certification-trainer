@@ -8,6 +8,8 @@ import {
   certifications,
   caseStudies,
   bookmarks,
+  qotdSelections,
+  qotdResponses,
 } from '../db/schema.js';
 import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull, isNotNull } from 'drizzle-orm';
 import { generateQuestions, fetchCaseStudyById } from '../services/questionGenerator.js';
@@ -25,6 +27,9 @@ import type {
   PaginatedResponse,
   QuestionWithDomain,
   QuestionFilterOptions,
+  QotdResponse,
+  QotdCompletionRequest,
+  QotdCompletionResponse,
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
@@ -627,5 +632,250 @@ export async function questionRoutes(fastify: FastifyInstance) {
       xpUpdate,
       achievementsUnlocked,
     };
+  });
+
+  // ============ QUESTION OF THE DAY ENDPOINTS ============
+
+  /**
+   * Get today's Question of the Day for a certification.
+   * Uses deterministic selection based on date hash if no explicit selection exists.
+   */
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/qotd', async (request, reply) => {
+    const certificationId = request.query.certificationId
+      ? parseInt(request.query.certificationId, 10)
+      : undefined;
+
+    if (!certificationId || isNaN(certificationId)) {
+      return reply.status(400).send({ error: 'certificationId is required' });
+    }
+
+    const userId = parseInt(request.user!.id, 10);
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Check if there's an existing selection for today
+    let selection = await db
+      .select()
+      .from(qotdSelections)
+      .where(
+        and(
+          eq(qotdSelections.certificationId, certificationId),
+          eq(qotdSelections.dateServed, today)
+        )
+      )
+      .get();
+
+    if (!selection) {
+      // No selection for today - create one using deterministic hash
+      // Get all question IDs for this certification
+      const certQuestions = await db
+        .select({ id: questions.id })
+        .from(questions)
+        .innerJoin(domains, eq(questions.domainId, domains.id))
+        .where(eq(domains.certificationId, certificationId));
+
+      if (certQuestions.length === 0) {
+        return reply.status(404).send({ error: 'No questions available for this certification' });
+      }
+
+      // Deterministic selection using date hash
+      // Simple hash: sum of character codes in date string modulo question count
+      const dateHash = today.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const selectedIndex = dateHash % certQuestions.length;
+      const selectedQuestionId = certQuestions[selectedIndex].id;
+
+      // Insert the selection
+      const [newSelection] = await db
+        .insert(qotdSelections)
+        .values({
+          certificationId,
+          questionId: selectedQuestionId,
+          dateServed: today,
+          createdAt: new Date(),
+        })
+        .returning();
+
+      selection = newSelection;
+    }
+
+    // Fetch the question with domain and topic
+    const [questionData] = await db
+      .select({
+        question: questions,
+        domain: domains,
+        topic: topics,
+      })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .innerJoin(topics, eq(questions.topicId, topics.id))
+      .where(eq(questions.id, selection.questionId));
+
+    if (!questionData) {
+      return reply.status(404).send({ error: 'Question not found' });
+    }
+
+    // Check if user has already completed today's question
+    const userResponse = await db
+      .select()
+      .from(qotdResponses)
+      .where(and(eq(qotdResponses.userId, userId), eq(qotdResponses.qotdSelectionId, selection.id)))
+      .get();
+
+    const response: QotdResponse = {
+      date: today,
+      question: {
+        id: questionData.question.id,
+        questionText: questionData.question.questionText,
+        questionType: questionData.question.questionType as 'single' | 'multiple',
+        options: JSON.parse(questionData.question.options as string),
+        difficulty: questionData.question.difficulty as 'easy' | 'medium' | 'hard',
+        domain: {
+          id: questionData.domain.id,
+          name: questionData.domain.name,
+          code: questionData.domain.code,
+        },
+        topic: {
+          id: questionData.topic.id,
+          name: questionData.topic.name,
+        },
+      },
+      completion: userResponse
+        ? {
+            isCorrect: userResponse.isCorrect,
+            selectedAnswers: JSON.parse(userResponse.selectedAnswers as string),
+            completedAt: userResponse.completedAt.toISOString(),
+          }
+        : null,
+    };
+
+    // Include correct answers and explanation if already completed
+    if (userResponse) {
+      response.correctAnswers = JSON.parse(questionData.question.correctAnswers as string);
+      response.explanation = questionData.question.explanation;
+    }
+
+    return response;
+  });
+
+  /**
+   * Complete today's Question of the Day.
+   * Awards XP: +10 for attempt, +5 bonus for correct answer.
+   * Prevents duplicate completions.
+   */
+  fastify.post<{
+    Body: QotdCompletionRequest;
+  }>('/qotd/complete', async (request, reply) => {
+    const { certificationId, questionId, selectedAnswers } = request.body;
+    const userId = parseInt(request.user!.id, 10);
+    const today = new Date().toISOString().split('T')[0];
+
+    // Validate input
+    if (!certificationId || !questionId || !selectedAnswers) {
+      return reply.status(400).send({ error: 'Missing required fields' });
+    }
+
+    // Get today's selection
+    const selection = await db
+      .select()
+      .from(qotdSelections)
+      .where(
+        and(
+          eq(qotdSelections.certificationId, certificationId),
+          eq(qotdSelections.dateServed, today)
+        )
+      )
+      .get();
+
+    if (!selection) {
+      return reply.status(404).send({ error: 'No question of the day found for today' });
+    }
+
+    if (selection.questionId !== questionId) {
+      return reply.status(400).send({ error: "Question ID does not match today's question" });
+    }
+
+    // Check for existing response (prevent duplicates)
+    const existingResponse = await db
+      .select()
+      .from(qotdResponses)
+      .where(and(eq(qotdResponses.userId, userId), eq(qotdResponses.qotdSelectionId, selection.id)))
+      .get();
+
+    if (existingResponse) {
+      // Return existing response without awarding more XP
+      const [questionData] = await db
+        .select({ correctAnswers: questions.correctAnswers, explanation: questions.explanation })
+        .from(questions)
+        .where(eq(questions.id, questionId));
+
+      const response: QotdCompletionResponse = {
+        isCorrect: existingResponse.isCorrect,
+        correctAnswers: JSON.parse(questionData.correctAnswers as string),
+        explanation: questionData.explanation,
+        xpAwarded: 0, // Already awarded
+      };
+
+      return response;
+    }
+
+    // Get correct answers to check
+    const [questionData] = await db
+      .select({ correctAnswers: questions.correctAnswers, explanation: questions.explanation })
+      .from(questions)
+      .where(eq(questions.id, questionId));
+
+    if (!questionData) {
+      return reply.status(404).send({ error: 'Question not found' });
+    }
+
+    const correctAnswers: number[] = JSON.parse(questionData.correctAnswers as string);
+
+    // Check if answer is correct
+    const isCorrect =
+      selectedAnswers.length === correctAnswers.length &&
+      selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+      correctAnswers.every((a) => selectedAnswers.includes(a));
+
+    // Save response
+    await db.insert(qotdResponses).values({
+      userId,
+      qotdSelectionId: selection.id,
+      selectedAnswers: JSON.stringify(selectedAnswers),
+      isCorrect,
+      completedAt: new Date(),
+    });
+
+    // Award XP: +10 for attempt, +5 bonus for correct
+    const baseXp = 10;
+    const bonusXp = isCorrect ? 5 : 0;
+    const totalXp = baseXp + bonusXp;
+
+    const xpSource = `QOTD_${today}_${certificationId}`;
+    let xpUpdate: XPAwardResponse | undefined;
+
+    try {
+      const result = await awardCustomXP(userId, totalXp, xpSource);
+      xpUpdate = result ?? undefined;
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          questionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP for QOTD completion'
+      );
+    }
+
+    const response: QotdCompletionResponse = {
+      isCorrect,
+      correctAnswers,
+      explanation: questionData.explanation,
+      xpAwarded: totalXp,
+      xpUpdate,
+    };
+
+    return response;
   });
 }
