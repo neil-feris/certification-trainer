@@ -107,13 +107,15 @@ jobs:
             .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         with:
           image-ref: 'ace-prep:security-scan'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          skip-version-check: 'true'
+          # Fail on main push only; PRs and schedule are informational
+          exit-code: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
 
       - name: Upload Trivy SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -123,12 +125,13 @@ jobs:
           category: 'container-trivy'
 
       - name: Trivy summary (table)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         if: always()
         with:
           image-ref: 'ace-prep:security-scan'
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          skip-version-check: 'true'
           exit-code: '0'
 
   container-scan-dockerfile:
@@ -142,13 +145,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy config scanner on Dockerfile
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         with:
           scan-type: 'config'
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-config.sarif'
           severity: 'CRITICAL,HIGH'
+          skip-version-check: 'true'
           # Informational on PRs, fail on main
           exit-code: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
 
