@@ -1227,3 +1227,80 @@ export interface QotdCompletionResponse {
   xpAwarded: number;
   xpUpdate?: XPAwardResponse;
 }
+
+// ============ STUDY PLAN TYPES ============
+
+export type StudyPlanStatus = 'active' | 'completed' | 'abandoned';
+
+export type StudyPlanTaskType = 'learning' | 'practice' | 'review' | 'drill';
+
+export interface StudyPlan {
+  id: number;
+  userId: number;
+  certificationId: number;
+  targetExamDate: string; // ISO date string YYYY-MM-DD
+  status: StudyPlanStatus;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface StudyPlanTask {
+  id: number;
+  studyPlanDayId: number;
+  taskType: StudyPlanTaskType;
+  targetId: number | null; // domain/topic id, null for general tasks
+  estimatedMinutes: number;
+  completedAt: Date | string | null;
+  notes: string | null;
+}
+
+export interface StudyPlanDay {
+  id: number;
+  studyPlanId: number;
+  date: string; // ISO date string YYYY-MM-DD
+  isComplete: boolean;
+  tasks: StudyPlanTask[];
+}
+
+export interface StudyPlanWithDays extends StudyPlan {
+  days: StudyPlanDay[];
+}
+
+// Study Plan API Request/Response Types
+
+export interface CreateStudyPlanRequest {
+  certificationId?: number; // Optional: uses default certification if not provided
+  targetExamDate: string; // ISO date string YYYY-MM-DD
+}
+
+export interface StudyPlanResponse {
+  plan: StudyPlanWithDays;
+  todaysTasks: StudyPlanTask[];
+  progress: {
+    totalDays: number;
+    completedDays: number;
+    totalTasks: number;
+    completedTasks: number;
+    percentComplete: number;
+  };
+}
+
+export interface CompleteTaskRequest {
+  notes?: string;
+}
+
+export interface CompleteTaskResponse {
+  task: StudyPlanTask;
+  dayComplete: boolean;
+  xpUpdate?: XPAwardResponse;
+}
+
+export interface RegenerateStudyPlanRequest {
+  keepCompletedTasks?: boolean;
+}
+
+export interface RegenerateStudyPlanResponse {
+  plan: StudyPlanWithDays;
+  tasksRemoved: number;
+  tasksGenerated: number;
+}

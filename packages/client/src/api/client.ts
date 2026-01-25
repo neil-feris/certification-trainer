@@ -63,6 +63,12 @@ import type {
   QotdResponse,
   QotdCompletionRequest,
   QotdCompletionResponse,
+  CreateStudyPlanRequest,
+  StudyPlanResponse,
+  CompleteTaskRequest,
+  CompleteTaskResponse,
+  RegenerateStudyPlanRequest,
+  RegenerateStudyPlanResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -749,5 +755,33 @@ export const notesApi = {
   delete: (questionId: number) =>
     request<{ success: boolean }>(`/notes/${questionId}`, {
       method: 'DELETE',
+    }),
+};
+
+// Study Plans
+export const studyPlanApi = {
+  create: (data: CreateStudyPlanRequest) =>
+    request<StudyPlanResponse>('/study-plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getActive: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<StudyPlanResponse | null>(`/study-plans/active${params}`);
+  },
+  get: (planId: number) => request<StudyPlanResponse>(`/study-plans/${planId}`),
+  completeTask: (planId: number, taskId: number, data?: CompleteTaskRequest) =>
+    request<CompleteTaskResponse>(`/study-plans/${planId}/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data || {}),
+    }),
+  abandon: (planId: number) =>
+    request<{ success: boolean }>(`/study-plans/${planId}`, {
+      method: 'DELETE',
+    }),
+  regenerate: (planId: number, data?: RegenerateStudyPlanRequest) =>
+    request<RegenerateStudyPlanResponse>(`/study-plans/${planId}/regenerate`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
     }),
 };

@@ -547,6 +547,63 @@ export const userSettings = sqliteTable(
   ]
 );
 
+// ============ STUDY PLANS ============
+export const studyPlans = sqliteTable(
+  'study_plans',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'restrict' }),
+    targetExamDate: text('target_exam_date').notNull(), // ISO date string YYYY-MM-DD
+    status: text('status').notNull(), // 'active' | 'completed' | 'abandoned'
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    index('study_plans_user_status_idx').on(table.userId, table.status),
+    index('study_plans_cert_idx').on(table.certificationId),
+    // Unique constraint to prevent multiple active plans per user/certification
+    // Note: SQLite doesn't support partial unique indexes, so we enforce this at application level
+    index('study_plans_user_cert_idx').on(table.userId, table.certificationId),
+  ]
+);
+
+export const studyPlanDays = sqliteTable(
+  'study_plan_days',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    studyPlanId: integer('study_plan_id')
+      .notNull()
+      .references(() => studyPlans.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(), // ISO date string YYYY-MM-DD
+    isComplete: integer('is_complete', { mode: 'boolean' }).notNull().default(false),
+  },
+  (table) => [
+    index('study_plan_days_plan_idx').on(table.studyPlanId),
+    uniqueIndex('study_plan_days_plan_date_idx').on(table.studyPlanId, table.date),
+  ]
+);
+
+export const studyPlanTasks = sqliteTable(
+  'study_plan_tasks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    studyPlanDayId: integer('study_plan_day_id')
+      .notNull()
+      .references(() => studyPlanDays.id, { onDelete: 'cascade' }),
+    taskType: text('task_type').notNull(), // 'learning' | 'practice' | 'review' | 'drill'
+    targetId: integer('target_id'), // domain/topic id, null for general tasks
+    estimatedMinutes: integer('estimated_minutes').notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp' }),
+    notes: text('notes'),
+  },
+  (table) => [index('study_plan_tasks_day_idx').on(table.studyPlanDayId)]
+);
+
 // ============ FLASHCARD SESSIONS ============
 export const flashcardSessions = sqliteTable(
   'flashcard_sessions',
@@ -649,3 +706,9 @@ export type QotdSelectionRecord = typeof qotdSelections.$inferSelect;
 export type NewQotdSelection = typeof qotdSelections.$inferInsert;
 export type QotdResponseRecord = typeof qotdResponses.$inferSelect;
 export type NewQotdResponse = typeof qotdResponses.$inferInsert;
+export type StudyPlanRecord = typeof studyPlans.$inferSelect;
+export type NewStudyPlan = typeof studyPlans.$inferInsert;
+export type StudyPlanDayRecord = typeof studyPlanDays.$inferSelect;
+export type NewStudyPlanDay = typeof studyPlanDays.$inferInsert;
+export type StudyPlanTaskRecord = typeof studyPlanTasks.$inferSelect;
+export type NewStudyPlanTask = typeof studyPlanTasks.$inferInsert;

@@ -39,6 +39,7 @@ import { bookmarkRoutes } from './routes/bookmarks.js';
 import { noteRoutes } from './routes/notes.js';
 import { authRoutes } from './routes/auth.js';
 import { flashcardRoutes } from './routes/flashcards.js';
+import { studyPlanRoutes } from './routes/studyPlans.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -102,6 +103,7 @@ fastify.register(drillRoutes, { prefix: '/api/drills' });
 fastify.register(achievementRoutes, { prefix: '/api/achievements' });
 fastify.register(bookmarkRoutes, { prefix: '/api/bookmarks' });
 fastify.register(noteRoutes, { prefix: '/api/notes' });
+fastify.register(studyPlanRoutes, { prefix: '/api/study-plans' });
 
 // Health check
 fastify.get('/api/health', async () => {
