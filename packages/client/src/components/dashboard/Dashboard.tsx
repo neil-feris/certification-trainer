@@ -6,6 +6,7 @@ import { ReadinessWidget } from '../common/ReadinessWidget';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { XPHistoryPanel } from '../common/XPHistoryPanel';
+import { StudyPlanWidget } from './StudyPlanWidget';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -267,6 +268,11 @@ export function Dashboard() {
       />
 
       <div className={styles.mainGrid}>
+        {/* Study Plan Widget */}
+        <div className={styles.studyPlanCard}>
+          <StudyPlanWidget />
+        </div>
+
         {/* Domain Performance */}
         <div className={`card ${styles.domainCard}`}>
           <h2 className={styles.sectionTitle}>Domain Performance</h2>

@@ -1,0 +1,258 @@
+.widget {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon {
+  font-size: 1.25rem;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  flex: 1;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 3px 8px;
+  border-radius: var(--border-radius);
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 0;
+}
+
+.loadingDot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  animation: loadingPulse 1.4s infinite ease-in-out both;
+}
+
+.loadingDot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loadingDot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes loadingPulse {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.emptyIcon {
+  font-size: 2rem;
+}
+
+.emptyText {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.ctaButton {
+  padding: 8px 20px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.ctaButton:hover {
+  background: var(--accent-hover);
+}
+
+/* Progress bar */
+.progressContainer {
+  width: 100%;
+}
+
+.progressBar {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary, #6366f1));
+  border-radius: var(--border-radius);
+  transition: width 0.3s ease;
+}
+
+/* Task list */
+.taskList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.taskItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  transition: border-color var(--transition-fast);
+}
+
+.taskItem:hover {
+  border-color: var(--accent-primary);
+}
+
+.taskCompleted {
+  opacity: 0.6;
+}
+
+.taskCompleted .taskLabel {
+  text-decoration: line-through;
+}
+
+.taskIcon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.taskLabel {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.taskCheck {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.moreText {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 4px 0;
+  text-align: center;
+}
+
+/* No tasks state */
+.noTasks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.noTasksIcon {
+  font-size: 1.5rem;
+}
+
+.noTasksText {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* Complete state */
+.complete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(79, 70, 229, 0.05));
+  border-radius: var(--border-radius);
+}
+
+.completeIcon {
+  font-size: 1.5rem;
+}
+
+.completeText {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--success);
+}
+
+/* View link */
+.viewLink {
+  display: block;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent-primary);
+  text-decoration: none;
+  padding: 8px;
+  margin: -8px -8px -8px -8px;
+  border-radius: var(--border-radius);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.viewLink:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-hover);
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .widget {
+    padding: 16px;
+  }
+
+  .taskItem {
+    padding: 6px 10px;
+  }
+}
