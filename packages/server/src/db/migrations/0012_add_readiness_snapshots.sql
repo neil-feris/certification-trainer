@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS readiness_snapshots (
   calculated_at INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS readiness_snapshots_user_idx ON readiness_snapshots(user_id);
-CREATE INDEX IF NOT EXISTS readiness_snapshots_cert_idx ON readiness_snapshots(certification_id);
+-- Composite index for primary query pattern: WHERE user_id = ? AND certification_id = ? ORDER BY calculated_at DESC
+CREATE INDEX IF NOT EXISTS readiness_snapshots_user_cert_calc_idx
+  ON readiness_snapshots(user_id, certification_id, calculated_at DESC);
+-- Single-column index for cleanup/maintenance queries by date
 CREATE INDEX IF NOT EXISTS readiness_snapshots_calculated_idx ON readiness_snapshots(calculated_at);

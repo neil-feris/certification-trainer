@@ -231,8 +231,9 @@ export const readinessSnapshots = sqliteTable(
     calculatedAt: integer('calculated_at', { mode: 'timestamp' }).notNull(),
   },
   (table) => [
-    index('readiness_snapshots_user_idx').on(table.userId),
-    index('readiness_snapshots_cert_idx').on(table.certificationId),
+    // Composite index for primary query: WHERE user_id = ? AND certification_id = ? ORDER BY calculated_at DESC
+    index('readiness_snapshots_user_cert_calc_idx').on(table.userId, table.certificationId, table.calculatedAt),
+    // Single-column index for cleanup/maintenance queries by date
     index('readiness_snapshots_calculated_idx').on(table.calculatedAt),
   ]
 );
