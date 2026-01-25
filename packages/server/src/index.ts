@@ -39,6 +39,7 @@ import { bookmarkRoutes } from './routes/bookmarks.js';
 import { noteRoutes } from './routes/notes.js';
 import { authRoutes } from './routes/auth.js';
 import { flashcardRoutes } from './routes/flashcards.js';
+import { shareRoutes } from './routes/share.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -102,6 +103,7 @@ fastify.register(drillRoutes, { prefix: '/api/drills' });
 fastify.register(achievementRoutes, { prefix: '/api/achievements' });
 fastify.register(bookmarkRoutes, { prefix: '/api/bookmarks' });
 fastify.register(noteRoutes, { prefix: '/api/notes' });
+fastify.register(shareRoutes, { prefix: '/api/share' });
 
 // Health check
 fastify.get('/api/health', async () => {
@@ -154,7 +156,8 @@ const start = async () => {
     console.log('   GET  /api/progress/dashboard');
     console.log('   GET  /api/study/domains');
     console.log('   POST /api/drills');
-    console.log('   GET  /api/settings\n');
+    console.log('   GET  /api/settings');
+    console.log('   GET  /api/share/exam/:hash (public)\n');
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
