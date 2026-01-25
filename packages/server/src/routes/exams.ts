@@ -570,4 +570,216 @@ export async function examRoutes(fastify: FastifyInstance) {
       })),
     };
   });
+
+  // Submit offline exam (for background sync)
+  fastify.post<{
+    Body: {
+      offlineExamId: string;
+      certificationId: number;
+      questions: Array<{
+        questionId: number;
+        selectedAnswers: number[];
+        isCorrect: boolean;
+        flagged: boolean;
+        timeSpentSeconds: number;
+      }>;
+      totalTimeSeconds: number;
+      startedAt: string;
+      completedAt: string;
+      isOffline: true;
+      clientTimestamp: string;
+      syncQueueItemId?: string;
+    };
+  }>('/offline-submit', async (request, reply) => {
+    const userId = parseInt(request.user!.id, 10);
+    const {
+      offlineExamId,
+      certificationId,
+      questions: submittedQuestions,
+      totalTimeSeconds,
+      startedAt,
+      completedAt,
+    } = request.body;
+
+    // Check for duplicate submission by offlineExamId
+    // We store the offlineExamId in a metadata field to detect duplicates
+    const [existingExam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.userId, userId), eq(exams.offlineExamId, offlineExamId)))
+      .limit(1);
+
+    if (existingExam) {
+      // Already synced - return existing result (idempotent)
+      fastify.log.info(
+        { userId, offlineExamId, existingExamId: existingExam.id },
+        'Duplicate offline exam submission detected - returning existing result'
+      );
+
+      return {
+        success: true,
+        examId: existingExam.id,
+        alreadySynced: true,
+        score: existingExam.score,
+        correctAnswers: existingExam.correctAnswers,
+        totalQuestions: existingExam.totalQuestions,
+      };
+    }
+
+    // Validate certification exists
+    const [certification] = await db
+      .select()
+      .from(exams)
+      .innerJoin(domains, eq(domains.certificationId, certificationId))
+      .limit(1);
+
+    if (!certification && certificationId !== undefined) {
+      // Check certifications table directly
+      const [cert] = await db
+        .select()
+        .from(domains)
+        .where(eq(domains.certificationId, certificationId))
+        .limit(1);
+      if (!cert) {
+        return reply.status(400).send({ error: 'Invalid certification ID' });
+      }
+    }
+
+    // Calculate score from submitted responses
+    const correctCount = submittedQuestions.filter((q) => q.isCorrect).length;
+    const totalQuestions = submittedQuestions.length;
+    const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+
+    // Create the exam record with offline metadata
+    const [newExam] = await db
+      .insert(exams)
+      .values({
+        userId,
+        certificationId,
+        startedAt: new Date(startedAt),
+        completedAt: new Date(completedAt),
+        timeSpentSeconds: totalTimeSeconds,
+        totalQuestions,
+        correctAnswers: correctCount,
+        score,
+        status: 'completed',
+        offlineExamId, // Store for duplicate detection
+      })
+      .returning();
+
+    // Insert exam responses
+    if (submittedQuestions.length > 0) {
+      await db.insert(examResponses).values(
+        submittedQuestions.map((q, index) => ({
+          userId,
+          examId: newExam.id,
+          questionId: q.questionId,
+          selectedAnswers: JSON.stringify(q.selectedAnswers),
+          isCorrect: q.isCorrect,
+          timeSpentSeconds: q.timeSpentSeconds,
+          flagged: q.flagged,
+          orderIndex: index,
+        }))
+      );
+    }
+
+    // Update streak (with error handling)
+    let streakUpdate;
+    let currentStreak: number | undefined;
+    try {
+      const streakResult = await updateStreak(userId);
+      streakUpdate = streakResult.streakUpdate;
+      currentStreak = streakResult.streak.currentStreak;
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          examId: newExam.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to update streak for offline exam'
+      );
+    }
+
+    // Award XP
+    let xpUpdate: XPAwardResponse | undefined;
+    try {
+      const xpSource = `EXAM_COMPLETE_${newExam.id}`;
+      const questionXP =
+        correctCount * XP_AWARDS.QUESTION_CORRECT +
+        (totalQuestions - correctCount) * XP_AWARDS.QUESTION_INCORRECT;
+      const completionBonus = XP_AWARDS.EXAM_COMPLETE;
+      const perfectScoreBonus = score === 100 ? XP_AWARDS.EXAM_PERFECT_SCORE : 0;
+      const totalXpToAward = questionXP + completionBonus + perfectScoreBonus;
+
+      const result = await awardCustomXP(userId, totalXpToAward, xpSource);
+      xpUpdate = result ?? undefined;
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          examId: newExam.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP for offline exam'
+      );
+    }
+
+    // Check achievements
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    try {
+      const [examCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(exams)
+        .where(and(eq(exams.userId, userId), eq(exams.status, 'completed')));
+
+      const achievementContext: AchievementContext = {
+        activity: 'exam',
+        score: correctCount,
+        totalQuestions,
+        cumulativeExams: examCount.count,
+        streak: currentStreak,
+      };
+
+      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+      const domainUnlocks = await checkDomainExpert(userId);
+      achievementsUnlocked.push(...domainUnlocks);
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          examId: newExam.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to check achievements for offline exam'
+      );
+    }
+
+    // Invalidate readiness cache
+    invalidateReadinessCache(userId, certificationId);
+
+    fastify.log.info(
+      {
+        userId,
+        offlineExamId,
+        examId: newExam.id,
+        score,
+        correctCount,
+        totalQuestions,
+      },
+      'Offline exam synced successfully'
+    );
+
+    return {
+      success: true,
+      examId: newExam.id,
+      alreadySynced: false,
+      score,
+      correctAnswers: correctCount,
+      totalQuestions,
+      streakUpdate,
+      xpUpdate,
+      achievementsUnlocked,
+    };
+  });
 }
