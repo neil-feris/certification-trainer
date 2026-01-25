@@ -10,7 +10,8 @@
 
 import { eq, and, inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import type * as schemaTypes from '../db/schema.js';
+import * as schemaTypes from '../db/schema.js';
+import { domains, performanceStats } from '../db/schema.js';
 import type {
   ReadinessScore,
   DomainReadiness,
@@ -104,8 +105,6 @@ export async function calculateReadinessScore(
   if (cached) {
     return cached;
   }
-
-  const { domains, performanceStats } = await import('../db/schema.js');
 
   // Get all domains for this certification
   const certDomains = await db
