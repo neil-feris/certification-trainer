@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22.2.0-slim AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -22,14 +22,11 @@ COPY tsconfig.json ./
 RUN npm run build
 
 # Production stage
-FROM node:22.2.0-slim AS production
+FROM node:22-alpine AS production
 
-# Install dependencies for better-sqlite3
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+# Install build dependencies for better-sqlite3 native bindings
+# These are needed at runtime for npm rebuild
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
@@ -44,6 +41,9 @@ COPY packages/client/package.json ./packages/client/
 RUN npm ci --omit=dev --ignore-scripts && \
     npm rebuild better-sqlite3
 
+# Remove build dependencies to reduce image size and attack surface
+RUN apk del python3 make g++
+
 # Copy built artifacts from builder
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
@@ -57,9 +57,9 @@ COPY packages/server/src/db ./packages/server/src/db
 COPY data ./data
 
 # Create non-root user for security
-# Using high UID/GID (10001) to avoid conflicts with host system users
-RUN groupadd --gid 10001 nodejs && \
-    useradd --uid 10001 --gid nodejs --shell /bin/bash --create-home aceprep
+# Alpine uses addgroup/adduser instead of groupadd/useradd
+RUN addgroup -g 10001 nodejs && \
+    adduser -u 10001 -G nodejs -s /bin/sh -D aceprep
 
 # Set ownership of /app to aceprep:nodejs
 # Data directory needs write permissions for SQLite
