@@ -34,6 +34,7 @@ type ReadinessResult = { score: ReadinessScore; recommendations: ReadinessRecomm
 
 const cache = new Map<string, CacheEntry<ReadinessResult>>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 1000; // Prevent unbounded growth
 
 function getCached(key: string): ReadinessResult | null {
   const entry = cache.get(key);
@@ -42,10 +43,18 @@ function getCached(key: string): ReadinessResult | null {
     cache.delete(key);
     return null;
   }
+  // Move to end for LRU behavior (Map maintains insertion order)
+  cache.delete(key);
+  cache.set(key, entry);
   return entry.value;
 }
 
 function setCache(key: string, value: ReadinessResult): void {
+  // Evict oldest entries if at capacity (LRU eviction)
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
