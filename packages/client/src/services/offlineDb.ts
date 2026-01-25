@@ -572,3 +572,28 @@ export async function getDatabaseStats(): Promise<{
     cachedQuestionCount,
   };
 }
+
+/**
+ * Clear all user-specific data from IndexedDB.
+ * SECURITY: Call this on logout to remove sensitive data like cached questions
+ * (which contain correctAnswers) and offline exam progress.
+ */
+export async function clearAllUserData(): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      [STORES.OFFLINE_EXAMS, STORES.SYNC_QUEUE, STORES.CACHE_METADATA, STORES.CACHED_QUESTIONS],
+      'readwrite'
+    );
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+
+    // Clear all user data stores
+    transaction.objectStore(STORES.OFFLINE_EXAMS).clear();
+    transaction.objectStore(STORES.SYNC_QUEUE).clear();
+    transaction.objectStore(STORES.CACHE_METADATA).clear();
+    transaction.objectStore(STORES.CACHED_QUESTIONS).clear();
+  });
+}
