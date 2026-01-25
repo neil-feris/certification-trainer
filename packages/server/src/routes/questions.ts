@@ -8,8 +8,22 @@ import {
   certifications,
   caseStudies,
   bookmarks,
+  examResponses,
 } from '../db/schema.js';
-import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull, isNotNull } from 'drizzle-orm';
+import {
+  eq,
+  lte,
+  and,
+  count,
+  like,
+  desc,
+  asc,
+  inArray,
+  notInArray,
+  sql,
+  isNull,
+  isNotNull,
+} from 'drizzle-orm';
 import { generateQuestions, fetchCaseStudyById } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
@@ -18,6 +32,7 @@ import {
   questionBrowseQuerySchema,
   generateQuestionsSchema,
   reviewRatingSchema,
+  bulkQuestionsQuerySchema,
   formatZodError,
   PAGINATION_DEFAULTS,
 } from '../validation/schemas.js';
@@ -628,4 +643,195 @@ export async function questionRoutes(fastify: FastifyInstance) {
       achievementsUnlocked,
     };
   });
+
+  // Get bulk questions for offline pre-caching
+  // Returns randomized questions weighted by domain exam percentages
+  // Excludes questions the user has answered correctly 3+ times (mastered)
+  // Rate limited: 10 requests per minute
+  fastify.get<{
+    Querystring: {
+      certificationId: string;
+      limit?: string;
+    };
+  }>(
+    '/bulk',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
+      const parseResult = bulkQuestionsQuerySchema.safeParse(request.query);
+      if (!parseResult.success) {
+        return reply.status(400).send(formatZodError(parseResult.error));
+      }
+      const { certificationId, limit } = parseResult.data;
+      const userId = parseInt(request.user!.id, 10);
+
+      // Verify certification exists
+      const [certification] = await db
+        .select()
+        .from(certifications)
+        .where(and(eq(certifications.id, certificationId), eq(certifications.isActive, true)));
+
+      if (!certification) {
+        return reply.status(404).send({ error: 'Certification not found' });
+      }
+
+      // Get domains with their weights for this certification
+      const certDomains = await db
+        .select({
+          id: domains.id,
+          name: domains.name,
+          code: domains.code,
+          weight: domains.weight,
+        })
+        .from(domains)
+        .where(eq(domains.certificationId, certificationId));
+
+      if (certDomains.length === 0) {
+        return reply.status(404).send({ error: 'No domains found for certification' });
+      }
+
+      // Find question IDs that user has answered correctly 3+ times (mastered)
+      // Using a subquery to count correct responses per question
+      const masteredQuestionIds = await db
+        .select({
+          questionId: examResponses.questionId,
+        })
+        .from(examResponses)
+        .where(and(eq(examResponses.userId, userId), eq(examResponses.isCorrect, true)))
+        .groupBy(examResponses.questionId)
+        .having(sql`count(*) >= 3`);
+
+      const excludeIds = masteredQuestionIds.map((r) => r.questionId);
+
+      // Calculate total weight for normalization
+      const totalWeight = certDomains.reduce((sum, d) => sum + d.weight, 0);
+
+      // Calculate target question count per domain based on weight
+      // Each domain gets questions proportional to its exam percentage
+      const domainQuestionCounts = certDomains.map((d) => ({
+        domainId: d.id,
+        domainName: d.name,
+        domainCode: d.code,
+        targetCount: Math.max(1, Math.round((d.weight / totalWeight) * limit)),
+      }));
+
+      // Adjust counts to exactly match limit
+      const totalTarget = domainQuestionCounts.reduce((sum, d) => sum + d.targetCount, 0);
+      const diff = limit - totalTarget;
+      if (diff !== 0) {
+        // Add/remove from the domain with highest weight
+        const sorted = [...domainQuestionCounts].sort((a, b) => b.targetCount - a.targetCount);
+        sorted[0].targetCount += diff;
+      }
+
+      // Fetch questions from each domain with randomization
+      const allQuestions: QuestionWithDomain[] = [];
+
+      for (const domainTarget of domainQuestionCounts) {
+        // Build exclusion condition
+        const exclusionCondition =
+          excludeIds.length > 0
+            ? and(
+                eq(questions.domainId, domainTarget.domainId),
+                notInArray(questions.id, excludeIds)
+              )
+            : eq(questions.domainId, domainTarget.domainId);
+
+        const domainQuestions = await db
+          .select({
+            question: questions,
+            domain: domains,
+            topic: topics,
+            caseStudy: caseStudies,
+          })
+          .from(questions)
+          .innerJoin(domains, eq(questions.domainId, domains.id))
+          .innerJoin(topics, eq(questions.topicId, topics.id))
+          .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
+          .where(exclusionCondition)
+          .orderBy(sql`RANDOM()`)
+          .limit(domainTarget.targetCount);
+
+        // Map to QuestionWithDomain format
+        const mappedQuestions = domainQuestions.map((r) => ({
+          ...r.question,
+          caseStudyId: r.question.caseStudyId ?? undefined,
+          questionType: r.question.questionType as 'single' | 'multiple',
+          difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
+          options: JSON.parse(r.question.options as string),
+          correctAnswers: JSON.parse(r.question.correctAnswers as string),
+          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          isGenerated: r.question.isGenerated ?? false,
+          domain: r.domain,
+          topic: r.topic,
+          caseStudy: mapCaseStudyRecord(r.caseStudy),
+        }));
+
+        allQuestions.push(...mappedQuestions);
+      }
+
+      // If we couldn't get enough questions from individual domains,
+      // fetch more from any domain to fill the gap
+      if (allQuestions.length < limit) {
+        const existingIds = allQuestions.map((q) => q.id);
+        const allExcludeIds = [...new Set([...excludeIds, ...existingIds])];
+
+        const domainIds = certDomains.map((d) => d.id);
+        const exclusionCondition =
+          allExcludeIds.length > 0
+            ? and(inArray(questions.domainId, domainIds), notInArray(questions.id, allExcludeIds))
+            : inArray(questions.domainId, domainIds);
+
+        const additionalQuestions = await db
+          .select({
+            question: questions,
+            domain: domains,
+            topic: topics,
+            caseStudy: caseStudies,
+          })
+          .from(questions)
+          .innerJoin(domains, eq(questions.domainId, domains.id))
+          .innerJoin(topics, eq(questions.topicId, topics.id))
+          .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
+          .where(exclusionCondition)
+          .orderBy(sql`RANDOM()`)
+          .limit(limit - allQuestions.length);
+
+        const mappedAdditional = additionalQuestions.map((r) => ({
+          ...r.question,
+          caseStudyId: r.question.caseStudyId ?? undefined,
+          questionType: r.question.questionType as 'single' | 'multiple',
+          difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
+          options: JSON.parse(r.question.options as string),
+          correctAnswers: JSON.parse(r.question.correctAnswers as string),
+          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          isGenerated: r.question.isGenerated ?? false,
+          domain: r.domain,
+          topic: r.topic,
+          caseStudy: mapCaseStudyRecord(r.caseStudy),
+        }));
+
+        allQuestions.push(...mappedAdditional);
+      }
+
+      // Shuffle final results to mix domains
+      const shuffled = allQuestions.sort(() => Math.random() - 0.5);
+
+      return {
+        certificationId,
+        certificationCode: certification.code,
+        certificationName: certification.name,
+        questions: shuffled,
+        totalCount: shuffled.length,
+        excludedMasteredCount: excludeIds.length,
+        cachedAt: new Date().toISOString(),
+      };
+    }
+  );
 }
