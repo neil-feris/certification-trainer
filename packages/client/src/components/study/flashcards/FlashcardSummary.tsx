@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useFlashcardStore } from '../../../stores/flashcardStore';
 import type { ReviewQuality } from '@ace-prep/shared';
 import styles from './FlashcardSummary.module.css';
@@ -11,7 +11,6 @@ const RATING_CONFIG: Record<ReviewQuality, { label: string; color: string }> = {
 };
 
 export function FlashcardSummary() {
-  const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const results = useFlashcardStore((s) => s.results);
   const reset = useFlashcardStore((s) => s.reset);
@@ -45,10 +44,9 @@ export function FlashcardSummary() {
   };
 
   const handleReviewAgain = () => {
-    if (sessionId) {
-      reset();
-      navigate(`/study/flashcards/${sessionId}`);
-    }
+    // Navigate to setup to create a new session (completed sessions cannot be restarted)
+    reset();
+    navigate('/study/flashcards');
   };
 
   return (
