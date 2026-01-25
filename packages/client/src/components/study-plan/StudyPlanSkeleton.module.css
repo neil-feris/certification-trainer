@@ -1,0 +1,287 @@
+.skeleton {
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Shimmer effect */
+.bar {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-secondary) 50%,
+    var(--bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--border-radius);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Header skeleton */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.headerMain {
+  flex: 1;
+  min-width: 280px;
+}
+
+.title {
+  height: 32px;
+  width: 160px;
+  margin-bottom: 12px;
+}
+
+.examInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.examDate {
+  height: 20px;
+  width: 200px;
+}
+
+.daysRemaining {
+  height: 28px;
+  width: 120px;
+  border-radius: 14px;
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.actionBtn {
+  height: 38px;
+  width: 140px;
+}
+
+/* Progress cards skeleton */
+.progressSummary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.progressCard {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.progressValue {
+  height: 32px;
+  width: 60px;
+}
+
+.progressLabel {
+  height: 14px;
+  width: 80px;
+}
+
+/* Main content skeleton */
+.content {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Checklist skeleton */
+.checklistSection {
+  position: sticky;
+  top: 24px;
+}
+
+.checklistCard {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.checklistTitle {
+  height: 24px;
+  width: 140px;
+  margin-bottom: 16px;
+}
+
+.checklistProgress {
+  margin-bottom: 20px;
+}
+
+.progressBarSkeleton {
+  height: 8px;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.taskItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: var(--border-radius);
+}
+
+.taskCheckbox {
+  height: 20px;
+  width: 20px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.taskText {
+  height: 16px;
+  width: 100%;
+  max-width: 200px;
+}
+
+/* Calendar skeleton */
+.calendarSection {
+  min-width: 0;
+}
+
+.calendarCard {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.calendarHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.calendarNav {
+  height: 32px;
+  width: 32px;
+  border-radius: 50%;
+}
+
+.calendarMonth {
+  height: 24px;
+  width: 140px;
+}
+
+.calendarGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dayNames {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.dayName {
+  height: 16px;
+  width: 24px;
+  margin: 0 auto;
+}
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.dayCell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  border-radius: var(--border-radius);
+}
+
+.dayNumber {
+  height: 16px;
+  width: 20px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+
+  .checklistSection {
+    position: static;
+  }
+}
+
+@media (max-width: 768px) {
+  .skeleton {
+    padding: 20px 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .actionBtn {
+    flex: 1;
+  }
+
+  .progressSummary {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .progressCard {
+    padding: 16px;
+  }
+}
