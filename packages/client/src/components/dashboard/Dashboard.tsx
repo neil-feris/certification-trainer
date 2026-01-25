@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
@@ -6,6 +6,7 @@ import { ReadinessWidget } from '../common/ReadinessWidget';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { XPHistoryPanel } from '../common/XPHistoryPanel';
+import { QotdWidget } from '../qotd';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -65,6 +66,7 @@ const StudyIcon = () => (
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
@@ -119,6 +121,36 @@ export function Dashboard() {
     queryFn: () => progressApi.getReadiness(selectedCertificationId!, { saveSnapshot: true }),
     enabled: selectedCertificationId !== null,
     staleTime: 300000, // 5 min cache
+  });
+
+  // Fetch Question of the Day
+  const {
+    data: qotd,
+    isLoading: qotdLoading,
+    isError: qotdError,
+    refetch: refetchQotd,
+  } = useQuery({
+    queryKey: ['qotd', selectedCertificationId],
+    queryFn: () => questionApi.getQotd(selectedCertificationId!),
+    enabled: selectedCertificationId !== null,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
+    retry: 1, // Only retry once for QOTD
+  });
+
+  // Mutation for completing QOTD
+  const completeQotdMutation = useMutation({
+    mutationFn: (selectedAnswers: number[]) =>
+      questionApi.completeQotd({
+        certificationId: selectedCertificationId!,
+        questionId: qotd!.question.id,
+        selectedAnswers,
+      }),
+    onSuccess: () => {
+      // Invalidate XP and dashboard queries to reflect new XP
+      queryClient.invalidateQueries({ queryKey: ['xp'] });
+      queryClient.invalidateQueries({ queryKey: ['xpHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['qotd', selectedCertificationId] });
+    },
   });
 
   if (isLoading) {
@@ -205,6 +237,19 @@ export function Dashboard() {
           </button>
         )}
       </div>
+
+      {/* Question of the Day Widget */}
+      {selectedCertificationId && (
+        <QotdWidget
+          data={qotd ?? null}
+          isLoading={qotdLoading}
+          isError={qotdError}
+          onSubmit={async (selectedAnswers) => {
+            return completeQotdMutation.mutateAsync(selectedAnswers);
+          }}
+          onRetry={() => refetchQotd()}
+        />
+      )}
 
       {/* Stats Grid */}
       <div className={styles.statsGrid}>
