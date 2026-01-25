@@ -8,7 +8,7 @@
  * - Volume (10%): ratio of total attempts vs threshold (capped at 1.0)
  */
 
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import type * as schemaTypes from '../db/schema.js';
 import type {
@@ -83,7 +83,7 @@ export async function calculateReadinessScore(
     .where(
       and(
         eq(performanceStats.userId, userId),
-        sql`${performanceStats.domainId} IN (${sql.raw(certDomains.map(d => d.id).join(','))})`
+        inArray(performanceStats.domainId, certDomains.map(d => d.id))
       )
     )
     .all();
