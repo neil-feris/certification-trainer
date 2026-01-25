@@ -222,7 +222,7 @@ export const readinessSnapshots = sqliteTable(
   'readiness_snapshots',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     certificationId: integer('certification_id')
       .notNull()
       .references(() => certifications.id, { onDelete: 'cascade' }),

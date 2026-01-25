@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS readiness_snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   certification_id INTEGER NOT NULL REFERENCES certifications(id) ON DELETE CASCADE,
   overall_score REAL NOT NULL,
   domain_scores_json TEXT NOT NULL,
