@@ -60,6 +60,9 @@ import type {
   LastFlashcardSessionResponse,
   ReadinessResponse,
   ReadinessSnapshot,
+  QotdResponse,
+  QotdCompletionRequest,
+  QotdCompletionResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -455,6 +458,15 @@ export const questionApi = {
     }>('/questions/review', {
       method: 'POST',
       body: JSON.stringify({ questionId, quality }),
+    }),
+
+  // Question of the Day
+  getQotd: (certificationId: number) =>
+    request<QotdResponse>(`/questions/qotd?certificationId=${certificationId}`),
+  completeQotd: (data: QotdCompletionRequest) =>
+    request<QotdCompletionResponse>('/questions/qotd/complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 };
 
