@@ -1187,3 +1187,43 @@ export interface ReadinessResponse {
   recommendations?: ReadinessRecommendation[];
   history?: ReadinessSnapshot[];
 }
+
+// ============ QUESTION OF THE DAY TYPES ============
+
+export interface QotdQuestion {
+  id: number;
+  questionText: string;
+  questionType: QuestionType;
+  options: string[];
+  difficulty: Difficulty;
+  domain: { id: number; name: string; code: string };
+  topic: { id: number; name: string };
+}
+
+export interface QotdCompletion {
+  isCorrect: boolean;
+  selectedAnswers: number[];
+  completedAt: string;
+}
+
+export interface QotdResponse {
+  date: string; // YYYY-MM-DD
+  question: QotdQuestion;
+  correctAnswers?: number[]; // Only included if already completed
+  explanation?: string; // Only included if already completed
+  completion: QotdCompletion | null; // null if not completed today
+}
+
+export interface QotdCompletionRequest {
+  certificationId: number;
+  questionId: number;
+  selectedAnswers: number[];
+}
+
+export interface QotdCompletionResponse {
+  isCorrect: boolean;
+  correctAnswers: number[];
+  explanation: string;
+  xpAwarded: number;
+  xpUpdate?: XPAwardResponse;
+}
