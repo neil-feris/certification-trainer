@@ -49,6 +49,7 @@ import {
   AchievementContext,
 } from '../services/achievementService.js';
 import type { AchievementUnlockResponse } from '@ace-prep/shared';
+import { invalidateReadinessCache } from '../services/readinessService.js';
 
 export async function studyRoutes(fastify: FastifyInstance) {
   // Apply authentication to all routes in this file
@@ -1294,6 +1295,9 @@ export async function studyRoutes(fastify: FastifyInstance) {
         'Failed to check achievements after study session completion'
       );
     }
+
+    // Invalidate readiness cache so next fetch reflects updated stats
+    invalidateReadinessCache(userId, session.certificationId);
 
     const result = {
       score: actualTotal > 0 ? Math.round((actualCorrect / actualTotal) * 100) : 0,

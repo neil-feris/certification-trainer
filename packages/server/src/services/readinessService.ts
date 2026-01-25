@@ -62,7 +62,7 @@ function setCache(key: string, value: ReadinessResult): void {
  * Invalidate cached readiness score for a user/certification.
  * Call this when exam results are submitted or stats change.
  *
- * TODO: Wire this up in exam completion flow and study session completion.
+ * Wired up in: exams.ts /:id/complete, study.ts /sessions/:id/complete
  */
 export function invalidateReadinessCache(userId: number, certificationId: number): void {
   cache.delete(`readiness:${userId}:${certificationId}`);
