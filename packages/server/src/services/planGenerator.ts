@@ -9,7 +9,7 @@
  * - Practice intensity increases closer to exam
  */
 
-import { eq, and, lte, sql, desc } from 'drizzle-orm';
+import { eq, and, lte, sql, desc, inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import * as schemaTypes from '../db/schema.js';
 import {
@@ -38,6 +38,9 @@ const LEARNING_TASK_MINUTES = 45; // Time for a learning path item
 const PRACTICE_TASK_MINUTES = 30; // Time for domain practice
 const REVIEW_TASK_MINUTES = 15; // Time for spaced repetition review
 const DRILL_TASK_MINUTES = 15; // Time for a timed drill
+
+// Maximum plan duration to prevent unbounded memory/DB usage
+const MAX_PLAN_DAYS = 180; // 6 months maximum
 
 // Phase distribution (% of total days)
 const EARLY_PHASE_RATIO = 0.4; // 40% of days - focus on learning
@@ -73,6 +76,13 @@ export async function generateStudyPlan(
 
   if (totalDays < 1) {
     throw new Error('Target exam date must be in the future');
+  }
+
+  if (totalDays > MAX_PLAN_DAYS) {
+    throw new Error(
+      `Study plan cannot exceed ${MAX_PLAN_DAYS} days (${Math.floor(MAX_PLAN_DAYS / 30)} months). ` +
+        `Please choose a target date within ${MAX_PLAN_DAYS} days.`
+    );
   }
 
   // Get current readiness scores
@@ -596,6 +606,7 @@ export async function regenerateStudyPlan(
 
 /**
  * Fetch a study plan with all its days and tasks.
+ * Uses a single query with JOIN to avoid N+1 problem.
  */
 export async function getStudyPlanWithDays(
   planId: number,
@@ -607,6 +618,7 @@ export async function getStudyPlanWithDays(
     return null;
   }
 
+  // Fetch days for this plan
   const days = await db
     .select()
     .from(studyPlanDays)
@@ -614,31 +626,54 @@ export async function getStudyPlanWithDays(
     .orderBy(studyPlanDays.date)
     .all();
 
-  const daysWithTasks: StudyPlanDay[] = await Promise.all(
-    days.map(async (day) => {
-      const tasks = await db
-        .select()
-        .from(studyPlanTasks)
-        .where(eq(studyPlanTasks.studyPlanDayId, day.id))
-        .all();
+  if (days.length === 0) {
+    return {
+      id: plan.id,
+      userId: plan.userId,
+      certificationId: plan.certificationId,
+      targetExamDate: plan.targetExamDate,
+      status: plan.status as 'active' | 'completed' | 'abandoned',
+      createdAt: plan.createdAt,
+      updatedAt: plan.updatedAt,
+      days: [],
+    };
+  }
 
-      return {
-        id: day.id,
-        studyPlanId: day.studyPlanId,
-        date: day.date,
-        isComplete: day.isComplete,
-        tasks: tasks.map((t) => ({
-          id: t.id,
-          studyPlanDayId: t.studyPlanDayId,
-          taskType: t.taskType as StudyPlanTaskType,
-          targetId: t.targetId,
-          estimatedMinutes: t.estimatedMinutes,
-          completedAt: t.completedAt,
-          notes: t.notes,
-        })),
-      };
-    })
-  );
+  // Fetch ALL tasks for ALL days in a single query (fixes N+1)
+  const dayIds = days.map((d) => d.id);
+  const allTasks = await db
+    .select()
+    .from(studyPlanTasks)
+    .where(inArray(studyPlanTasks.studyPlanDayId, dayIds))
+    .all();
+
+  // Group tasks by day ID for efficient lookup
+  const tasksByDayId = new Map<number, typeof allTasks>();
+  for (const task of allTasks) {
+    const dayTasks = tasksByDayId.get(task.studyPlanDayId) ?? [];
+    dayTasks.push(task);
+    tasksByDayId.set(task.studyPlanDayId, dayTasks);
+  }
+
+  // Build days with tasks
+  const daysWithTasks: StudyPlanDay[] = days.map((day) => {
+    const tasks = tasksByDayId.get(day.id) ?? [];
+    return {
+      id: day.id,
+      studyPlanId: day.studyPlanId,
+      date: day.date,
+      isComplete: day.isComplete,
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        studyPlanDayId: t.studyPlanDayId,
+        taskType: t.taskType as StudyPlanTaskType,
+        targetId: t.targetId,
+        estimatedMinutes: t.estimatedMinutes,
+        completedAt: t.completedAt,
+        notes: t.notes,
+      })),
+    };
+  });
 
   return {
     id: plan.id,

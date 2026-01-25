@@ -84,6 +84,30 @@ interface ExamState {
 const EXAM_DURATION = 2 * 60 * 60; // 2 hours in seconds
 const DEFAULT_OFFLINE_QUESTION_COUNT = 50;
 
+// Track pending IndexedDB writes to prevent data loss on browser close
+let pendingWrites: Promise<void>[] = [];
+
+/**
+ * Queue a write operation and track it until completion.
+ * Ensures we can await all pending writes before critical operations.
+ */
+function trackWrite(writePromise: Promise<void>): void {
+  pendingWrites.push(writePromise);
+  writePromise.finally(() => {
+    pendingWrites = pendingWrites.filter((p) => p !== writePromise);
+  });
+}
+
+/**
+ * Wait for all pending IndexedDB writes to complete.
+ * Call before exam submission to prevent data loss.
+ */
+async function flushPendingWrites(): Promise<void> {
+  if (pendingWrites.length > 0) {
+    await Promise.allSettled(pendingWrites);
+  }
+}
+
 // Generate a unique ID for offline exams
 function generateOfflineExamId(): string {
   return `offline-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -157,14 +181,17 @@ export const useExamStore = create<ExamState>()(
         if (index >= 0 && index < questions.length) {
           set({ currentQuestionIndex: index });
 
-          // Persist to IndexedDB for offline exams
+          // Persist to IndexedDB for offline exams (tracked to ensure completion)
           if (isOfflineExam && offlineExamId) {
-            getOfflineExam(offlineExamId).then((exam) => {
+            const writeOp = getOfflineExam(offlineExamId).then((exam) => {
               if (exam) {
                 exam.currentQuestionIndex = index;
-                saveOfflineExam(exam).catch(console.error);
+                return saveOfflineExam(exam);
               }
             });
+            trackWrite(
+              writeOp.catch((err) => console.error('Failed to persist question index:', err))
+            );
           }
         }
       },
@@ -207,14 +234,15 @@ export const useExamStore = create<ExamState>()(
 
             set({ responses: newResponses });
 
-            // Persist to IndexedDB for offline exams
+            // Persist to IndexedDB for offline exams (tracked to ensure completion)
             if (isOfflineExam && offlineExamId) {
-              getOfflineExam(offlineExamId).then((exam) => {
+              const writeOp = getOfflineExam(offlineExamId).then((exam) => {
                 if (exam) {
                   exam.responses.set(questionId, selectedAnswers);
-                  saveOfflineExam(exam).catch(console.error);
+                  return saveOfflineExam(exam);
                 }
               });
+              trackWrite(writeOp.catch((err) => console.error('Failed to persist answer:', err)));
             }
           }
         );
@@ -489,6 +517,9 @@ export const useExamStore = create<ExamState>()(
         }
 
         set({ isSubmitting: true });
+
+        // Ensure all pending IndexedDB writes complete before submission
+        await flushPendingWrites();
 
         return Sentry.startSpan(
           {

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@ace-prep/shared';
+import { clearAllUserData } from '../services/offlineDb';
 
 interface AuthState {
   user: User | null;
@@ -9,7 +10,7 @@ interface AuthState {
   isLoading: boolean;
 
   login: (user: User, accessToken: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
   setUser: (user: User) => void;
 }
@@ -30,13 +31,22 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
         }),
 
-      logout: () =>
+      logout: async () => {
+        // SECURITY: Clear all cached data including questions with correctAnswers
+        // This prevents sensitive exam data from persisting after logout
+        try {
+          await clearAllUserData();
+        } catch (error) {
+          console.error('Failed to clear user data on logout:', error);
+        }
+
         set({
           user: null,
           accessToken: null,
           isAuthenticated: false,
           isLoading: false,
-        }),
+        });
+      },
 
       setLoading: (isLoading) => set({ isLoading }),
 

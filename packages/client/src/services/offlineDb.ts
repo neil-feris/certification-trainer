@@ -252,15 +252,52 @@ function generateSyncId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
+// Maximum sync queue size to prevent IndexedDB quota exhaustion
+const MAX_QUEUE_SIZE = 500;
+
 /**
- * Queue an item for sync
+ * Queue an item for sync with size limit enforcement.
+ * If queue exceeds MAX_QUEUE_SIZE, oldest items are evicted (FIFO).
  */
 export async function queueForSync(
   type: SyncQueueItemType,
   payload: Record<string, unknown>
 ): Promise<string> {
-  const store = await getStore(STORES.SYNC_QUEUE, 'readwrite');
+  const db = await openDatabase();
 
+  // Check and enforce queue size limit first
+  const currentCount = await new Promise<number>((resolve, reject) => {
+    const transaction = db.transaction(STORES.SYNC_QUEUE, 'readonly');
+    const store = transaction.objectStore(STORES.SYNC_QUEUE);
+    const countRequest = store.count();
+    countRequest.onsuccess = () => resolve(countRequest.result);
+    countRequest.onerror = () => reject(countRequest.error);
+  });
+
+  // If at or over limit, evict oldest items (FIFO)
+  if (currentCount >= MAX_QUEUE_SIZE) {
+    const evictCount = Math.max(1, currentCount - MAX_QUEUE_SIZE + 1);
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORES.SYNC_QUEUE, 'readwrite');
+      const store = transaction.objectStore(STORES.SYNC_QUEUE);
+      const cursorRequest = store.openCursor();
+      let evicted = 0;
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+
+      cursorRequest.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor && evicted < evictCount) {
+          cursor.delete();
+          evicted++;
+          cursor.continue();
+        }
+      };
+    });
+  }
+
+  // Create and add the new item
   const item: SyncQueueItem = {
     id: generateSyncId(),
     type,
@@ -270,6 +307,7 @@ export async function queueForSync(
     status: 'pending',
   };
 
+  const store = await getStore(STORES.SYNC_QUEUE, 'readwrite');
   await promisifyRequest(store.add(item));
   return item.id;
 }
@@ -571,4 +609,29 @@ export async function getDatabaseStats(): Promise<{
     cacheMetadataCount,
     cachedQuestionCount,
   };
+}
+
+/**
+ * Clear all user-specific data from IndexedDB.
+ * SECURITY: Call this on logout to remove sensitive data like cached questions
+ * (which contain correctAnswers) and offline exam progress.
+ */
+export async function clearAllUserData(): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      [STORES.OFFLINE_EXAMS, STORES.SYNC_QUEUE, STORES.CACHE_METADATA, STORES.CACHED_QUESTIONS],
+      'readwrite'
+    );
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+
+    // Clear all user data stores
+    transaction.objectStore(STORES.OFFLINE_EXAMS).clear();
+    transaction.objectStore(STORES.SYNC_QUEUE).clear();
+    transaction.objectStore(STORES.CACHE_METADATA).clear();
+    transaction.objectStore(STORES.CACHED_QUESTIONS).clear();
+  });
 }

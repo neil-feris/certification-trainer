@@ -611,24 +611,12 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Only completed exams can be shared' });
     }
 
-    // Check if share already exists for this exam
-    const [existingShare] = await db.select().from(examShares).where(eq(examShares.examId, examId));
-
-    if (existingShare) {
-      // Return existing share link
-      const response: CreateShareLinkResponse = {
-        shareHash: existingShare.shareHash,
-        shareUrl: `/share/exam/${existingShare.shareHash}`,
-        createdAt: existingShare.createdAt.toISOString(),
-      };
-      return response;
-    }
-
     // Generate unique share hash
     const shareHash = randomBytes(16).toString('hex');
 
-    // Create new share record
-    const [newShare] = await db
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If share already exists for this exam, the insert is a no-op
+    await db
       .insert(examShares)
       .values({
         examId,
@@ -636,12 +624,20 @@ export async function examRoutes(fastify: FastifyInstance) {
         viewCount: 0,
         createdAt: new Date(),
       })
-      .returning();
+      .onConflictDoNothing();
+
+    // Fetch the share (either newly inserted or existing)
+    const [share] = await db.select().from(examShares).where(eq(examShares.examId, examId));
+
+    if (!share) {
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create share link' });
+    }
 
     const response: CreateShareLinkResponse = {
-      shareHash: newShare.shareHash,
-      shareUrl: `/share/exam/${newShare.shareHash}`,
-      createdAt: newShare.createdAt.toISOString(),
+      shareHash: share.shareHash,
+      shareUrl: `/share/exam/${share.shareHash}`,
+      createdAt: share.createdAt.toISOString(),
     };
 
     return response;
@@ -691,27 +687,13 @@ export async function examRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Check if certificate already exists
-    const [existingCert] = await db
-      .select()
-      .from(certificates)
-      .where(eq(certificates.examId, examId));
+    // Generate certificate hash using random bytes for unpredictability (fixes security issue #9)
+    // Use randomBytes instead of deterministic SHA256 to prevent hash enumeration
+    const certificateHash = randomBytes(16).toString('hex'); // 32 chars = 128 bits
 
-    if (existingCert) {
-      // Return existing certificate
-      const response: GenerateCertificateResponse = {
-        certificateHash: existingCert.certificateHash,
-        downloadUrl: `/api/certificates/${existingCert.certificateHash}/download`,
-      };
-      return response;
-    }
-
-    // Generate certificate hash from exam_id + score + date
-    const hashInput = `${examId}-${exam.score}-${exam.completedAt?.toISOString() || new Date().toISOString()}`;
-    const certificateHash = createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
-
-    // Create certificate record
-    const [newCert] = await db
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If certificate already exists for this exam, the insert is a no-op
+    await db
       .insert(certificates)
       .values({
         examId,
@@ -721,11 +703,19 @@ export async function examRoutes(fastify: FastifyInstance) {
         score: exam.score,
         issuedAt: new Date(),
       })
-      .returning();
+      .onConflictDoNothing();
+
+    // Fetch the certificate (either newly inserted or existing)
+    const [cert] = await db.select().from(certificates).where(eq(certificates.examId, examId));
+
+    if (!cert) {
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create certificate' });
+    }
 
     const response: GenerateCertificateResponse = {
-      certificateHash: newCert.certificateHash,
-      downloadUrl: `/api/certificates/${newCert.certificateHash}/download`,
+      certificateHash: cert.certificateHash,
+      downloadUrl: `/api/certificates/${cert.certificateHash}/download`,
     };
     return response;
   });
@@ -760,18 +750,35 @@ export async function examRoutes(fastify: FastifyInstance) {
       completedAt,
     } = request.body;
 
-    // Check for duplicate submission by offlineExamId
-    // We store the offlineExamId in a metadata field to detect duplicates
+    // Generate content hash for secondary deduplication
+    // This catches duplicates even if offlineExamId is lost (e.g., app restart)
+    const contentForHash = {
+      certificationId,
+      questionIds: submittedQuestions.map((q) => q.questionId).sort(),
+      startedAt,
+    };
+    const contentHash = createHash('sha256')
+      .update(JSON.stringify(contentForHash))
+      .digest('hex')
+      .substring(0, 32);
+
+    // Check for duplicate submission by offlineExamId OR content hash
+    // offlineExamId can be lost on app restart, so content hash is backup
     const [existingExam] = await db
       .select()
       .from(exams)
-      .where(and(eq(exams.userId, userId), eq(exams.offlineExamId, offlineExamId)))
+      .where(
+        and(
+          eq(exams.userId, userId),
+          sql`(${exams.offlineExamId} = ${offlineExamId} OR ${exams.contentHash} = ${contentHash})`
+        )
+      )
       .limit(1);
 
     if (existingExam) {
       // Already synced - return existing result (idempotent)
       fastify.log.info(
-        { userId, offlineExamId, existingExamId: existingExam.id },
+        { userId, offlineExamId, contentHash, existingExamId: existingExam.id },
         'Duplicate offline exam submission detected - returning existing result'
       );
 
@@ -804,9 +811,37 @@ export async function examRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Calculate score from submitted responses
-    const correctCount = submittedQuestions.filter((q) => q.isCorrect).length;
-    const totalQuestions = submittedQuestions.length;
+    // SECURITY: Re-verify all answers server-side - never trust client-provided isCorrect
+    const questionIds = submittedQuestions.map((q) => q.questionId);
+    const dbQuestions = await db
+      .select({ id: questions.id, correctAnswers: questions.correctAnswers })
+      .from(questions)
+      .where(inArray(questions.id, questionIds));
+
+    const correctAnswersMap = new Map(
+      dbQuestions.map((q) => [q.id, JSON.parse(q.correctAnswers as string) as number[]])
+    );
+
+    // Verify each answer and compute server-verified correctness
+    const verifiedResponses = submittedQuestions.map((q) => {
+      const correctAnswers = correctAnswersMap.get(q.questionId);
+      if (!correctAnswers) {
+        // Question not found in DB - mark as incorrect
+        return { ...q, isCorrect: false, serverVerified: true };
+      }
+
+      // Server-side answer verification
+      const isCorrect =
+        q.selectedAnswers.length === correctAnswers.length &&
+        q.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => q.selectedAnswers.includes(a));
+
+      return { ...q, isCorrect, serverVerified: true };
+    });
+
+    // Calculate score from server-verified responses
+    const correctCount = verifiedResponses.filter((q) => q.isCorrect).length;
+    const totalQuestions = verifiedResponses.length;
     const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
 
     // Create the exam record with offline metadata
@@ -823,18 +858,19 @@ export async function examRoutes(fastify: FastifyInstance) {
         score,
         status: 'completed',
         offlineExamId, // Store for duplicate detection
+        contentHash, // Secondary deduplication via content hash
       })
       .returning();
 
-    // Insert exam responses
-    if (submittedQuestions.length > 0) {
+    // Insert exam responses with server-verified correctness
+    if (verifiedResponses.length > 0) {
       await db.insert(examResponses).values(
-        submittedQuestions.map((q, index) => ({
+        verifiedResponses.map((q, index) => ({
           userId,
           examId: newExam.id,
           questionId: q.questionId,
           selectedAnswers: JSON.stringify(q.selectedAnswers),
-          isCorrect: q.isCorrect,
+          isCorrect: q.isCorrect, // Now server-verified, not client-provided
           timeSpentSeconds: q.timeSpentSeconds,
           flagged: q.flagged,
           orderIndex: index,

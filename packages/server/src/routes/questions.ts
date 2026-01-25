@@ -669,8 +669,37 @@ export async function questionRoutes(fastify: FastifyInstance) {
     const userId = parseInt(request.user!.id, 10);
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // Check if there's an existing selection for today
-    let selection = await db
+    // Get all question IDs for this certification (needed whether selection exists or not)
+    const certQuestions = await db
+      .select({ id: questions.id })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .where(eq(domains.certificationId, certificationId));
+
+    if (certQuestions.length === 0) {
+      return reply.status(404).send({ error: 'No questions available for this certification' });
+    }
+
+    // Deterministic selection using date hash
+    // Simple hash: sum of character codes in date string modulo question count
+    const dateHash = today.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const selectedIndex = dateHash % certQuestions.length;
+    const selectedQuestionId = certQuestions[selectedIndex].id;
+
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If selection already exists for this certification + date, the insert is a no-op
+    await db
+      .insert(qotdSelections)
+      .values({
+        certificationId,
+        questionId: selectedQuestionId,
+        dateServed: today,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing();
+
+    // Fetch the selection (either newly inserted or existing)
+    const selection = await db
       .select()
       .from(qotdSelections)
       .where(
@@ -682,36 +711,8 @@ export async function questionRoutes(fastify: FastifyInstance) {
       .get();
 
     if (!selection) {
-      // No selection for today - create one using deterministic hash
-      // Get all question IDs for this certification
-      const certQuestions = await db
-        .select({ id: questions.id })
-        .from(questions)
-        .innerJoin(domains, eq(questions.domainId, domains.id))
-        .where(eq(domains.certificationId, certificationId));
-
-      if (certQuestions.length === 0) {
-        return reply.status(404).send({ error: 'No questions available for this certification' });
-      }
-
-      // Deterministic selection using date hash
-      // Simple hash: sum of character codes in date string modulo question count
-      const dateHash = today.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const selectedIndex = dateHash % certQuestions.length;
-      const selectedQuestionId = certQuestions[selectedIndex].id;
-
-      // Insert the selection
-      const [newSelection] = await db
-        .insert(qotdSelections)
-        .values({
-          certificationId,
-          questionId: selectedQuestionId,
-          dateServed: today,
-          createdAt: new Date(),
-        })
-        .returning();
-
-      selection = newSelection;
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create question of the day selection' });
     }
 
     // Fetch the question with domain and topic

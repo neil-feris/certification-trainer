@@ -143,11 +143,13 @@ export const exams = sqliteTable(
     score: real('score'), // Percentage 0-100
     status: text('status').notNull(), // 'in_progress' | 'completed' | 'abandoned'
     offlineExamId: text('offline_exam_id'), // Client-generated ID for offline exams (duplicate prevention)
+    contentHash: text('content_hash'), // SHA256 hash of exam content for secondary deduplication
   },
   (table) => [
     index('exams_cert_idx').on(table.certificationId),
     index('exams_user_idx').on(table.userId),
     index('exams_offline_id_idx').on(table.offlineExamId),
+    index('exams_content_hash_idx').on(table.contentHash),
   ]
 );
 
