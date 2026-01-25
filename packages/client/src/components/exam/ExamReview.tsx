@@ -4,6 +4,7 @@ import { examApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
 import { useEffect } from 'react';
 import { BookmarkButton } from '../common/BookmarkButton';
+import { CertificateButton } from '../common/CertificateButton';
 import { NotesPanel } from '../common/NotesPanel';
 import styles from './ExamReview.module.css';
 
@@ -86,6 +87,11 @@ export function ExamReview() {
             <span className={styles.detailLabel}>Time Used</span>
           </div>
         </div>
+        {passed && (
+          <div className={styles.scoreActions}>
+            <CertificateButton examId={parseInt(id!)} score={exam.score} />
+          </div>
+        )}
       </div>
 
       {/* Domain Performance */}
