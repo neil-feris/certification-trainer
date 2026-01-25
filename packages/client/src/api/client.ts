@@ -69,6 +69,7 @@ import type {
   CompleteTaskResponse,
   RegenerateStudyPlanRequest,
   RegenerateStudyPlanResponse,
+  CreateShareLinkResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -783,5 +784,13 @@ export const studyPlanApi = {
     request<RegenerateStudyPlanResponse>(`/study-plans/${planId}/regenerate`, {
       method: 'POST',
       body: JSON.stringify(data || {}),
+    }),
+};
+
+// Share
+export const shareApi = {
+  createShareLink: (examId: number) =>
+    request<CreateShareLinkResponse>(`/exams/${examId}/share`, {
+      method: 'POST',
     }),
 };
