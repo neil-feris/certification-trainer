@@ -1,6 +1,7 @@
 export { AuthLoader } from './AuthLoader';
 export { BadgeCard } from './BadgeCard';
 export { BookmarkButton } from './BookmarkButton';
+export { CertificateButton } from './CertificateButton';
 export { ErrorBoundary } from './ErrorBoundary';
 export { NotesPanel } from './NotesPanel';
 export { OfflineBanner } from './OfflineBanner';
