@@ -22,6 +22,10 @@ packages/*/dist
 # Database journal (not needed)
 data/*.db-journal
 
+# CI/Security files (not needed in image)
+.trivyignore
+.github
+
 # Misc
 .DS_Store
 *.log
