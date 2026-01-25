@@ -271,9 +271,9 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Question is not part of this session' });
       }
 
-      // Insert or update rating in flashcard_session_ratings (unique on session+question)
+      // Check if rating already exists before upsert
       const [existingRating] = await db
-        .select()
+        .select({ id: flashcardSessionRatings.id })
         .from(flashcardSessionRatings)
         .where(
           and(
@@ -282,23 +282,28 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
           )
         );
 
-      if (existingRating) {
-        await db
-          .update(flashcardSessionRatings)
-          .set({ rating, ratedAt: new Date() })
-          .where(eq(flashcardSessionRatings.id, existingRating.id));
-      } else {
-        await db.insert(flashcardSessionRatings).values({
+      const isFirstRating = !existingRating;
+
+      // Upsert rating with ON CONFLICT to handle race conditions gracefully
+      await db
+        .insert(flashcardSessionRatings)
+        .values({
           sessionId,
           questionId,
           rating,
           ratedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [flashcardSessionRatings.sessionId, flashcardSessionRatings.questionId],
+          set: { rating, ratedAt: new Date() },
         });
 
-        // Increment cardsReviewed only on first rating per question
+      // Increment cardsReviewed atomically only on first rating
+      // Use atomic SQL increment to prevent lost updates from concurrent requests
+      if (isFirstRating) {
         await db
           .update(flashcardSessions)
-          .set({ cardsReviewed: session.cardsReviewed + 1 })
+          .set({ cardsReviewed: sql`${flashcardSessions.cardsReviewed} + 1` })
           .where(eq(flashcardSessions.id, sessionId));
       }
 
