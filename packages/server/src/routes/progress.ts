@@ -191,7 +191,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
   // Get readiness score with recommendations and recent history
   fastify.get<{
-    Querystring: { certificationId?: string };
+    Querystring: { certificationId?: string; snapshot?: string };
   }>('/readiness', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
@@ -200,33 +200,38 @@ export async function progressRoutes(fastify: FastifyInstance) {
     // Calculate current readiness score
     const { score, recommendations } = await calculateReadinessScore(userId, certId, db);
 
-    // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
-    // Wrapped in transaction to prevent race condition with concurrent requests
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    await db.transaction(async (tx) => {
-      const [lastSnapshot] = await tx
-        .select({ calculatedAt: readinessSnapshots.calculatedAt })
-        .from(readinessSnapshots)
-        .where(
-          and(
-            eq(readinessSnapshots.userId, userId),
-            eq(readinessSnapshots.certificationId, certId)
-          )
-        )
-        .orderBy(desc(readinessSnapshots.calculatedAt))
-        .limit(1);
+    // Only save snapshot if client explicitly requests it (opt-in for REST idempotency)
+    const shouldAttemptSave = request.query.snapshot === 'true';
 
-      const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
-      if (shouldSave) {
-        await tx.insert(readinessSnapshots).values({
-          userId,
-          certificationId: certId,
-          overallScore: score.overall,
-          domainScoresJson: JSON.stringify(score.domains),
-          calculatedAt: new Date(),
-        });
-      }
-    });
+    if (shouldAttemptSave) {
+      // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
+      // Wrapped in transaction to prevent race condition with concurrent requests
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      await db.transaction(async (tx) => {
+        const [lastSnapshot] = await tx
+          .select({ calculatedAt: readinessSnapshots.calculatedAt })
+          .from(readinessSnapshots)
+          .where(
+            and(
+              eq(readinessSnapshots.userId, userId),
+              eq(readinessSnapshots.certificationId, certId)
+            )
+          )
+          .orderBy(desc(readinessSnapshots.calculatedAt))
+          .limit(1);
+
+        const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
+        if (shouldSave) {
+          await tx.insert(readinessSnapshots).values({
+            userId,
+            certificationId: certId,
+            overallScore: score.overall,
+            domainScoresJson: JSON.stringify(score.domains),
+            calculatedAt: new Date(),
+          });
+        }
+      });
+    }
 
     // Fetch recent history (last 10 snapshots for context)
     const historyRows = await db
