@@ -271,76 +271,80 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Question is not part of this session' });
       }
 
-      // Check if rating already exists before upsert
-      const [existingRating] = await db
-        .select({ id: flashcardSessionRatings.id })
-        .from(flashcardSessionRatings)
-        .where(
-          and(
-            eq(flashcardSessionRatings.sessionId, sessionId),
-            eq(flashcardSessionRatings.questionId, questionId)
-          )
-        );
+      // Wrap rating operations in transaction for data consistency
+      const srResult = await db.transaction(async (tx) => {
+        // Check if rating already exists before upsert
+        const [existingRating] = await tx
+          .select({ id: flashcardSessionRatings.id })
+          .from(flashcardSessionRatings)
+          .where(
+            and(
+              eq(flashcardSessionRatings.sessionId, sessionId),
+              eq(flashcardSessionRatings.questionId, questionId)
+            )
+          );
 
-      const isFirstRating = !existingRating;
+        const isFirstRating = !existingRating;
 
-      // Upsert rating with ON CONFLICT to handle race conditions gracefully
-      await db
-        .insert(flashcardSessionRatings)
-        .values({
-          sessionId,
-          questionId,
-          rating,
-          ratedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [flashcardSessionRatings.sessionId, flashcardSessionRatings.questionId],
-          set: { rating, ratedAt: new Date() },
-        });
-
-      // Increment cardsReviewed atomically only on first rating
-      // Use atomic SQL increment to prevent lost updates from concurrent requests
-      if (isFirstRating) {
-        await db
-          .update(flashcardSessions)
-          .set({ cardsReviewed: sql`${flashcardSessions.cardsReviewed} + 1` })
-          .where(eq(flashcardSessions.id, sessionId));
-      }
-
-      // Update spaced repetition schedule
-      let [sr] = await db
-        .select()
-        .from(spacedRepetition)
-        .where(
-          and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
-        );
-
-      if (!sr) {
-        [sr] = await db
-          .insert(spacedRepetition)
+        // Upsert rating with ON CONFLICT to handle race conditions gracefully
+        await tx
+          .insert(flashcardSessionRatings)
           .values({
-            userId,
+            sessionId,
             questionId,
-            easeFactor: 2.5,
-            interval: 1,
-            repetitions: 0,
-            nextReviewAt: new Date(),
+            rating,
+            ratedAt: new Date(),
           })
-          .returning();
-      }
+          .onConflictDoUpdate({
+            target: [flashcardSessionRatings.sessionId, flashcardSessionRatings.questionId],
+            set: { rating, ratedAt: new Date() },
+          });
 
-      const srResult = calculateNextReview(rating, sr.easeFactor, sr.interval, sr.repetitions);
+        // Increment cardsReviewed atomically only on first rating
+        if (isFirstRating) {
+          await tx
+            .update(flashcardSessions)
+            .set({ cardsReviewed: sql`${flashcardSessions.cardsReviewed} + 1` })
+            .where(eq(flashcardSessions.id, sessionId));
+        }
 
-      await db
-        .update(spacedRepetition)
-        .set({
-          easeFactor: srResult.easeFactor,
-          interval: srResult.interval,
-          repetitions: srResult.repetitions,
-          nextReviewAt: srResult.nextReviewAt,
-          lastReviewedAt: new Date(),
-        })
-        .where(eq(spacedRepetition.id, sr.id));
+        // Update spaced repetition schedule
+        let [sr] = await tx
+          .select()
+          .from(spacedRepetition)
+          .where(
+            and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
+          );
+
+        if (!sr) {
+          [sr] = await tx
+            .insert(spacedRepetition)
+            .values({
+              userId,
+              questionId,
+              easeFactor: 2.5,
+              interval: 1,
+              repetitions: 0,
+              nextReviewAt: new Date(),
+            })
+            .returning();
+        }
+
+        const result = calculateNextReview(rating, sr.easeFactor, sr.interval, sr.repetitions);
+
+        await tx
+          .update(spacedRepetition)
+          .set({
+            easeFactor: result.easeFactor,
+            interval: result.interval,
+            repetitions: result.repetitions,
+            nextReviewAt: result.nextReviewAt,
+            lastReviewedAt: new Date(),
+          })
+          .where(eq(spacedRepetition.id, sr.id));
+
+        return result;
+      });
 
       // Award XP (non-critical, graceful degradation)
       let xpUpdate: XPAwardResponse | undefined;
