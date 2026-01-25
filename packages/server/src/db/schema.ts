@@ -214,6 +214,8 @@ export const performanceStats = sqliteTable(
   (table) => [
     index('stats_domain_idx').on(table.domainId),
     index('stats_user_idx').on(table.userId),
+    // Composite index for readiness query: WHERE userId = ? AND domainId IN (...)
+    index('stats_user_domain_idx').on(table.userId, table.domainId),
   ]
 );
 
