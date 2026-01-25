@@ -1,0 +1,239 @@
+# Ralph Progress Log
+Started: Sun 25 Jan 2026 15:26:41 SAST
+
+## Codebase Patterns
+- Shared types live in `packages/shared/src/index.ts` and are exported directly (no barrel files)
+- Use `/bin/bash -c 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && <cmd>'` to run npm commands (zsh config issue)
+- Build order matters: shared → server → client (use `npm run build`)
+- Lint runs via `npm run lint` at root level
+- Commit message format: `feat: [US-XXX] - Story Title`
+
+- Existing `offlineStorage.ts` and `syncQueue.ts` use `idb-keyval` for simple key-value storage
+- New unified `offlineDb.ts` uses raw IndexedDB API with proper object stores and migrations
+- API client is in `packages/client/src/api/client.ts` - use pattern of fetching with `Authorization: Bearer {token}` header
+- Auth token comes from `useAuthStore.getState().accessToken`
+- Custom events use `window.dispatchEvent(new CustomEvent(type, { detail }))`
+- Service worker uses `injectManifest` strategy in VitePWA config for custom SW code
+- Service worker file must use `/// <reference lib="webworker" />` for TS types
+- SW communicates with clients via `postMessage` - clients listen on `navigator.serviceWorker.addEventListener('message', ...)`
+- Sync tag is `ace-offline-sync`, periodic sync tag is `ace-daily-cache-refresh`
+- CacheService uses custom events pattern: `ace:cache:started`, `ace:cache:completed`, `ace:cache:failed`, `ace:cache:cleared`
+- Questions are cached per certification with 7-day expiration
+- IndexedDB store `cachedQuestions` has indexes on certificationId, domainId, topicId, difficulty for filtering
+- Default cache size is 100 questions per certification
+- Rate limiting per-route: use `config: { rateLimit: { max: N, timeWindow: '1 minute' } }` in route options
+- Bulk questions endpoint: `GET /api/questions/bulk?certificationId={id}&limit={n}` - weighted by domain, excludes mastered
+- Offline exam state stored in IndexedDB `offlineExams` store with status, responses, timestamps
+- examStore supports both online and offline exams via `isOfflineExam` and `offlineExamId` flags
+- Offline exams use `queueForSync('exam_submission', payload)` to queue for background sync
+- Server deduplicates via `offlineExamId` column in exams table
+- Toast system exists at `components/common/Toast.tsx` with `showToast()` function for global toast notifications
+- OfflineStatusIndicator component shows in header (MobileHeader) and sidebar footer (AppShell)
+
+---
+
+## 2026-01-25T22:30:00+02:00 - US-008
+- **What was implemented**: Offline Status Indicator Component with expand panel and toast notifications
+- **Files changed**:
+  - `packages/client/src/components/common/OfflineStatusIndicator.tsx` (new) - Main component
+  - `packages/client/src/components/common/OfflineStatusIndicator.module.css` (new) - Styles
+  - `packages/client/src/components/layout/MobileHeader.tsx` - Added indicator to mobile header
+  - `packages/client/src/components/layout/AppShell.tsx` - Added indicator to sidebar footer
+- **Features implemented**:
+  - Persistent indicator showing online/offline status with icon
+  - Badge showing pending sync count (shows when items pending)
+  - Click expands to reveal sync status details panel
+  - Panel shows: connection status, pending sync count, last sync time
+  - 'Sync Now' button triggers manual sync when online with pending items
+  - Toast notifications on connectivity change (online/offline)
+  - Spinning icon animation during sync
+  - Click outside or Escape key closes panel
+  - Responsive design: panel appears as fixed bottom sheet on mobile
+- **Variants**:
+  - `compact` - Icon only with badge (used in headers)
+  - `full` - Icon + label (available but not currently used)
+- **Learnings for future iterations**:
+  - Use existing `showToast()` from Toast.tsx for consistent toast notifications
+  - `useSyncQueue` hook provides `pendingCount`, `isSyncing`, `manualSync`, `lastSyncResult`
+  - `useOnlineStatus` hook provides `isOnline` boolean with automatic event handling
+  - Use `useRef` to track previous state for detecting changes (prevOnlineRef pattern)
+  - CSS z-index 100 for panels to appear above other content
+  - Position panel with `top: calc(100% + 8px)` for consistent spacing from trigger
+
+---
+
+## 2026-01-25T21:00:00+02:00 - US-007
+- **What was implemented**: Full offline exam flow - creation, state persistence, submission, and server sync
+- **Files changed**:
+  - `packages/shared/src/index.ts` - Added OfflineExamSubmission and OfflineExamSubmissionResult types
+  - `packages/client/src/stores/examStore.ts` - Added createOfflineExam, submitOfflineExam, resumeOfflineExam, abandonOfflineExam methods
+  - `packages/server/src/routes/exams.ts` - Added `/offline-submit` POST endpoint
+  - `packages/server/src/db/schema.ts` - Added offlineExamId column to exams table
+  - `packages/server/src/db/migrations/0014_add_offline_exam_id.sql` - Migration for new column
+- **Features implemented**:
+  - `createOfflineExam(certificationId, count)` - Creates exam from cached questions, stores in IndexedDB
+  - `submitOfflineExam()` - Queues responses for background sync with offline flag and client timestamp
+  - `resumeOfflineExam(id)` - Restores exam state including responses and timer from IndexedDB
+  - IndexedDB persistence of current question index and responses on every change
+  - Server `/offline-submit` endpoint with idempotent duplicate detection via offlineExamId
+  - Full XP, streak, and achievement processing for offline exam submissions
+- **Learnings for future iterations**:
+  - OfflineExamState.responses is `Map<number, number[]>` (questionId -> selectedAnswers), not full ExamResponse
+  - Convert Map to simpler form when saving to IndexedDB to avoid type mismatches
+  - examStore already persists via zustand/persist - offline exam state gets saved alongside normal state
+  - Use `mapToExamQuestion()` helper to convert QuestionWithDomain to examStore's ExamQuestion format
+  - Duplicate prevention via unique `offlineExamId` column allows idempotent sync retries
+
+---
+
+## 2026-01-25T20:15:00+02:00 - US-006
+- **What was implemented**: Bulk questions API endpoint for offline pre-caching
+- **Files changed**:
+  - `packages/server/src/routes/questions.ts` - Added `/bulk` endpoint
+  - `packages/server/src/validation/schemas.ts` - Added `bulkQuestionsQuerySchema`
+- **Features implemented**:
+  - `GET /api/questions/bulk?certificationId={id}&limit={n}` returns questions for caching
+  - Randomized selection across domains weighted by exam percentage (domain.weight)
+  - Excludes questions user has answered correctly 3+ times (mastered)
+  - Returns full question data with domain, topic, and case study info
+  - Includes case study data via left join for PCA-style questions
+  - Rate limited: 10 requests per minute
+  - Default limit: 100 questions, max: 200
+- **Response includes**:
+  - `certificationId`, `certificationCode`, `certificationName`
+  - `questions[]` - Full QuestionWithDomain objects
+  - `totalCount` - Actual count returned
+  - `excludedMasteredCount` - Number of mastered questions excluded
+  - `cachedAt` - ISO timestamp for cache freshness
+- **Algorithm**:
+  1. Get domains with weights for certification
+  2. Find mastered questions (answered correctly 3+ times) via examResponses
+  3. Calculate target count per domain based on weight percentage
+  4. Fetch random questions from each domain, excluding mastered
+  5. Fill remaining quota from any domain if individual domains short
+  6. Shuffle final results to mix domains
+- **Learnings for future iterations**:
+  - Use `sql\`RANDOM()\`` for efficient random ordering in SQLite
+  - Group by + having for counting correct responses per question
+  - Rate limiting via fastify config object: `config: { rateLimit: { max: 10, timeWindow: '1 minute' } }`
+  - Use `notInArray(column, ids)` from drizzle-orm for exclusion queries
+
+---
+
+## 2026-01-25T19:30:00+02:00 - US-005
+- **What was implemented**: Question Pre-caching Service for offline exam use
+- **Files changed**:
+  - `packages/client/src/services/cacheService.ts` (new) - Full caching service
+  - `packages/client/src/services/offlineDb.ts` - Added cachedQuestions store (DB version 2)
+- **Features implemented**:
+  - `CacheService.cacheQuestionsForCertification(certId, count)` - Fetches from `/api/questions/bulk` and stores in IndexedDB
+  - `CacheService.getCachedQuestions(certId, filters)` - Retrieves with optional filters (domainId, topicId, difficulty, limit, excludeIds)
+  - `CacheService.clearCache(certId)` - Clears cached questions and metadata
+  - `CacheService.getCacheStatus(certId)` - Returns cache metadata with isExpired flag
+  - `CacheService.getAllCacheStatus()` - Returns status for all cached certifications
+  - `CacheService.hasValidCache(certId)` - Quick check for non-expired cache
+  - `CacheService.refreshCacheIfNeeded(certId, count)` - Auto-refresh if expired (when online)
+  - `CacheService.getEstimatedStorageSize()` - Uses Storage API estimate
+  - Default cache: 100 questions per certification
+  - 7-day expiration for cached content
+  - Custom events for cache lifecycle: started, completed, failed, cleared
+- **IndexedDB changes**:
+  - Added `cachedQuestions` store with indexes on certificationId, domainId, topicId, difficulty
+  - Upgraded DB_VERSION from 1 to 2
+  - Added helper functions: `saveCachedQuestions()`, `getCachedQuestions()`, `getCachedQuestionCount()`, `deleteCachedQuestions()`, `clearAllCachedQuestions()`
+- **Learnings for future iterations**:
+  - CachedQuestion extends QuestionWithDomain with certificationId for indexing
+  - Use `index.getAll(IDBKeyRange.only(key))` to query by index efficiently
+  - Cache expiration check uses simple Date comparison - no need for complex logic
+  - US-006 endpoint `/api/questions/bulk` is not implemented yet - will be needed next
+
+---
+
+## 2026-01-25T18:15:00+02:00 - US-004
+- **What was implemented**: Service Worker with Background Sync and Periodic Sync support
+- **Files changed**:
+  - `packages/client/src/sw.ts` (new) - Custom service worker with sync event handlers
+  - `packages/client/src/services/swRegistration.ts` (new) - SW registration and sync management
+  - `packages/client/vite.config.ts` - Switched from `generateSW` to `injectManifest` strategy
+  - `packages/client/src/main.tsx` - Updated to use new SW registration module
+- **Features implemented**:
+  - Custom service worker with Workbox precaching and runtime caching
+  - Background Sync event handler (`sync` event with tag `ace-offline-sync`)
+  - Periodic Sync event handler (`periodicsync` event with tag `ace-daily-cache-refresh`)
+  - SW-to-client communication via `postMessage` for sync triggers
+  - `initializeServiceWorker()` - Registers SW and sets up sync handling
+  - `requestBackgroundSync()` - Registers for background sync with the SW
+  - `supportsBackgroundSync()` / `supportsPeriodicSync()` - Feature detection
+  - `triggerManualSync()` - Fallback for browsers without Background Sync
+  - Hourly SW update checking
+  - Fallback `setInterval` for Periodic Sync on unsupported browsers
+- **Learnings for future iterations**:
+  - Service workers run in separate global scope - can't directly import client code
+  - Use message passing pattern: SW sends message to client, client calls app services
+  - `vite-plugin-pwa` with `injectManifest` requires TypeScript SW file in `src/` directory
+  - Add `/// <reference lib="webworker" />` at top of SW file for TypeScript types
+  - Periodic Sync API has limited browser support and requires user permission
+  - Fallback to `setInterval` for browsers without Periodic Sync support
+
+---
+
+## 2026-01-25T17:00:00+02:00 - US-003
+- **What was implemented**: Background Sync Service for processing offline queue
+- **Files changed**: `packages/client/src/services/syncService.ts` (new)
+- **Features implemented**:
+  - `SyncService.processQueue()`: Processes items from IndexedDB sync queue in FIFO order
+  - Exponential backoff with jitter (2^retryCount * 1s, capped at 60s, + 0-25% jitter)
+  - Max 5 retries before moving to dead letter store
+  - Custom events: `ace:sync:started`, `ace:sync:completed`, `ace:sync:item:success`, `ace:sync:item:failed`, `ace:sync:item:dead-letter`, `ace:online-status-changed`
+  - Online/offline event listeners via `startListening()` and `stopListening()`
+  - Automatic sync trigger when coming back online
+  - `requestBackgroundSync()` for service worker Background Sync API registration
+  - `triggerManualSync()` for fallback when Background Sync not supported
+  - `getOfflineStatus()` returns current online state and pending sync count
+- **Endpoint mapping**:
+  - `exam_submission` → `/exams/offline-submit`
+  - `study_session` → `/study/sessions/offline-submit`
+  - `drill_result` → `/drills/offline-submit`
+  - `flashcard_rating` → `/study/flashcards/offline-rate`
+- **Learnings for future iterations**:
+  - Permanent failures (400, 404, 409) go straight to dead letter - no point retrying
+  - Background Sync API requires service worker registration and may not be available on all browsers
+  - Use `supportsBackgroundSync()` to check availability before relying on it
+  - Sync tag is `ace-offline-sync` - use this in service worker sync event handler
+
+---
+
+## 2026-01-25T16:15:00+02:00 - US-002
+- **What was implemented**: Enhanced IndexedDB offline storage with unified database
+- **Files changed**: `packages/client/src/services/offlineDb.ts` (new)
+- **Object stores added**:
+  - `offlineExams`: Stores in-progress offline exam state with indexes on certificationId, status, startedAt
+  - `syncQueue`: Stores pending API requests with indexes on type, status, createdAt
+  - `cacheMetadata`: Stores cache metadata per certification (keyed by certificationId)
+- **Helper functions**:
+  - Queue: `queueForSync()`, `getQueuedItems()`, `getPendingItems()`, `removeFromQueue()`, `getPendingSyncCount()`, `moveToDeadLetter()`, `clearSyncQueue()`
+  - Exams: `saveOfflineExam()`, `getOfflineExam()`, `getInProgressOfflineExams()`, `deleteOfflineExam()`
+  - Cache: `saveCacheMetadata()`, `getCacheMetadata()`, `getAllCacheMetadata()`, `deleteCacheMetadata()`
+  - Utility: `getDatabaseStats()`, `closeDatabase()`, `deleteDatabase()`
+- **Learnings for future iterations**:
+  - Maps don't serialize to IndexedDB directly - need to convert to array of tuples and back
+  - Used raw IndexedDB API instead of adding new dependency (idb) for more control over migrations
+  - Database singleton pattern with lazy initialization and version change handling
+  - Versioned migrations in `runMigrations()` function - add new version blocks for future schema changes
+
+---
+
+## 2026-01-25T15:35:00+02:00 - US-001
+- **What was implemented**: Added TypeScript types for offline sync to shared package
+- **Files changed**: `packages/shared/src/index.ts`
+- **Types added**:
+  - `SyncQueueItemType` and `SyncQueueItemStatus` enums
+  - `SyncQueueItem` interface with id, type, payload, createdAt, retryCount, status, lastError, lastAttemptAt
+  - `OfflineStatus` interface with isOnline, pendingSyncCount, lastSyncAt
+  - `CacheStatus` interface with certificationId, certificationCode, certificationName, questionCount, cachedAt, expiresAt, isExpired
+- **Learnings for future iterations**:
+  - Types are directly exported from index.ts, follow existing pattern of adding new sections with comment headers
+  - `Date | string` union is used for date fields for flexibility (server returns strings, client may have Date objects)
+  - Optional fields with `?` for properties that may not always be present
+
+---
