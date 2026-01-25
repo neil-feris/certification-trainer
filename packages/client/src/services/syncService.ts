@@ -45,6 +45,7 @@ export interface SyncResult {
   successful: number;
   failed: number;
   movedToDeadLetter: number;
+  alreadySynced: number; // Items that were already synced (conflict resolved)
 }
 
 // Event detail interfaces
@@ -56,6 +57,8 @@ export interface SyncCompletedEventDetail {
 export interface SyncItemEventDetail {
   item: SyncQueueItem;
   error?: string;
+  alreadySynced?: boolean; // True if this was a duplicate/conflict resolved
+  serverResponse?: Record<string, unknown>; // Server response data
 }
 
 export interface OnlineStatusEventDetail {
@@ -114,10 +117,18 @@ function getEndpointForType(type: SyncQueueItemType): string {
   }
 }
 
+// Response type for sendToServer
+interface SendToServerResult {
+  success: boolean;
+  error?: string;
+  alreadySynced?: boolean;
+  serverResponse?: Record<string, unknown>;
+}
+
 /**
  * Send a single sync item to the server
  */
-async function sendToServer(item: SyncQueueItem): Promise<{ success: boolean; error?: string }> {
+async function sendToServer(item: SyncQueueItem): Promise<SendToServerResult> {
   const endpoint = getEndpointForType(item.type);
   const token = useAuthStore.getState().accessToken;
 
@@ -156,19 +167,32 @@ async function sendToServer(item: SyncQueueItem): Promise<{ success: boolean; er
       return { success: false, error: errorMessage };
     }
 
-    return { success: true };
+    // Parse success response to check for alreadySynced flag (conflict resolution)
+    const responseBody = await response.json().catch(() => ({ success: true }));
+    const alreadySynced = responseBody.alreadySynced === true;
+
+    return {
+      success: true,
+      alreadySynced,
+      serverResponse: responseBody,
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Network error';
     return { success: false, error: errorMessage };
   }
 }
 
+// Result type for processItem
+interface ProcessItemResult {
+  success: boolean;
+  movedToDeadLetter: boolean;
+  alreadySynced: boolean;
+}
+
 /**
  * Process a single queue item with retry logic
  */
-async function processItem(
-  item: SyncQueueItem
-): Promise<{ success: boolean; movedToDeadLetter: boolean }> {
+async function processItem(item: SyncQueueItem): Promise<ProcessItemResult> {
   // Check if item has exceeded max retries
   if (item.retryCount >= MAX_RETRIES) {
     const errorMessage = `Exceeded maximum retries (${MAX_RETRIES})`;
@@ -190,7 +214,7 @@ async function processItem(
       },
     });
 
-    return { success: false, movedToDeadLetter: true };
+    return { success: false, movedToDeadLetter: true, alreadySynced: false };
   }
 
   // Mark item as in_progress
@@ -208,9 +232,36 @@ async function processItem(
     // Success - remove from queue
     await removeFromQueue(item.id);
 
-    dispatchSyncEvent(SYNC_EVENTS.SYNC_ITEM_SUCCESS, { item } as SyncItemEventDetail);
+    // Check if this was a conflict resolution (duplicate submission)
+    if (result.alreadySynced) {
+      // Log breadcrumb for conflict resolution
+      Sentry.addBreadcrumb({
+        category: 'sync',
+        message: `Sync conflict resolved: ${item.id}`,
+        level: 'info',
+        data: {
+          type: item.type,
+          alreadySynced: true,
+          serverExamId: result.serverResponse?.examId,
+          offlineExamId: (item.payload as Record<string, unknown>)?.offlineExamId,
+        },
+      });
 
-    return { success: true, movedToDeadLetter: false };
+      dispatchSyncEvent(SYNC_EVENTS.SYNC_ITEM_SUCCESS, {
+        item,
+        alreadySynced: true,
+        serverResponse: result.serverResponse,
+      } as SyncItemEventDetail);
+
+      return { success: true, movedToDeadLetter: false, alreadySynced: true };
+    }
+
+    dispatchSyncEvent(SYNC_EVENTS.SYNC_ITEM_SUCCESS, {
+      item,
+      serverResponse: result.serverResponse,
+    } as SyncItemEventDetail);
+
+    return { success: true, movedToDeadLetter: false, alreadySynced: false };
   }
 
   // Check if this is a permanent failure
@@ -234,7 +285,7 @@ async function processItem(
       },
     });
 
-    return { success: false, movedToDeadLetter: true };
+    return { success: false, movedToDeadLetter: true, alreadySynced: false };
   }
 
   // Failure - update retry count and mark as failed
@@ -259,7 +310,7 @@ async function processItem(
     error: result.error,
   } as SyncItemEventDetail);
 
-  return { success: false, movedToDeadLetter: false };
+  return { success: false, movedToDeadLetter: false, alreadySynced: false };
 }
 
 /**
@@ -271,6 +322,7 @@ export async function processQueue(): Promise<SyncResult> {
     successful: 0,
     failed: 0,
     movedToDeadLetter: 0,
+    alreadySynced: 0,
   };
 
   // Check if online before processing
@@ -311,6 +363,10 @@ export async function processQueue(): Promise<SyncResult> {
 
       if (itemResult.success) {
         result.successful++;
+        // Track conflict resolutions separately
+        if (itemResult.alreadySynced) {
+          result.alreadySynced++;
+        }
       } else if (itemResult.movedToDeadLetter) {
         result.movedToDeadLetter++;
       } else {

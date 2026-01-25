@@ -13,12 +13,17 @@ export function useOfflineSyncNotifications(): void {
     // Handler for successful sync items
     const handleSyncSuccess = (event: Event) => {
       const customEvent = event as CustomEvent<SyncItemEventDetail>;
-      const { item } = customEvent.detail;
+      const { item, alreadySynced } = customEvent.detail;
 
       // Only notify for exam submissions
       if (item.type === 'exam_submission') {
+        // Show different message if this was a duplicate/conflict resolution
+        const message = alreadySynced
+          ? 'This exam was already synced. View your results in the dashboard.'
+          : 'Your offline exam has been synced! View your results in the dashboard.';
+
         showToast({
-          message: 'Your offline exam has been synced! View your results in the dashboard.',
+          message,
           type: 'success',
           duration: 6000,
           action: {
