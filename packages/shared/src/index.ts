@@ -1187,3 +1187,53 @@ export interface ReadinessResponse {
   recommendations?: ReadinessRecommendation[];
   history?: ReadinessSnapshot[];
 }
+
+// ============ SHARE EXAM RESULTS TYPES ============
+
+/** Domain breakdown for shared exam results */
+export interface ShareableDomainScore {
+  domainId: number;
+  domainName: string;
+  domainCode: string;
+  correctCount: number;
+  totalCount: number;
+  percentage: number;
+}
+
+/** Data structure for shareable exam results */
+export interface ShareableResult {
+  /** Unique share hash for URL */
+  shareHash: string;
+  /** Score percentage (0-100) */
+  score: number;
+  /** Pass/fail status */
+  passed: boolean;
+  /** Certification details */
+  certificationCode: string;
+  certificationName: string;
+  /** Exam completion date */
+  completedAt: string;
+  /** Total questions in exam */
+  totalQuestions: number;
+  /** Number of correct answers */
+  correctAnswers: number;
+  /** Domain-level breakdown */
+  domainBreakdown: ShareableDomainScore[];
+  /** Number of times this link has been viewed */
+  viewCount: number;
+}
+
+/** Response when creating a share link */
+export interface CreateShareLinkResponse {
+  /** The generated share hash */
+  shareHash: string;
+  /** Full shareable URL */
+  shareUrl: string;
+  /** When the share link was created */
+  createdAt: string;
+}
+
+/** Response when fetching a shared exam result (public endpoint) */
+export interface GetSharedResultResponse {
+  result: ShareableResult;
+}
