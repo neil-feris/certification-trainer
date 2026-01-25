@@ -804,9 +804,37 @@ export async function examRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Calculate score from submitted responses
-    const correctCount = submittedQuestions.filter((q) => q.isCorrect).length;
-    const totalQuestions = submittedQuestions.length;
+    // SECURITY: Re-verify all answers server-side - never trust client-provided isCorrect
+    const questionIds = submittedQuestions.map((q) => q.questionId);
+    const dbQuestions = await db
+      .select({ id: questions.id, correctAnswers: questions.correctAnswers })
+      .from(questions)
+      .where(inArray(questions.id, questionIds));
+
+    const correctAnswersMap = new Map(
+      dbQuestions.map((q) => [q.id, JSON.parse(q.correctAnswers as string) as number[]])
+    );
+
+    // Verify each answer and compute server-verified correctness
+    const verifiedResponses = submittedQuestions.map((q) => {
+      const correctAnswers = correctAnswersMap.get(q.questionId);
+      if (!correctAnswers) {
+        // Question not found in DB - mark as incorrect
+        return { ...q, isCorrect: false, serverVerified: true };
+      }
+
+      // Server-side answer verification
+      const isCorrect =
+        q.selectedAnswers.length === correctAnswers.length &&
+        q.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => q.selectedAnswers.includes(a));
+
+      return { ...q, isCorrect, serverVerified: true };
+    });
+
+    // Calculate score from server-verified responses
+    const correctCount = verifiedResponses.filter((q) => q.isCorrect).length;
+    const totalQuestions = verifiedResponses.length;
     const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
 
     // Create the exam record with offline metadata
@@ -826,15 +854,15 @@ export async function examRoutes(fastify: FastifyInstance) {
       })
       .returning();
 
-    // Insert exam responses
-    if (submittedQuestions.length > 0) {
+    // Insert exam responses with server-verified correctness
+    if (verifiedResponses.length > 0) {
       await db.insert(examResponses).values(
-        submittedQuestions.map((q, index) => ({
+        verifiedResponses.map((q, index) => ({
           userId,
           examId: newExam.id,
           questionId: q.questionId,
           selectedAnswers: JSON.stringify(q.selectedAnswers),
-          isCorrect: q.isCorrect,
+          isCorrect: q.isCorrect, // Now server-verified, not client-provided
           timeSpentSeconds: q.timeSpentSeconds,
           flagged: q.flagged,
           orderIndex: index,
