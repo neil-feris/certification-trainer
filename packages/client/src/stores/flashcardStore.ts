@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { flashcardApi } from '../api/client';
+import { showToast } from '../components/common';
 import type {
   FlashcardCard,
   FlashcardSession,
@@ -19,6 +20,7 @@ interface FlashcardState {
 
   // Ratings
   ratings: Map<number, ReviewQuality>;
+  isRating: boolean;
 
   // Results
   isCompleting: boolean;
@@ -50,6 +52,7 @@ const initialState = {
   isFlipped: false,
   isLoading: false,
   ratings: new Map<number, ReviewQuality>(),
+  isRating: false,
   isCompleting: false,
   results: null,
 };
@@ -89,12 +92,14 @@ export const useFlashcardStore = create<FlashcardState>()((set, get) => ({
   },
 
   rateCard: async (rating) => {
-    const { session, cards, currentCardIndex } = get();
+    const { session, cards, currentCardIndex, isRating } = get();
     if (!session) return null;
+    if (isRating) return null; // Prevent concurrent rating calls
 
     const card = cards[currentCardIndex];
     if (!card) return null;
 
+    set({ isRating: true });
     try {
       const response = await flashcardApi.rateCard(session.id, {
         questionId: card.questionId,
@@ -104,11 +109,13 @@ export const useFlashcardStore = create<FlashcardState>()((set, get) => ({
       set((state) => {
         const newRatings = new Map(state.ratings);
         newRatings.set(card.questionId, rating);
-        return { ratings: newRatings };
+        return { ratings: newRatings, isRating: false };
       });
 
       return response;
     } catch {
+      set({ isRating: false });
+      showToast({ message: 'Failed to save rating', type: 'error' });
       return null;
     }
   },

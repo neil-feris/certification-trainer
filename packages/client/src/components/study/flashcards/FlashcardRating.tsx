@@ -5,6 +5,7 @@ import styles from './FlashcardRating.module.css';
 interface FlashcardRatingProps {
   visible: boolean;
   onRate: (rating: ReviewQuality) => void;
+  disabled?: boolean;
 }
 
 const RATING_OPTIONS: { value: ReviewQuality; label: string; key: string; description: string }[] =
@@ -15,12 +16,13 @@ const RATING_OPTIONS: { value: ReviewQuality; label: string; key: string; descri
     { value: 'easy', label: 'Easy', key: '4', description: 'Instant recall' },
   ];
 
-export function FlashcardRating({ visible, onRate }: FlashcardRatingProps) {
+export function FlashcardRating({ visible, onRate, disabled = false }: FlashcardRatingProps) {
   const [selectedRating, setSelectedRating] = useState<ReviewQuality | null>(null);
 
   if (!visible) return null;
 
   const handleRate = (rating: ReviewQuality) => {
+    if (disabled) return;
     setSelectedRating(rating);
     onRate(rating);
     // Reset after animation
@@ -39,6 +41,7 @@ export function FlashcardRating({ visible, onRate }: FlashcardRatingProps) {
               e.stopPropagation();
               handleRate(option.value);
             }}
+            disabled={disabled}
             title={`${option.description} (${option.key})`}
           >
             <span className={styles.ratingKey}>{option.key}</span>

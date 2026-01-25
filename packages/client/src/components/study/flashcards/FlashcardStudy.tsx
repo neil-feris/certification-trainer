@@ -10,6 +10,7 @@ export function FlashcardStudy() {
   const navigate = useNavigate();
   const getCurrentCard = useFlashcardStore((s) => s.getCurrentCard);
   const reset = useFlashcardStore((s) => s.reset);
+  const isRating = useFlashcardStore((s) => s.isRating);
 
   const numericSessionId = sessionId ? parseInt(sessionId, 10) : NaN;
 
@@ -47,7 +48,7 @@ export function FlashcardStudy() {
           );
         }}
         renderRating={({ visible, onRate }) => (
-          <FlashcardRating visible={visible} onRate={onRate} />
+          <FlashcardRating visible={visible} onRate={onRate} disabled={isRating} />
         )}
       />
     </div>
