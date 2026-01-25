@@ -53,9 +53,22 @@ export function QotdWidget({ data, isLoading, isError, onSubmit, onRetry }: Qotd
     );
   }
 
-  // No data (shouldn't happen, but safety net)
+  // Empty state (no questions available)
   if (!data) {
-    return null;
+    return (
+      <div className={styles.widget}>
+        <div className={styles.header}>
+          <span className={styles.badge}>Question of the Day</span>
+        </div>
+        <div className={styles.emptyState}>
+          <span className={styles.emptyIcon}>📚</span>
+          <p className={styles.emptyTitle}>No questions available yet</p>
+          <p className={styles.emptyDescription}>
+            Add questions to this certification to enable the daily challenge.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const { question, completion, correctAnswers, explanation } = data;
