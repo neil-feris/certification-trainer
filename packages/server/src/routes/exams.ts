@@ -1,6 +1,15 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
-import { exams, examResponses, questions, domains, topics, caseStudies } from '../db/schema.js';
+import {
+  exams,
+  examResponses,
+  questions,
+  domains,
+  topics,
+  caseStudies,
+  examShares,
+} from '../db/schema.js';
+import { randomBytes } from 'crypto';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
@@ -20,7 +29,12 @@ import {
   checkDomainExpert,
   type AchievementContext,
 } from '../services/achievementService.js';
-import { XP_AWARDS, type XPAwardResponse, type AchievementUnlockResponse } from '@ace-prep/shared';
+import {
+  XP_AWARDS,
+  type XPAwardResponse,
+  type AchievementUnlockResponse,
+  type CreateShareLinkResponse,
+} from '@ace-prep/shared';
 import { invalidateReadinessCache } from '../services/readinessService.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
@@ -569,5 +583,64 @@ export async function examRoutes(fastify: FastifyInstance) {
         percentage: (s.correct / s.total) * 100,
       })),
     };
+  });
+
+  // Create share link for exam
+  fastify.post<{ Params: { id: string } }>('/:id/share', async (request, reply) => {
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Verify exam ownership and completion
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
+
+    if (!exam) {
+      return reply.status(404).send({ error: 'Exam not found' });
+    }
+
+    if (exam.status !== 'completed') {
+      return reply.status(400).send({ error: 'Only completed exams can be shared' });
+    }
+
+    // Check if share already exists for this exam
+    const [existingShare] = await db.select().from(examShares).where(eq(examShares.examId, examId));
+
+    if (existingShare) {
+      // Return existing share link
+      const response: CreateShareLinkResponse = {
+        shareHash: existingShare.shareHash,
+        shareUrl: `/share/exam/${existingShare.shareHash}`,
+        createdAt: existingShare.createdAt.toISOString(),
+      };
+      return response;
+    }
+
+    // Generate unique share hash
+    const shareHash = randomBytes(16).toString('hex');
+
+    // Create new share record
+    const [newShare] = await db
+      .insert(examShares)
+      .values({
+        examId,
+        shareHash,
+        viewCount: 0,
+        createdAt: new Date(),
+      })
+      .returning();
+
+    const response: CreateShareLinkResponse = {
+      shareHash: newShare.shareHash,
+      shareUrl: `/share/exam/${newShare.shareHash}`,
+      createdAt: newShare.createdAt.toISOString(),
+    };
+
+    return response;
   });
 }

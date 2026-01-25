@@ -530,6 +530,25 @@ const migrations: Migration[] = [
       console.log('  [migration] Created bookmarks and user_notes tables');
     },
   },
+  {
+    version: 8,
+    name: 'add_exam_shares_table',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS exam_shares (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+          share_hash TEXT NOT NULL UNIQUE,
+          view_count INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS exam_shares_hash_idx ON exam_shares(share_hash);
+        CREATE INDEX IF NOT EXISTS exam_shares_exam_idx ON exam_shares(exam_id);
+      `);
+      console.log('  [migration] Created exam_shares table');
+    },
+  },
 ];
 
 /**

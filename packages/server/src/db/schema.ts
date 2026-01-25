@@ -555,6 +555,24 @@ export const flashcardSessionRatings = sqliteTable(
   ]
 );
 
+// ============ EXAM SHARING ============
+export const examShares = sqliteTable(
+  'exam_shares',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    examId: integer('exam_id')
+      .notNull()
+      .references(() => exams.id, { onDelete: 'cascade' }),
+    shareHash: text('share_hash').notNull().unique(),
+    viewCount: integer('view_count').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('exam_shares_hash_idx').on(table.shareHash),
+    index('exam_shares_exam_idx').on(table.examId),
+  ]
+);
+
 // Type exports for Drizzle
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -605,3 +623,5 @@ export type FlashcardSessionRatingRecord = typeof flashcardSessionRatings.$infer
 export type NewFlashcardSessionRating = typeof flashcardSessionRatings.$inferInsert;
 export type ReadinessSnapshotRecord = typeof readinessSnapshots.$inferSelect;
 export type NewReadinessSnapshot = typeof readinessSnapshots.$inferInsert;
+export type ExamShareRecord = typeof examShares.$inferSelect;
+export type NewExamShare = typeof examShares.$inferInsert;
