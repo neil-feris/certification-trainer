@@ -360,6 +360,46 @@ export const learningPathProgress = sqliteTable(
   ]
 );
 
+// ============ QUESTION OF THE DAY ============
+export const qotdSelections = sqliteTable(
+  'qotd_selections',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'restrict' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'restrict' }),
+    dateServed: text('date_served').notNull(), // YYYY-MM-DD format
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('qotd_selections_cert_date_idx').on(table.certificationId, table.dateServed),
+    index('qotd_selections_date_idx').on(table.dateServed),
+  ]
+);
+
+export const qotdResponses = sqliteTable(
+  'qotd_responses',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    qotdSelectionId: integer('qotd_selection_id')
+      .notNull()
+      .references(() => qotdSelections.id, { onDelete: 'cascade' }),
+    selectedAnswers: text('selected_answers').notNull(), // JSON array
+    isCorrect: integer('is_correct', { mode: 'boolean' }).notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('qotd_responses_user_selection_idx').on(table.userId, table.qotdSelectionId),
+    index('qotd_responses_user_idx').on(table.userId),
+  ]
+);
+
 // ============ USER XP & LEVELING ============
 export const userXp = sqliteTable(
   'user_xp',
@@ -605,3 +645,7 @@ export type FlashcardSessionRatingRecord = typeof flashcardSessionRatings.$infer
 export type NewFlashcardSessionRating = typeof flashcardSessionRatings.$inferInsert;
 export type ReadinessSnapshotRecord = typeof readinessSnapshots.$inferSelect;
 export type NewReadinessSnapshot = typeof readinessSnapshots.$inferInsert;
+export type QotdSelectionRecord = typeof qotdSelections.$inferSelect;
+export type NewQotdSelection = typeof qotdSelections.$inferInsert;
+export type QotdResponseRecord = typeof qotdResponses.$inferSelect;
+export type NewQotdResponse = typeof qotdResponses.$inferInsert;
