@@ -10,6 +10,7 @@ import { ExamReview } from './components/exam/ExamReview';
 import { StudyHub } from './components/study/StudyHub';
 import { FlashcardSetup, FlashcardStudy, FlashcardSummary } from './components/study/flashcards';
 import { LearningPathDetail } from './components/study/learning-path/LearningPathDetail';
+import { StudyPlanPage } from './components/study-plan';
 import { Review } from './components/review/Review';
 import { Settings } from './components/settings/Settings';
 import { QuestionBrowser } from './components/questions';
@@ -19,8 +20,9 @@ import { CaseStudiesPage, CaseStudyDetail } from './components/case-studies';
 import { AchievementsPage } from './components/achievements/AchievementsPage';
 import { BookmarksPage } from './components/bookmarks/BookmarksPage';
 import { NotesPage } from './components/notes/NotesPage';
-import { LoginPage, AuthCallbackPage } from './pages';
+import { LoginPage, AuthCallbackPage, ShareExamPage, VerifyCertificatePage } from './pages';
 import { useAuthStore } from './stores/authStore';
+import { useOfflineSyncNotifications } from './hooks/useOfflineSyncNotifications';
 
 // Root redirect component - handles auth-aware redirects
 function RootRedirect() {
@@ -79,6 +81,9 @@ function RootRedirect() {
 }
 
 function App() {
+  // Listen for offline exam sync notifications
+  useOfflineSyncNotifications();
+
   return (
     <ErrorBoundary>
       <Toast />
@@ -89,6 +94,10 @@ function App() {
         {/* Public auth routes - no AppShell, no ProtectedRoute */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/verify/:hash" element={<VerifyCertificatePage />} />
+
+        {/* Public share route - accessible without auth */}
+        <Route path="/share/exam/:hash" element={<ShareExamPage />} />
 
         {/* Protected routes - wrapped in AppShell and ProtectedRoute */}
         <Route
@@ -194,6 +203,18 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <LearningPathDetail />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/study-plan"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <StudyPlanPage />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>

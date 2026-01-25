@@ -1,11 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { useOfflineExamRecovery } from '../../hooks/useOfflineExamRecovery';
 import { ReadinessWidget } from '../common/ReadinessWidget';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { XPHistoryPanel } from '../common/XPHistoryPanel';
+import { QotdWidget } from '../qotd';
+import { StudyPlanWidget } from './StudyPlanWidget';
+import { OfflineFeatureGuide, useOfflineFeatureGuide } from '../common/OfflineStates';
+import { OfflineExamRecoveryModal } from '../exam/OfflineExamRecoveryModal';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -65,10 +70,23 @@ const StudyIcon = () => (
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
   );
+
+  // Offline exam recovery detection
+  const {
+    incompleteExam,
+    isResuming,
+    resumeExam,
+    abandonExam,
+    showPrompt: showRecoveryPrompt,
+  } = useOfflineExamRecovery();
+
+  // Offline feature guide for first-time users
+  const { shouldShowGuide, dismissGuide } = useOfflineFeatureGuide();
 
   const {
     data: dashboard,
@@ -121,6 +139,36 @@ export function Dashboard() {
     staleTime: 300000, // 5 min cache
   });
 
+  // Fetch Question of the Day
+  const {
+    data: qotd,
+    isLoading: qotdLoading,
+    isError: qotdError,
+    refetch: refetchQotd,
+  } = useQuery({
+    queryKey: ['qotd', selectedCertificationId],
+    queryFn: () => questionApi.getQotd(selectedCertificationId!),
+    enabled: selectedCertificationId !== null,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
+    retry: 1, // Only retry once for QOTD
+  });
+
+  // Mutation for completing QOTD
+  const completeQotdMutation = useMutation({
+    mutationFn: (selectedAnswers: number[]) =>
+      questionApi.completeQotd({
+        certificationId: selectedCertificationId!,
+        questionId: qotd!.question.id,
+        selectedAnswers,
+      }),
+    onSuccess: () => {
+      // Invalidate XP and dashboard queries to reflect new XP
+      queryClient.invalidateQueries({ queryKey: ['xp'] });
+      queryClient.invalidateQueries({ queryKey: ['xpHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['qotd', selectedCertificationId] });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className={styles.loading}>
@@ -161,6 +209,27 @@ export function Dashboard() {
 
   return (
     <div className={styles.dashboard}>
+      {/* Offline Feature Guide for first-time users */}
+      {shouldShowGuide && (
+        <OfflineFeatureGuide
+          onDismiss={dismissGuide}
+          onLearnMore={() => {
+            dismissGuide();
+            navigate('/settings', { state: { scrollTo: 'offline-mode' } });
+          }}
+        />
+      )}
+
+      {/* Offline Exam Recovery Modal */}
+      {showRecoveryPrompt && incompleteExam && (
+        <OfflineExamRecoveryModal
+          offlineExam={incompleteExam}
+          onResume={resumeExam}
+          onAbandon={abandonExam}
+          isResuming={isResuming}
+        />
+      )}
+
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>Dashboard</h1>
@@ -205,6 +274,19 @@ export function Dashboard() {
           </button>
         )}
       </div>
+
+      {/* Question of the Day Widget */}
+      {selectedCertificationId && (
+        <QotdWidget
+          data={qotd ?? null}
+          isLoading={qotdLoading}
+          isError={qotdError}
+          onSubmit={async (selectedAnswers) => {
+            return completeQotdMutation.mutateAsync(selectedAnswers);
+          }}
+          onRetry={() => refetchQotd()}
+        />
+      )}
 
       {/* Stats Grid */}
       <div className={styles.statsGrid}>
@@ -267,6 +349,11 @@ export function Dashboard() {
       />
 
       <div className={styles.mainGrid}>
+        {/* Study Plan Widget */}
+        <div className={styles.studyPlanCard}>
+          <StudyPlanWidget />
+        </div>
+
         {/* Domain Performance */}
         <div className={`card ${styles.domainCard}`}>
           <h2 className={styles.sectionTitle}>Domain Performance</h2>

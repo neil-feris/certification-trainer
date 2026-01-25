@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { examApi, questionApi, studyApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { useExamStore } from '../../stores/examStore';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { hasValidCache, getCacheStatus } from '../../services/cacheService';
+import type { CacheStatus } from '@ace-prep/shared';
 import {
   EXAM_SIZE_OPTIONS as EXAM_SIZES,
   EXAM_SIZE_DEFAULT,
@@ -47,13 +51,39 @@ function DomainsList({ certificationId }: { certificationId: number | null }) {
 export function ExamSetup() {
   const navigate = useNavigate();
   const [isStarting, setIsStarting] = useState(false);
+  const [isStartingOffline, setIsStartingOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<ExamSize>(EXAM_SIZE_DEFAULT);
+  const [cacheStatus, setCacheStatus] = useState<CacheStatus | null>(null);
+  const [hasCachedQuestions, setHasCachedQuestions] = useState(false);
+
+  const { isOnline } = useOnlineStatus();
+  const { createOfflineExam } = useExamStore();
 
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
   );
+
+  // Check cache status when certification changes
+  useEffect(() => {
+    async function checkCache() {
+      if (selectedCertificationId === null) {
+        setHasCachedQuestions(false);
+        setCacheStatus(null);
+        return;
+      }
+      const hasCache = await hasValidCache(selectedCertificationId);
+      setHasCachedQuestions(hasCache);
+      if (hasCache) {
+        const status = await getCacheStatus(selectedCertificationId);
+        setCacheStatus(status);
+      } else {
+        setCacheStatus(null);
+      }
+    }
+    checkCache();
+  }, [selectedCertificationId]);
 
   const { data: questionCount = 0 } = useQuery({
     queryKey: ['questions', 'count', selectedCertificationId],
@@ -74,6 +104,34 @@ export function ExamSetup() {
     } catch (err: any) {
       setError(err.message || 'Failed to start exam');
       setIsStarting(false);
+    }
+  };
+
+  const startOfflineExam = async () => {
+    if (selectedCertificationId === null) return;
+
+    setIsStartingOffline(true);
+    setError(null);
+
+    try {
+      // Determine question count - use cache size if smaller than selected size
+      const effectiveCount = cacheStatus
+        ? Math.min(selectedSize, cacheStatus.questionCount)
+        : selectedSize;
+
+      const result = await createOfflineExam(selectedCertificationId, effectiveCount);
+
+      if (!result.success) {
+        setError(result.error || 'Failed to start offline exam');
+        setIsStartingOffline(false);
+        return;
+      }
+
+      // Navigate to offline exam page (uses 'offline' as ID since no server ID exists)
+      navigate('/exam/offline');
+    } catch (err: any) {
+      setError(err.message || 'Failed to start offline exam');
+      setIsStartingOffline(false);
     }
   };
 
@@ -121,12 +179,37 @@ export function ExamSetup() {
           </div>
         </div>
 
-        {questionCount < 10 && (
+        {questionCount < 10 && isOnline && (
           <div className={styles.warning}>
             <span className={styles.warningIcon}>⚠</span>
             <span>
               Only {questionCount} questions available. You need at least 10 questions to start an
               exam. Go to Settings to generate more questions.
+            </span>
+          </div>
+        )}
+
+        {!isOnline && !hasCachedQuestions && (
+          <div className={styles.warning}>
+            <span className={styles.warningIcon}>📶</span>
+            <span>
+              You are offline and no questions are cached. Go to Settings {'>'} Offline Mode to
+              download questions while online.
+            </span>
+          </div>
+        )}
+
+        {!isOnline && hasCachedQuestions && (
+          <div className={styles.offlineReady}>
+            <span className={styles.offlineIcon}>✓</span>
+            <span>
+              {cacheStatus?.questionCount} questions cached for offline use.
+              {cacheStatus && selectedSize > cacheStatus.questionCount && (
+                <span className={styles.offlineNote}>
+                  {' '}
+                  (Exam will use {Math.min(selectedSize, cacheStatus.questionCount)} questions)
+                </span>
+              )}
             </span>
           </div>
         )}
@@ -140,13 +223,23 @@ export function ExamSetup() {
         <DomainsList certificationId={selectedCertificationId} />
 
         <div className={styles.actions}>
-          <button
-            className="btn btn-primary"
-            onClick={startExam}
-            disabled={isStarting || questionCount < 10}
-          >
-            {isStarting ? 'Starting...' : 'Start Exam'}
-          </button>
+          {isOnline ? (
+            <button
+              className="btn btn-primary"
+              onClick={startExam}
+              disabled={isStarting || questionCount < 10}
+            >
+              {isStarting ? 'Starting...' : 'Start Exam'}
+            </button>
+          ) : (
+            <button
+              className="btn btn-primary"
+              onClick={startOfflineExam}
+              disabled={isStartingOffline || !hasCachedQuestions}
+            >
+              {isStartingOffline ? 'Starting...' : 'Start Offline Exam'}
+            </button>
+          )}
           <button className="btn btn-ghost" onClick={() => navigate('/dashboard')}>
             Back to Dashboard
           </button>

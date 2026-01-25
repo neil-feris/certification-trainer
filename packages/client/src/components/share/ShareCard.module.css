@@ -1,0 +1,263 @@
+/* ShareCard - Fixed dimensions for social media sharing (OG image standard) */
+.card {
+  position: relative;
+  width: 1200px;
+  height: 630px;
+  background: #0f1419;
+  overflow: hidden;
+  font-family: "Outfit", system-ui, sans-serif;
+  color: #e7edf4;
+}
+
+/* Hidden state for capture */
+.hidden {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  pointer-events: none;
+}
+
+/* Background effects */
+.bgPattern {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(56, 68, 77, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 68, 77, 0.3) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.5;
+}
+
+.bgGradient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(0, 212, 170, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(0, 153, 204, 0.1) 0%, transparent 50%);
+}
+
+/* Main content container */
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 48px 64px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandIcon {
+  font-size: 32px;
+  background: linear-gradient(135deg, #00d4aa 0%, #0099cc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.brandText {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.certName {
+  font-size: 22px;
+  font-weight: 500;
+  color: #8899a6;
+  padding: 8px 20px;
+  background: rgba(36, 52, 71, 0.8);
+  border-radius: 8px;
+  border: 1px solid #38444d;
+}
+
+/* Score section */
+.scoreSection {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  margin-bottom: 40px;
+}
+
+.scoreCircle {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  flex-shrink: 0;
+}
+
+.scoreSvg {
+  width: 100%;
+  height: 100%;
+}
+
+.scoreValue {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.scoreNumber {
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.scorePercent {
+  font-size: 32px;
+  font-weight: 500;
+  color: #8899a6;
+  align-self: flex-start;
+  margin-top: 12px;
+}
+
+.scoreInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.passBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 12px 24px;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.passBadge.passed {
+  background: rgba(0, 212, 170, 0.15);
+  color: #00d4aa;
+  border: 2px solid #00d4aa;
+}
+
+.passBadge.failed {
+  background: rgba(255, 82, 82, 0.15);
+  color: #ff5252;
+  border: 2px solid #ff5252;
+}
+
+.scoreMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  color: #8899a6;
+}
+
+.dateDivider {
+  color: #657786;
+}
+
+/* Domain breakdown */
+.domains {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.domainsTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #657786;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 16px;
+}
+
+.domainList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.domainItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.domainHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.domainName {
+  font-size: 16px;
+  font-weight: 500;
+  color: #e7edf4;
+  max-width: 70%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.domainScore {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px;
+  color: #8899a6;
+}
+
+.domainBar {
+  height: 8px;
+  background: rgba(36, 52, 71, 0.8);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.domainFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Footer */
+.footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 64px;
+  background: rgba(26, 35, 50, 0.9);
+  border-top: 1px solid #38444d;
+}
+
+.footerText {
+  font-size: 16px;
+  color: #657786;
+}
+
+.footerUrl {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 18px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #00d4aa 0%, #0099cc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

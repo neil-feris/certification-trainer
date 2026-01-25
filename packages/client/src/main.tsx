@@ -2,10 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import { registerSW } from 'virtual:pwa-register';
 import * as Sentry from '@sentry/react';
 import { queryClient } from './lib/queryClient';
 import App from './App';
+import { initializeServiceWorker } from './services/swRegistration';
+import { startListening as startSyncListening } from './services/syncService';
 import './styles/globals.css';
 
 // Initialize Sentry for error tracking, performance monitoring, and logging
@@ -20,25 +21,12 @@ Sentry.init({
   environment: import.meta.env.MODE,
 });
 
-// Register service worker for PWA functionality
-// This enables offline caching and faster subsequent loads
-if ('serviceWorker' in navigator) {
-  registerSW({
-    onNeedRefresh() {
-      // New content available, app will auto-update
-      console.log('New content available, refreshing...');
-    },
-    onOfflineReady() {
-      console.log('App ready to work offline');
-    },
-    onRegistered(registration) {
-      console.log('Service worker registered:', registration);
-    },
-    onRegisterError(error) {
-      console.error('Service worker registration failed:', error);
-    },
-  });
-}
+// Initialize service worker with background sync support
+// This enables offline caching, background sync, and periodic cache refresh
+initializeServiceWorker();
+
+// Start listening for online/offline events to auto-trigger sync
+startSyncListening();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

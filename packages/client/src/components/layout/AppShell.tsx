@@ -3,6 +3,7 @@ import { NavLink, useLocation, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CertificationSelector } from '../common/CertificationSelector';
 import { OfflineBanner } from '../common/OfflineBanner';
+import { OfflineStatusIndicator } from '../common/OfflineStatusIndicator';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { useCertificationStore } from '../../stores/certificationStore';
@@ -31,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: '◉' },
   { path: '/exam', label: 'Practice Exam', icon: '◈' },
   { path: '/study', label: 'Study', icon: '◎' },
+  { path: '/study-plan', label: 'Study Plan', icon: '📅' },
   { path: '/case-studies', label: 'Case Studies', icon: '📋', requiresCaseStudies: true },
   { path: '/questions', label: 'Question Bank', icon: '☰' },
   { path: '/progress', label: 'Progress', icon: '◔' },
@@ -137,6 +139,7 @@ export function AppShell({ children }: AppShellProps) {
 
           <div className={styles.footer}>
             <div className={styles.footerStats}>
+              <OfflineStatusIndicator variant="compact" />
               {streakData && <StreakDisplay streak={streakData} variant="compact" />}
               {xpData && <XPDisplay xp={xpData} variant="compact" />}
             </div>
@@ -225,6 +228,14 @@ export function AppShell({ children }: AppShellProps) {
               >
                 <span className={styles.moreNavIcon}>◈</span>
                 <span>Practice Exam</span>
+              </Link>
+              <Link
+                to="/study-plan"
+                className={styles.moreNavLink}
+                onClick={() => setIsMoreSheetOpen(false)}
+              >
+                <span className={styles.moreNavIcon}>📅</span>
+                <span>Study Plan</span>
               </Link>
               {cachedQuestionCount > 0 && (
                 <div className={styles.moreNavInfo}>

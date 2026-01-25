@@ -142,10 +142,14 @@ export const exams = sqliteTable(
     correctAnswers: integer('correct_answers'),
     score: real('score'), // Percentage 0-100
     status: text('status').notNull(), // 'in_progress' | 'completed' | 'abandoned'
+    offlineExamId: text('offline_exam_id'), // Client-generated ID for offline exams (duplicate prevention)
+    contentHash: text('content_hash'), // SHA256 hash of exam content for secondary deduplication
   },
   (table) => [
     index('exams_cert_idx').on(table.certificationId),
     index('exams_user_idx').on(table.userId),
+    index('exams_offline_id_idx').on(table.offlineExamId),
+    index('exams_content_hash_idx').on(table.contentHash),
   ]
 );
 
@@ -360,6 +364,46 @@ export const learningPathProgress = sqliteTable(
   ]
 );
 
+// ============ QUESTION OF THE DAY ============
+export const qotdSelections = sqliteTable(
+  'qotd_selections',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'restrict' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'restrict' }),
+    dateServed: text('date_served').notNull(), // YYYY-MM-DD format
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('qotd_selections_cert_date_idx').on(table.certificationId, table.dateServed),
+    index('qotd_selections_date_idx').on(table.dateServed),
+  ]
+);
+
+export const qotdResponses = sqliteTable(
+  'qotd_responses',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    qotdSelectionId: integer('qotd_selection_id')
+      .notNull()
+      .references(() => qotdSelections.id, { onDelete: 'cascade' }),
+    selectedAnswers: text('selected_answers').notNull(), // JSON array
+    isCorrect: integer('is_correct', { mode: 'boolean' }).notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('qotd_responses_user_selection_idx').on(table.userId, table.qotdSelectionId),
+    index('qotd_responses_user_idx').on(table.userId),
+  ]
+);
+
 // ============ USER XP & LEVELING ============
 export const userXp = sqliteTable(
   'user_xp',
@@ -482,6 +526,30 @@ export const userNotes = sqliteTable(
   ]
 );
 
+// ============ CERTIFICATES ============
+export const certificates = sqliteTable(
+  'certificates',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    examId: integer('exam_id')
+      .notNull()
+      .references(() => exams.id, { onDelete: 'cascade' }),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'restrict' }),
+    certificateHash: text('certificate_hash').notNull().unique(),
+    score: real('score').notNull(),
+    issuedAt: integer('issued_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('certificates_hash_idx').on(table.certificateHash),
+    index('certificates_exam_idx').on(table.examId),
+    index('certificates_user_idx').on(table.userId),
+    index('certificates_certification_idx').on(table.certificationId),
+  ]
+);
+
 // Settings (API keys stored encrypted) - global settings for anonymous users
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -505,6 +573,63 @@ export const userSettings = sqliteTable(
     uniqueIndex('user_settings_user_key_idx').on(table.userId, table.key),
     index('user_settings_user_idx').on(table.userId),
   ]
+);
+
+// ============ STUDY PLANS ============
+export const studyPlans = sqliteTable(
+  'study_plans',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'restrict' }),
+    targetExamDate: text('target_exam_date').notNull(), // ISO date string YYYY-MM-DD
+    status: text('status').notNull(), // 'active' | 'completed' | 'abandoned'
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    index('study_plans_user_status_idx').on(table.userId, table.status),
+    index('study_plans_cert_idx').on(table.certificationId),
+    // Unique constraint to prevent multiple active plans per user/certification
+    // Note: SQLite doesn't support partial unique indexes, so we enforce this at application level
+    index('study_plans_user_cert_idx').on(table.userId, table.certificationId),
+  ]
+);
+
+export const studyPlanDays = sqliteTable(
+  'study_plan_days',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    studyPlanId: integer('study_plan_id')
+      .notNull()
+      .references(() => studyPlans.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(), // ISO date string YYYY-MM-DD
+    isComplete: integer('is_complete', { mode: 'boolean' }).notNull().default(false),
+  },
+  (table) => [
+    index('study_plan_days_plan_idx').on(table.studyPlanId),
+    uniqueIndex('study_plan_days_plan_date_idx').on(table.studyPlanId, table.date),
+  ]
+);
+
+export const studyPlanTasks = sqliteTable(
+  'study_plan_tasks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    studyPlanDayId: integer('study_plan_day_id')
+      .notNull()
+      .references(() => studyPlanDays.id, { onDelete: 'cascade' }),
+    taskType: text('task_type').notNull(), // 'learning' | 'practice' | 'review' | 'drill'
+    targetId: integer('target_id'), // domain/topic id, null for general tasks
+    estimatedMinutes: integer('estimated_minutes').notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp' }),
+    notes: text('notes'),
+  },
+  (table) => [index('study_plan_tasks_day_idx').on(table.studyPlanDayId)]
 );
 
 // ============ FLASHCARD SESSIONS ============
@@ -552,6 +677,24 @@ export const flashcardSessionRatings = sqliteTable(
   (table) => [
     index('flashcard_ratings_session_idx').on(table.sessionId),
     uniqueIndex('flashcard_ratings_session_question_idx').on(table.sessionId, table.questionId),
+  ]
+);
+
+// ============ EXAM SHARING ============
+export const examShares = sqliteTable(
+  'exam_shares',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    examId: integer('exam_id')
+      .notNull()
+      .references(() => exams.id, { onDelete: 'cascade' }),
+    shareHash: text('share_hash').notNull().unique(),
+    viewCount: integer('view_count').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('exam_shares_hash_idx').on(table.shareHash),
+    index('exam_shares_exam_idx').on(table.examId),
   ]
 );
 
@@ -605,3 +748,17 @@ export type FlashcardSessionRatingRecord = typeof flashcardSessionRatings.$infer
 export type NewFlashcardSessionRating = typeof flashcardSessionRatings.$inferInsert;
 export type ReadinessSnapshotRecord = typeof readinessSnapshots.$inferSelect;
 export type NewReadinessSnapshot = typeof readinessSnapshots.$inferInsert;
+export type QotdSelectionRecord = typeof qotdSelections.$inferSelect;
+export type NewQotdSelection = typeof qotdSelections.$inferInsert;
+export type QotdResponseRecord = typeof qotdResponses.$inferSelect;
+export type NewQotdResponse = typeof qotdResponses.$inferInsert;
+export type StudyPlanRecord = typeof studyPlans.$inferSelect;
+export type NewStudyPlan = typeof studyPlans.$inferInsert;
+export type StudyPlanDayRecord = typeof studyPlanDays.$inferSelect;
+export type NewStudyPlanDay = typeof studyPlanDays.$inferInsert;
+export type StudyPlanTaskRecord = typeof studyPlanTasks.$inferSelect;
+export type NewStudyPlanTask = typeof studyPlanTasks.$inferInsert;
+export type ExamShareRecord = typeof examShares.$inferSelect;
+export type NewExamShare = typeof examShares.$inferInsert;
+export type CertificateRecord = typeof certificates.$inferSelect;
+export type NewCertificate = typeof certificates.$inferInsert;

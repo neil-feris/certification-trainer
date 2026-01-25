@@ -39,6 +39,11 @@ import { bookmarkRoutes } from './routes/bookmarks.js';
 import { noteRoutes } from './routes/notes.js';
 import { authRoutes } from './routes/auth.js';
 import { flashcardRoutes } from './routes/flashcards.js';
+import { studyPlanRoutes } from './routes/studyPlans.js';
+import { shareRoutes } from './routes/share.js';
+import { getShareData, generateShareHtml } from './services/shareHtml.js';
+import { readFileSync } from 'fs';
+import { certificateRoutes } from './routes/certificates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -102,6 +107,9 @@ fastify.register(drillRoutes, { prefix: '/api/drills' });
 fastify.register(achievementRoutes, { prefix: '/api/achievements' });
 fastify.register(bookmarkRoutes, { prefix: '/api/bookmarks' });
 fastify.register(noteRoutes, { prefix: '/api/notes' });
+fastify.register(studyPlanRoutes, { prefix: '/api/study-plans' });
+fastify.register(shareRoutes, { prefix: '/api/share' });
+fastify.register(certificateRoutes, { prefix: '/api/certificates' });
 
 // Health check
 fastify.get('/api/health', async () => {
@@ -111,17 +119,41 @@ fastify.get('/api/health', async () => {
 // Serve static files in production
 if (isProduction) {
   const clientDistPath = join(__dirname, '../../client/dist');
+  const indexHtmlPath = join(clientDistPath, 'index.html');
+
+  // Read index.html once at startup for OG tag injection
+  let indexHtml: string;
+  try {
+    indexHtml = readFileSync(indexHtmlPath, 'utf-8');
+  } catch {
+    console.error('Failed to read index.html for OG tag injection');
+    indexHtml = '';
+  }
 
   await fastify.register(fastifyStatic, {
     root: clientDistPath,
     prefix: '/',
   });
 
+  // Determine base URL for OG tags
+  const baseUrl = process.env.APP_URL || 'https://certification-trainer.neilferis.com';
+
   // SPA fallback - serve index.html for client-side routes
+  // For share routes, inject OG meta tags for social media previews
   fastify.setNotFoundHandler(async (request, reply) => {
     if (request.url.startsWith('/api/')) {
       return reply.status(404).send({ error: 'Not Found' });
     }
+
+    // Check if this is a share route
+    const shareMatch = request.url.match(/^\/share\/exam\/([a-f0-9]{32})$/);
+    if (shareMatch && indexHtml) {
+      const hash = shareMatch[1];
+      const shareData = await getShareData(hash);
+      const modifiedHtml = generateShareHtml(indexHtml, shareData, baseUrl, request.url);
+      return reply.type('text/html').send(modifiedHtml);
+    }
+
     return reply.sendFile('index.html');
   });
 }
@@ -154,7 +186,8 @@ const start = async () => {
     console.log('   GET  /api/progress/dashboard');
     console.log('   GET  /api/study/domains');
     console.log('   POST /api/drills');
-    console.log('   GET  /api/settings\n');
+    console.log('   GET  /api/settings');
+    console.log('   GET  /api/share/exam/:hash (public)\n');
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

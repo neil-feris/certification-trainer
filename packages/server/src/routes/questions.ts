@@ -8,8 +8,24 @@ import {
   certifications,
   caseStudies,
   bookmarks,
+  qotdSelections,
+  qotdResponses,
+  examResponses,
 } from '../db/schema.js';
-import { eq, lte, and, count, like, desc, asc, inArray, sql, isNull, isNotNull } from 'drizzle-orm';
+import {
+  eq,
+  lte,
+  and,
+  count,
+  like,
+  desc,
+  asc,
+  inArray,
+  notInArray,
+  sql,
+  isNull,
+  isNotNull,
+} from 'drizzle-orm';
 import { generateQuestions, fetchCaseStudyById } from '../services/questionGenerator.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { deduplicateQuestions } from '../utils/similarity.js';
@@ -18,6 +34,7 @@ import {
   questionBrowseQuerySchema,
   generateQuestionsSchema,
   reviewRatingSchema,
+  bulkQuestionsQuerySchema,
   formatZodError,
   PAGINATION_DEFAULTS,
 } from '../validation/schemas.js';
@@ -25,6 +42,9 @@ import type {
   PaginatedResponse,
   QuestionWithDomain,
   QuestionFilterOptions,
+  QotdResponse,
+  QotdCompletionRequest,
+  QotdCompletionResponse,
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
@@ -628,4 +648,441 @@ export async function questionRoutes(fastify: FastifyInstance) {
       achievementsUnlocked,
     };
   });
+
+  // ============ QUESTION OF THE DAY ENDPOINTS ============
+
+  /**
+   * Get today's Question of the Day for a certification.
+   * Uses deterministic selection based on date hash if no explicit selection exists.
+   */
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/qotd', async (request, reply) => {
+    const certificationId = request.query.certificationId
+      ? parseInt(request.query.certificationId, 10)
+      : undefined;
+
+    if (!certificationId || isNaN(certificationId)) {
+      return reply.status(400).send({ error: 'certificationId is required' });
+    }
+
+    const userId = parseInt(request.user!.id, 10);
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Get all question IDs for this certification (needed whether selection exists or not)
+    const certQuestions = await db
+      .select({ id: questions.id })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .where(eq(domains.certificationId, certificationId));
+
+    if (certQuestions.length === 0) {
+      return reply.status(404).send({ error: 'No questions available for this certification' });
+    }
+
+    // Deterministic selection using date hash
+    // Simple hash: sum of character codes in date string modulo question count
+    const dateHash = today.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const selectedIndex = dateHash % certQuestions.length;
+    const selectedQuestionId = certQuestions[selectedIndex].id;
+
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If selection already exists for this certification + date, the insert is a no-op
+    await db
+      .insert(qotdSelections)
+      .values({
+        certificationId,
+        questionId: selectedQuestionId,
+        dateServed: today,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing();
+
+    // Fetch the selection (either newly inserted or existing)
+    const selection = await db
+      .select()
+      .from(qotdSelections)
+      .where(
+        and(
+          eq(qotdSelections.certificationId, certificationId),
+          eq(qotdSelections.dateServed, today)
+        )
+      )
+      .get();
+
+    if (!selection) {
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create question of the day selection' });
+    }
+
+    // Fetch the question with domain and topic
+    const [questionData] = await db
+      .select({
+        question: questions,
+        domain: domains,
+        topic: topics,
+      })
+      .from(questions)
+      .innerJoin(domains, eq(questions.domainId, domains.id))
+      .innerJoin(topics, eq(questions.topicId, topics.id))
+      .where(eq(questions.id, selection.questionId));
+
+    if (!questionData) {
+      return reply.status(404).send({ error: 'Question not found' });
+    }
+
+    // Check if user has already completed today's question
+    const userResponse = await db
+      .select()
+      .from(qotdResponses)
+      .where(and(eq(qotdResponses.userId, userId), eq(qotdResponses.qotdSelectionId, selection.id)))
+      .get();
+
+    const response: QotdResponse = {
+      date: today,
+      question: {
+        id: questionData.question.id,
+        questionText: questionData.question.questionText,
+        questionType: questionData.question.questionType as 'single' | 'multiple',
+        options: JSON.parse(questionData.question.options as string),
+        difficulty: questionData.question.difficulty as 'easy' | 'medium' | 'hard',
+        domain: {
+          id: questionData.domain.id,
+          name: questionData.domain.name,
+          code: questionData.domain.code,
+        },
+        topic: {
+          id: questionData.topic.id,
+          name: questionData.topic.name,
+        },
+      },
+      completion: userResponse
+        ? {
+            isCorrect: userResponse.isCorrect,
+            selectedAnswers: JSON.parse(userResponse.selectedAnswers as string),
+            completedAt: userResponse.completedAt.toISOString(),
+          }
+        : null,
+    };
+
+    // Include correct answers and explanation if already completed
+    if (userResponse) {
+      response.correctAnswers = JSON.parse(questionData.question.correctAnswers as string);
+      response.explanation = questionData.question.explanation;
+    }
+
+    return response;
+  });
+
+  /**
+   * Complete today's Question of the Day.
+   * Awards XP: +10 for attempt, +5 bonus for correct answer.
+   * Prevents duplicate completions.
+   */
+  fastify.post<{
+    Body: QotdCompletionRequest;
+  }>('/qotd/complete', async (request, reply) => {
+    const { certificationId, questionId, selectedAnswers } = request.body;
+    const userId = parseInt(request.user!.id, 10);
+    const today = new Date().toISOString().split('T')[0];
+
+    // Validate input
+    if (!certificationId || !questionId || !selectedAnswers) {
+      return reply.status(400).send({ error: 'Missing required fields' });
+    }
+
+    // Get today's selection
+    const selection = await db
+      .select()
+      .from(qotdSelections)
+      .where(
+        and(
+          eq(qotdSelections.certificationId, certificationId),
+          eq(qotdSelections.dateServed, today)
+        )
+      )
+      .get();
+
+    if (!selection) {
+      return reply.status(404).send({ error: 'No question of the day found for today' });
+    }
+
+    if (selection.questionId !== questionId) {
+      return reply.status(400).send({ error: "Question ID does not match today's question" });
+    }
+
+    // Check for existing response (prevent duplicates)
+    const existingResponse = await db
+      .select()
+      .from(qotdResponses)
+      .where(and(eq(qotdResponses.userId, userId), eq(qotdResponses.qotdSelectionId, selection.id)))
+      .get();
+
+    if (existingResponse) {
+      // Return existing response without awarding more XP
+      const [questionData] = await db
+        .select({ correctAnswers: questions.correctAnswers, explanation: questions.explanation })
+        .from(questions)
+        .where(eq(questions.id, questionId));
+
+      const response: QotdCompletionResponse = {
+        isCorrect: existingResponse.isCorrect,
+        correctAnswers: JSON.parse(questionData.correctAnswers as string),
+        explanation: questionData.explanation,
+        xpAwarded: 0, // Already awarded
+      };
+
+      return response;
+    }
+
+    // Get correct answers to check
+    const [questionData] = await db
+      .select({ correctAnswers: questions.correctAnswers, explanation: questions.explanation })
+      .from(questions)
+      .where(eq(questions.id, questionId));
+
+    if (!questionData) {
+      return reply.status(404).send({ error: 'Question not found' });
+    }
+
+    const correctAnswers: number[] = JSON.parse(questionData.correctAnswers as string);
+
+    // Check if answer is correct
+    const isCorrect =
+      selectedAnswers.length === correctAnswers.length &&
+      selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+      correctAnswers.every((a) => selectedAnswers.includes(a));
+
+    // Save response
+    await db.insert(qotdResponses).values({
+      userId,
+      qotdSelectionId: selection.id,
+      selectedAnswers: JSON.stringify(selectedAnswers),
+      isCorrect,
+      completedAt: new Date(),
+    });
+
+    // Award XP: +10 for attempt, +5 bonus for correct
+    const baseXp = 10;
+    const bonusXp = isCorrect ? 5 : 0;
+    const totalXp = baseXp + bonusXp;
+
+    const xpSource = `QOTD_${today}_${certificationId}`;
+    let xpUpdate: XPAwardResponse | undefined;
+
+    try {
+      const result = await awardCustomXP(userId, totalXp, xpSource);
+      xpUpdate = result ?? undefined;
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          questionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP for QOTD completion'
+      );
+    }
+
+    const response: QotdCompletionResponse = {
+      isCorrect,
+      correctAnswers,
+      explanation: questionData.explanation,
+      xpAwarded: totalXp,
+      xpUpdate,
+    };
+
+    return response;
+  });
+
+  // Get bulk questions for offline pre-caching
+  // Returns randomized questions weighted by domain exam percentages
+  // Excludes questions the user has answered correctly 3+ times (mastered)
+  // Rate limited: 10 requests per minute
+  fastify.get<{
+    Querystring: {
+      certificationId: string;
+      limit?: string;
+    };
+  }>(
+    '/bulk',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
+      const parseResult = bulkQuestionsQuerySchema.safeParse(request.query);
+      if (!parseResult.success) {
+        return reply.status(400).send(formatZodError(parseResult.error));
+      }
+      const { certificationId, limit } = parseResult.data;
+      const userId = parseInt(request.user!.id, 10);
+
+      // Verify certification exists
+      const [certification] = await db
+        .select()
+        .from(certifications)
+        .where(and(eq(certifications.id, certificationId), eq(certifications.isActive, true)));
+
+      if (!certification) {
+        return reply.status(404).send({ error: 'Certification not found' });
+      }
+
+      // Get domains with their weights for this certification
+      const certDomains = await db
+        .select({
+          id: domains.id,
+          name: domains.name,
+          code: domains.code,
+          weight: domains.weight,
+        })
+        .from(domains)
+        .where(eq(domains.certificationId, certificationId));
+
+      if (certDomains.length === 0) {
+        return reply.status(404).send({ error: 'No domains found for certification' });
+      }
+
+      // Find question IDs that user has answered correctly 3+ times (mastered)
+      // Using a subquery to count correct responses per question
+      const masteredQuestionIds = await db
+        .select({
+          questionId: examResponses.questionId,
+        })
+        .from(examResponses)
+        .where(and(eq(examResponses.userId, userId), eq(examResponses.isCorrect, true)))
+        .groupBy(examResponses.questionId)
+        .having(sql`count(*) >= 3`);
+
+      const excludeIds = masteredQuestionIds.map((r) => r.questionId);
+
+      // Calculate total weight for normalization
+      const totalWeight = certDomains.reduce((sum, d) => sum + d.weight, 0);
+
+      // Calculate target question count per domain based on weight
+      // Each domain gets questions proportional to its exam percentage
+      const domainQuestionCounts = certDomains.map((d) => ({
+        domainId: d.id,
+        domainName: d.name,
+        domainCode: d.code,
+        targetCount: Math.max(1, Math.round((d.weight / totalWeight) * limit)),
+      }));
+
+      // Adjust counts to exactly match limit
+      const totalTarget = domainQuestionCounts.reduce((sum, d) => sum + d.targetCount, 0);
+      const diff = limit - totalTarget;
+      if (diff !== 0) {
+        // Add/remove from the domain with highest weight
+        const sorted = [...domainQuestionCounts].sort((a, b) => b.targetCount - a.targetCount);
+        sorted[0].targetCount += diff;
+      }
+
+      // Fetch questions from each domain with randomization
+      const allQuestions: QuestionWithDomain[] = [];
+
+      for (const domainTarget of domainQuestionCounts) {
+        // Build exclusion condition
+        const exclusionCondition =
+          excludeIds.length > 0
+            ? and(
+                eq(questions.domainId, domainTarget.domainId),
+                notInArray(questions.id, excludeIds)
+              )
+            : eq(questions.domainId, domainTarget.domainId);
+
+        const domainQuestions = await db
+          .select({
+            question: questions,
+            domain: domains,
+            topic: topics,
+            caseStudy: caseStudies,
+          })
+          .from(questions)
+          .innerJoin(domains, eq(questions.domainId, domains.id))
+          .innerJoin(topics, eq(questions.topicId, topics.id))
+          .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
+          .where(exclusionCondition)
+          .orderBy(sql`RANDOM()`)
+          .limit(domainTarget.targetCount);
+
+        // Map to QuestionWithDomain format
+        const mappedQuestions = domainQuestions.map((r) => ({
+          ...r.question,
+          caseStudyId: r.question.caseStudyId ?? undefined,
+          questionType: r.question.questionType as 'single' | 'multiple',
+          difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
+          options: JSON.parse(r.question.options as string),
+          correctAnswers: JSON.parse(r.question.correctAnswers as string),
+          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          isGenerated: r.question.isGenerated ?? false,
+          domain: r.domain,
+          topic: r.topic,
+          caseStudy: mapCaseStudyRecord(r.caseStudy),
+        }));
+
+        allQuestions.push(...mappedQuestions);
+      }
+
+      // If we couldn't get enough questions from individual domains,
+      // fetch more from any domain to fill the gap
+      if (allQuestions.length < limit) {
+        const existingIds = allQuestions.map((q) => q.id);
+        const allExcludeIds = [...new Set([...excludeIds, ...existingIds])];
+
+        const domainIds = certDomains.map((d) => d.id);
+        const exclusionCondition =
+          allExcludeIds.length > 0
+            ? and(inArray(questions.domainId, domainIds), notInArray(questions.id, allExcludeIds))
+            : inArray(questions.domainId, domainIds);
+
+        const additionalQuestions = await db
+          .select({
+            question: questions,
+            domain: domains,
+            topic: topics,
+            caseStudy: caseStudies,
+          })
+          .from(questions)
+          .innerJoin(domains, eq(questions.domainId, domains.id))
+          .innerJoin(topics, eq(questions.topicId, topics.id))
+          .leftJoin(caseStudies, eq(questions.caseStudyId, caseStudies.id))
+          .where(exclusionCondition)
+          .orderBy(sql`RANDOM()`)
+          .limit(limit - allQuestions.length);
+
+        const mappedAdditional = additionalQuestions.map((r) => ({
+          ...r.question,
+          caseStudyId: r.question.caseStudyId ?? undefined,
+          questionType: r.question.questionType as 'single' | 'multiple',
+          difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
+          options: JSON.parse(r.question.options as string),
+          correctAnswers: JSON.parse(r.question.correctAnswers as string),
+          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          isGenerated: r.question.isGenerated ?? false,
+          domain: r.domain,
+          topic: r.topic,
+          caseStudy: mapCaseStudyRecord(r.caseStudy),
+        }));
+
+        allQuestions.push(...mappedAdditional);
+      }
+
+      // Shuffle final results to mix domains
+      const shuffled = allQuestions.sort(() => Math.random() - 0.5);
+
+      return {
+        certificationId,
+        certificationCode: certification.code,
+        certificationName: certification.name,
+        questions: shuffled,
+        totalCount: shuffled.length,
+        excludedMasteredCount: excludeIds.length,
+        cachedAt: new Date().toISOString(),
+      };
+    }
+  );
 }

@@ -109,6 +109,23 @@ export const reviewRatingSchema = z.object({
   quality: z.enum(['again', 'hard', 'good', 'easy']),
 });
 
+// Bulk questions schema for offline pre-caching
+export const bulkQuestionsQuerySchema = z.object({
+  certificationId: z
+    .string()
+    .regex(/^\d+$/, 'Certification ID must be a positive integer')
+    .transform(Number),
+  limit: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .refine((val) => val >= 1 && val <= 200, {
+      message: 'Limit must be between 1 and 200',
+    })
+    .optional()
+    .default('100'),
+});
+
 // ============ Study Schemas ============
 
 export const startStudySessionSchema = z.object({

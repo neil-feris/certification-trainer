@@ -1,6 +1,17 @@
 import { FastifyInstance } from 'fastify';
+import { createHash } from 'crypto';
 import { db } from '../db/index.js';
-import { exams, examResponses, questions, domains, topics, caseStudies } from '../db/schema.js';
+import {
+  exams,
+  examResponses,
+  questions,
+  domains,
+  topics,
+  caseStudies,
+  examShares,
+  certificates,
+} from '../db/schema.js';
+import { randomBytes } from 'crypto';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
@@ -20,7 +31,13 @@ import {
   checkDomainExpert,
   type AchievementContext,
 } from '../services/achievementService.js';
-import { XP_AWARDS, type XPAwardResponse, type AchievementUnlockResponse } from '@ace-prep/shared';
+import {
+  XP_AWARDS,
+  type XPAwardResponse,
+  type AchievementUnlockResponse,
+  type CreateShareLinkResponse,
+  type GenerateCertificateResponse,
+} from '@ace-prep/shared';
 import { invalidateReadinessCache } from '../services/readinessService.js';
 
 export async function examRoutes(fastify: FastifyInstance) {
@@ -568,6 +585,396 @@ export async function examRoutes(fastify: FastifyInstance) {
         total: s.total,
         percentage: (s.correct / s.total) * 100,
       })),
+    };
+  });
+
+  // Create share link for exam
+  fastify.post<{ Params: { id: string } }>('/:id/share', async (request, reply) => {
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Verify exam ownership and completion
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
+
+    if (!exam) {
+      return reply.status(404).send({ error: 'Exam not found' });
+    }
+
+    if (exam.status !== 'completed') {
+      return reply.status(400).send({ error: 'Only completed exams can be shared' });
+    }
+
+    // Generate unique share hash
+    const shareHash = randomBytes(16).toString('hex');
+
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If share already exists for this exam, the insert is a no-op
+    await db
+      .insert(examShares)
+      .values({
+        examId,
+        shareHash,
+        viewCount: 0,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing();
+
+    // Fetch the share (either newly inserted or existing)
+    const [share] = await db.select().from(examShares).where(eq(examShares.examId, examId));
+
+    if (!share) {
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create share link' });
+    }
+
+    const response: CreateShareLinkResponse = {
+      shareHash: share.shareHash,
+      shareUrl: `/share/exam/${share.shareHash}`,
+      createdAt: share.createdAt.toISOString(),
+    };
+
+    return response;
+  });
+
+  // Generate certificate for a passing exam
+  fastify.post<{
+    Params: { id: string };
+    Body: { userName?: string };
+  }>('/:id/certificate', async (request, reply) => {
+    const paramResult = idParamSchema.safeParse(request.params);
+    if (!paramResult.success) {
+      return reply.status(400).send(formatZodError(paramResult.error));
+    }
+    const examId = paramResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    // Get exam with ownership check
+    const [exam] = await db
+      .select()
+      .from(exams)
+      .where(and(eq(exams.id, examId), eq(exams.userId, userId)));
+
+    if (!exam) {
+      return reply.status(404).send({ error: 'Exam not found' });
+    }
+
+    // Check if exam belongs to user (ownership check)
+    if (exam.userId !== userId) {
+      return reply
+        .status(403)
+        .send({ error: 'You do not have permission to generate a certificate for this exam' });
+    }
+
+    // Check if exam is completed
+    if (exam.status !== 'completed') {
+      return reply.status(400).send({ error: 'Exam must be completed to generate a certificate' });
+    }
+
+    // Check if score is passing (>= 70%)
+    const PASSING_SCORE = 70;
+    if (exam.score === null || exam.score < PASSING_SCORE) {
+      return reply.status(403).send({
+        error: `Score must be at least ${PASSING_SCORE}% to earn a certificate`,
+        score: exam.score,
+        passingScore: PASSING_SCORE,
+      });
+    }
+
+    // Generate certificate hash using random bytes for unpredictability (fixes security issue #9)
+    // Use randomBytes instead of deterministic SHA256 to prevent hash enumeration
+    const certificateHash = randomBytes(16).toString('hex'); // 32 chars = 128 bits
+
+    // Use INSERT ... ON CONFLICT to prevent TOCTOU race condition (fixes issue #5)
+    // If certificate already exists for this exam, the insert is a no-op
+    await db
+      .insert(certificates)
+      .values({
+        examId,
+        userId,
+        certificationId: exam.certificationId,
+        certificateHash,
+        score: exam.score,
+        issuedAt: new Date(),
+      })
+      .onConflictDoNothing();
+
+    // Fetch the certificate (either newly inserted or existing)
+    const [cert] = await db.select().from(certificates).where(eq(certificates.examId, examId));
+
+    if (!cert) {
+      // This should never happen, but handle gracefully
+      return reply.status(500).send({ error: 'Failed to create certificate' });
+    }
+
+    const response: GenerateCertificateResponse = {
+      certificateHash: cert.certificateHash,
+      downloadUrl: `/api/certificates/${cert.certificateHash}/download`,
+    };
+    return response;
+  });
+
+  // Submit offline exam (for background sync)
+  fastify.post<{
+    Body: {
+      offlineExamId: string;
+      certificationId: number;
+      questions: Array<{
+        questionId: number;
+        selectedAnswers: number[];
+        isCorrect: boolean;
+        flagged: boolean;
+        timeSpentSeconds: number;
+      }>;
+      totalTimeSeconds: number;
+      startedAt: string;
+      completedAt: string;
+      isOffline: true;
+      clientTimestamp: string;
+      syncQueueItemId?: string;
+    };
+  }>('/offline-submit', async (request, reply) => {
+    const userId = parseInt(request.user!.id, 10);
+    const {
+      offlineExamId,
+      certificationId,
+      questions: submittedQuestions,
+      totalTimeSeconds,
+      startedAt,
+      completedAt,
+    } = request.body;
+
+    // Generate content hash for secondary deduplication
+    // This catches duplicates even if offlineExamId is lost (e.g., app restart)
+    const contentForHash = {
+      certificationId,
+      questionIds: submittedQuestions.map((q) => q.questionId).sort(),
+      startedAt,
+    };
+    const contentHash = createHash('sha256')
+      .update(JSON.stringify(contentForHash))
+      .digest('hex')
+      .substring(0, 32);
+
+    // Check for duplicate submission by offlineExamId OR content hash
+    // offlineExamId can be lost on app restart, so content hash is backup
+    const [existingExam] = await db
+      .select()
+      .from(exams)
+      .where(
+        and(
+          eq(exams.userId, userId),
+          sql`(${exams.offlineExamId} = ${offlineExamId} OR ${exams.contentHash} = ${contentHash})`
+        )
+      )
+      .limit(1);
+
+    if (existingExam) {
+      // Already synced - return existing result (idempotent)
+      fastify.log.info(
+        { userId, offlineExamId, contentHash, existingExamId: existingExam.id },
+        'Duplicate offline exam submission detected - returning existing result'
+      );
+
+      return {
+        success: true,
+        examId: existingExam.id,
+        alreadySynced: true,
+        score: existingExam.score,
+        correctAnswers: existingExam.correctAnswers,
+        totalQuestions: existingExam.totalQuestions,
+      };
+    }
+
+    // Validate certification exists
+    const [certification] = await db
+      .select()
+      .from(exams)
+      .innerJoin(domains, eq(domains.certificationId, certificationId))
+      .limit(1);
+
+    if (!certification && certificationId !== undefined) {
+      // Check certifications table directly
+      const [cert] = await db
+        .select()
+        .from(domains)
+        .where(eq(domains.certificationId, certificationId))
+        .limit(1);
+      if (!cert) {
+        return reply.status(400).send({ error: 'Invalid certification ID' });
+      }
+    }
+
+    // SECURITY: Re-verify all answers server-side - never trust client-provided isCorrect
+    const questionIds = submittedQuestions.map((q) => q.questionId);
+    const dbQuestions = await db
+      .select({ id: questions.id, correctAnswers: questions.correctAnswers })
+      .from(questions)
+      .where(inArray(questions.id, questionIds));
+
+    const correctAnswersMap = new Map(
+      dbQuestions.map((q) => [q.id, JSON.parse(q.correctAnswers as string) as number[]])
+    );
+
+    // Verify each answer and compute server-verified correctness
+    const verifiedResponses = submittedQuestions.map((q) => {
+      const correctAnswers = correctAnswersMap.get(q.questionId);
+      if (!correctAnswers) {
+        // Question not found in DB - mark as incorrect
+        return { ...q, isCorrect: false, serverVerified: true };
+      }
+
+      // Server-side answer verification
+      const isCorrect =
+        q.selectedAnswers.length === correctAnswers.length &&
+        q.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => q.selectedAnswers.includes(a));
+
+      return { ...q, isCorrect, serverVerified: true };
+    });
+
+    // Calculate score from server-verified responses
+    const correctCount = verifiedResponses.filter((q) => q.isCorrect).length;
+    const totalQuestions = verifiedResponses.length;
+    const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+
+    // Create the exam record with offline metadata
+    const [newExam] = await db
+      .insert(exams)
+      .values({
+        userId,
+        certificationId,
+        startedAt: new Date(startedAt),
+        completedAt: new Date(completedAt),
+        timeSpentSeconds: totalTimeSeconds,
+        totalQuestions,
+        correctAnswers: correctCount,
+        score,
+        status: 'completed',
+        offlineExamId, // Store for duplicate detection
+        contentHash, // Secondary deduplication via content hash
+      })
+      .returning();
+
+    // Insert exam responses with server-verified correctness
+    if (verifiedResponses.length > 0) {
+      await db.insert(examResponses).values(
+        verifiedResponses.map((q, index) => ({
+          userId,
+          examId: newExam.id,
+          questionId: q.questionId,
+          selectedAnswers: JSON.stringify(q.selectedAnswers),
+          isCorrect: q.isCorrect, // Now server-verified, not client-provided
+          timeSpentSeconds: q.timeSpentSeconds,
+          flagged: q.flagged,
+          orderIndex: index,
+        }))
+      );
+    }
+
+    // Update streak (with error handling)
+    let streakUpdate;
+    let currentStreak: number | undefined;
+    try {
+      const streakResult = await updateStreak(userId);
+      streakUpdate = streakResult.streakUpdate;
+      currentStreak = streakResult.streak.currentStreak;
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          examId: newExam.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to update streak for offline exam'
+      );
+    }
+
+    // Award XP
+    let xpUpdate: XPAwardResponse | undefined;
+    try {
+      const xpSource = `EXAM_COMPLETE_${newExam.id}`;
+      const questionXP =
+        correctCount * XP_AWARDS.QUESTION_CORRECT +
+        (totalQuestions - correctCount) * XP_AWARDS.QUESTION_INCORRECT;
+      const completionBonus = XP_AWARDS.EXAM_COMPLETE;
+      const perfectScoreBonus = score === 100 ? XP_AWARDS.EXAM_PERFECT_SCORE : 0;
+      const totalXpToAward = questionXP + completionBonus + perfectScoreBonus;
+
+      const result = await awardCustomXP(userId, totalXpToAward, xpSource);
+      xpUpdate = result ?? undefined;
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          examId: newExam.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to award XP for offline exam'
+      );
+    }
+
+    // Check achievements
+    let achievementsUnlocked: AchievementUnlockResponse[] = [];
+    try {
+      const [examCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(exams)
+        .where(and(eq(exams.userId, userId), eq(exams.status, 'completed')));
+
+      const achievementContext: AchievementContext = {
+        activity: 'exam',
+        score: correctCount,
+        totalQuestions,
+        cumulativeExams: examCount.count,
+        streak: currentStreak,
+      };
+
+      achievementsUnlocked = await checkAndUnlock(userId, achievementContext);
+      const domainUnlocks = await checkDomainExpert(userId);
+      achievementsUnlocked.push(...domainUnlocks);
+    } catch (error) {
+      fastify.log.error(
+        {
+          userId,
+          examId: newExam.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to check achievements for offline exam'
+      );
+    }
+
+    // Invalidate readiness cache
+    invalidateReadinessCache(userId, certificationId);
+
+    fastify.log.info(
+      {
+        userId,
+        offlineExamId,
+        examId: newExam.id,
+        score,
+        correctCount,
+        totalQuestions,
+      },
+      'Offline exam synced successfully'
+    );
+
+    return {
+      success: true,
+      examId: newExam.id,
+      alreadySynced: false,
+      score,
+      correctAnswers: correctCount,
+      totalQuestions,
+      streakUpdate,
+      xpUpdate,
+      achievementsUnlocked,
     };
   });
 }

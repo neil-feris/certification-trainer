@@ -26,6 +26,12 @@
   font-size: 24px;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .scoreCard {
   background: var(--bg-secondary);
   border: 2px solid var(--border-color);
@@ -74,6 +80,14 @@
   display: flex;
   justify-content: center;
   gap: 48px;
+}
+
+.scoreActions {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
 }
 
 .scoreDetail {
@@ -249,5 +263,10 @@
   .header {
     flex-direction: column;
     gap: 16px;
+  }
+
+  .headerActions {
+    width: 100%;
+    justify-content: center;
   }
 }

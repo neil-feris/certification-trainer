@@ -5,7 +5,21 @@ import { examApi } from '../api/client';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
 import { showAchievementUnlockToasts } from '../utils/achievementNotifications';
 import { queryClient } from '../lib/queryClient';
-import type { CaseStudy, XPAwardResponse } from '@ace-prep/shared';
+import type {
+  CaseStudy,
+  XPAwardResponse,
+  QuestionWithDomain,
+  OfflineExamSubmission,
+} from '@ace-prep/shared';
+import {
+  saveOfflineExam,
+  getOfflineExam,
+  deleteOfflineExam,
+  getInProgressOfflineExams,
+  queueForSync,
+  type OfflineExamState,
+} from '../services/offlineDb';
+import { getCachedQuestions } from '../services/cacheService';
 
 interface ExamQuestion {
   id: number;
@@ -36,6 +50,9 @@ interface ExamState {
   startTime: number | null;
   timeRemaining: number; // seconds
   isSubmitting: boolean;
+  // Offline exam state
+  isOfflineExam: boolean;
+  offlineExamId: string | null; // Client-generated UUID for offline exams
 
   // Actions
   startExam: (examId: number, questions: ExamQuestion[]) => void;
@@ -48,6 +65,16 @@ interface ExamState {
   abandonExam: () => Promise<void>;
   hasIncompleteExam: () => boolean;
 
+  // Offline exam actions
+  createOfflineExam: (
+    certificationId: number,
+    questionCount?: number
+  ) => Promise<{ success: boolean; error?: string }>;
+  submitOfflineExam: () => Promise<{ success: boolean; queuedForSync: boolean; error?: string }>;
+  resumeOfflineExam: (offlineExamId: string) => Promise<boolean>;
+  abandonOfflineExam: () => Promise<void>;
+  getInProgressOfflineExam: () => Promise<OfflineExamState | null>;
+
   // Getters
   getCurrentQuestion: () => ExamQuestion | null;
   getResponse: (questionId: number) => ExamResponse | undefined;
@@ -55,6 +82,52 @@ interface ExamState {
 }
 
 const EXAM_DURATION = 2 * 60 * 60; // 2 hours in seconds
+const DEFAULT_OFFLINE_QUESTION_COUNT = 50;
+
+// Track pending IndexedDB writes to prevent data loss on browser close
+let pendingWrites: Promise<void>[] = [];
+
+/**
+ * Queue a write operation and track it until completion.
+ * Ensures we can await all pending writes before critical operations.
+ */
+function trackWrite(writePromise: Promise<void>): void {
+  pendingWrites.push(writePromise);
+  writePromise.finally(() => {
+    pendingWrites = pendingWrites.filter((p) => p !== writePromise);
+  });
+}
+
+/**
+ * Wait for all pending IndexedDB writes to complete.
+ * Call before exam submission to prevent data loss.
+ */
+async function flushPendingWrites(): Promise<void> {
+  if (pendingWrites.length > 0) {
+    await Promise.allSettled(pendingWrites);
+  }
+}
+
+// Generate a unique ID for offline exams
+function generateOfflineExamId(): string {
+  return `offline-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+// Convert QuestionWithDomain to ExamQuestion format
+function mapToExamQuestion(q: QuestionWithDomain): ExamQuestion {
+  return {
+    id: q.id,
+    questionText: q.questionText,
+    questionType: q.questionType,
+    options: q.options,
+    correctAnswers: q.correctAnswers,
+    explanation: q.explanation,
+    difficulty: q.difficulty,
+    domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
+    topic: { id: q.topic.id, name: q.topic.name },
+    caseStudy: q.caseStudy,
+  };
+}
 
 export const useExamStore = create<ExamState>()(
   persist(
@@ -66,6 +139,8 @@ export const useExamStore = create<ExamState>()(
       startTime: null,
       timeRemaining: EXAM_DURATION,
       isSubmitting: false,
+      isOfflineExam: false,
+      offlineExamId: null,
 
       startExam: (examId, questions) => {
         Sentry.startSpan(
@@ -102,9 +177,22 @@ export const useExamStore = create<ExamState>()(
       },
 
       setCurrentQuestion: (index) => {
-        const { questions } = get();
+        const { questions, isOfflineExam, offlineExamId } = get();
         if (index >= 0 && index < questions.length) {
           set({ currentQuestionIndex: index });
+
+          // Persist to IndexedDB for offline exams (tracked to ensure completion)
+          if (isOfflineExam && offlineExamId) {
+            const writeOp = getOfflineExam(offlineExamId).then((exam) => {
+              if (exam) {
+                exam.currentQuestionIndex = index;
+                return saveOfflineExam(exam);
+              }
+            });
+            trackWrite(
+              writeOp.catch((err) => console.error('Failed to persist question index:', err))
+            );
+          }
         }
       },
 
@@ -115,7 +203,7 @@ export const useExamStore = create<ExamState>()(
             name: 'Submit Answer',
           },
           (span) => {
-            const { responses, questions, examId } = get();
+            const { responses, questions, examId, isOfflineExam, offlineExamId } = get();
             const question = questions.find((q) => q.id === questionId);
             if (!question) return;
 
@@ -145,6 +233,17 @@ export const useExamStore = create<ExamState>()(
             });
 
             set({ responses: newResponses });
+
+            // Persist to IndexedDB for offline exams (tracked to ensure completion)
+            if (isOfflineExam && offlineExamId) {
+              const writeOp = getOfflineExam(offlineExamId).then((exam) => {
+                if (exam) {
+                  exam.responses.set(questionId, selectedAnswers);
+                  return saveOfflineExam(exam);
+                }
+              });
+              trackWrite(writeOp.catch((err) => console.error('Failed to persist answer:', err)));
+            }
           }
         );
       },
@@ -240,20 +339,30 @@ export const useExamStore = create<ExamState>()(
           startTime: null,
           timeRemaining: EXAM_DURATION,
           isSubmitting: false,
+          isOfflineExam: false,
+          offlineExamId: null,
         });
       },
 
       abandonExam: async () => {
-        const { examId } = get();
-        if (!examId) return;
+        const { examId, isOfflineExam, offlineExamId } = get();
 
-        // Mark exam as abandoned in DB using API client
-        try {
-          await examApi.abandon(examId);
-        } catch (error) {
-          // Log but continue - still clear local state even if API fails
-          // This prevents orphaned UI state while accepting the server may have stale data
-          console.error('Failed to abandon exam on server:', error);
+        if (isOfflineExam && offlineExamId) {
+          // For offline exams, delete from IndexedDB
+          try {
+            await deleteOfflineExam(offlineExamId);
+          } catch (error) {
+            console.error('Failed to delete offline exam:', error);
+          }
+        } else if (examId) {
+          // Mark exam as abandoned in DB using API client
+          try {
+            await examApi.abandon(examId);
+          } catch (error) {
+            // Log but continue - still clear local state even if API fails
+            // This prevents orphaned UI state while accepting the server may have stale data
+            console.error('Failed to abandon exam on server:', error);
+          }
         }
 
         // Clear local state regardless of API success
@@ -265,12 +374,362 @@ export const useExamStore = create<ExamState>()(
           startTime: null,
           timeRemaining: EXAM_DURATION,
           isSubmitting: false,
+          isOfflineExam: false,
+          offlineExamId: null,
         });
       },
 
       hasIncompleteExam: () => {
-        const { examId, questions, timeRemaining } = get();
-        return examId !== null && questions.length > 0 && timeRemaining > 0;
+        const { examId, offlineExamId, questions, timeRemaining } = get();
+        return (
+          (examId !== null || offlineExamId !== null) && questions.length > 0 && timeRemaining > 0
+        );
+      },
+
+      // ============ OFFLINE EXAM METHODS ============
+
+      createOfflineExam: async (
+        certificationId,
+        questionCount = DEFAULT_OFFLINE_QUESTION_COUNT
+      ) => {
+        const { logger } = Sentry;
+
+        return Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Create Offline Exam',
+          },
+          async (span) => {
+            span.setAttribute('certification.id', certificationId);
+            span.setAttribute('question_count', questionCount);
+
+            try {
+              // Fetch questions from local cache
+              const cachedQuestions = await getCachedQuestions(certificationId, {
+                limit: questionCount,
+              });
+
+              if (cachedQuestions.length === 0) {
+                logger.warn('No cached questions available for offline exam', { certificationId });
+                return {
+                  success: false,
+                  error: 'No cached questions available. Please download questions while online.',
+                };
+              }
+
+              if (cachedQuestions.length < questionCount) {
+                logger.warn('Not enough cached questions', {
+                  certificationId,
+                  requested: questionCount,
+                  available: cachedQuestions.length,
+                });
+              }
+
+              // Shuffle questions for variety
+              const shuffled = [...cachedQuestions].sort(() => Math.random() - 0.5);
+              const selectedQuestions = shuffled.slice(0, questionCount);
+
+              // Generate offline exam ID
+              const offlineExamId = generateOfflineExamId();
+
+              // Create responses map
+              const responses = new Map<number, ExamResponse>();
+              selectedQuestions.forEach((q) => {
+                responses.set(q.id, {
+                  questionId: q.id,
+                  selectedAnswers: [],
+                  isCorrect: null,
+                  flagged: false,
+                  timeSpentSeconds: 0,
+                });
+              });
+
+              // Convert to ExamQuestion format
+              const examQuestions = selectedQuestions.map(mapToExamQuestion);
+
+              const now = Date.now();
+
+              // Save to IndexedDB for persistence
+              const offlineExamState: OfflineExamState = {
+                id: offlineExamId,
+                certificationId,
+                questionIds: selectedQuestions.map((q) => q.id),
+                currentQuestionIndex: 0,
+                responses: new Map(),
+                timeSpentSeconds: 0,
+                startedAt: new Date(now).toISOString(),
+                lastUpdatedAt: new Date(now).toISOString(),
+                status: 'in_progress',
+              };
+
+              await saveOfflineExam(offlineExamState);
+
+              // Update store state
+              set({
+                examId: null, // No server exam ID for offline exams
+                offlineExamId,
+                questions: examQuestions,
+                responses,
+                currentQuestionIndex: 0,
+                startTime: now,
+                timeRemaining: EXAM_DURATION,
+                isSubmitting: false,
+                isOfflineExam: true,
+              });
+
+              span.setAttribute('offline_exam.id', offlineExamId);
+              span.setAttribute('offline_exam.question_count', selectedQuestions.length);
+
+              logger.info('Offline exam created', {
+                offlineExamId,
+                questionCount: selectedQuestions.length,
+              });
+
+              Sentry.addBreadcrumb({
+                category: 'offline-exam',
+                message: `Created offline exam with ${selectedQuestions.length} questions`,
+                level: 'info',
+                data: { offlineExamId, certificationId },
+              });
+
+              return { success: true };
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              logger.error('Failed to create offline exam', {
+                error: errorMessage,
+                certificationId,
+              });
+              Sentry.captureException(error, {
+                extra: { certificationId, questionCount, context: 'create_offline_exam' },
+              });
+              return { success: false, error: errorMessage };
+            }
+          }
+        );
+      },
+
+      submitOfflineExam: async () => {
+        const { offlineExamId, startTime, responses, questions, isOfflineExam } = get();
+        const { logger } = Sentry;
+
+        if (!isOfflineExam || !offlineExamId || !startTime) {
+          return { success: false, queuedForSync: false, error: 'No offline exam in progress' };
+        }
+
+        set({ isSubmitting: true });
+
+        // Ensure all pending IndexedDB writes complete before submission
+        await flushPendingWrites();
+
+        return Sentry.startSpan(
+          {
+            op: 'ui.action',
+            name: 'Submit Offline Exam',
+          },
+          async (span) => {
+            try {
+              const totalTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+              span.setAttribute('offline_exam.id', offlineExamId);
+              span.setAttribute('offline_exam.total_time_seconds', totalTimeSeconds);
+
+              // Get the offline exam from IndexedDB to get certification ID
+              const offlineExam = await getOfflineExam(offlineExamId);
+              if (!offlineExam) {
+                return {
+                  success: false,
+                  queuedForSync: false,
+                  error: 'Offline exam not found in storage',
+                };
+              }
+
+              // Prepare submission payload
+              const responsesArray = Array.from(responses.values());
+              const submission: OfflineExamSubmission = {
+                offlineExamId,
+                certificationId: offlineExam.certificationId,
+                questions: responsesArray.map((r) => ({
+                  questionId: r.questionId,
+                  selectedAnswers: r.selectedAnswers,
+                  isCorrect: r.isCorrect === true,
+                  flagged: r.flagged,
+                  timeSpentSeconds: r.timeSpentSeconds,
+                })),
+                totalTimeSeconds,
+                startedAt: new Date(startTime).toISOString(),
+                completedAt: new Date().toISOString(),
+                isOffline: true,
+                clientTimestamp: new Date().toISOString(),
+              };
+
+              // Queue for background sync
+              await queueForSync(
+                'exam_submission',
+                submission as unknown as Record<string, unknown>
+              );
+
+              // Mark offline exam as completed in IndexedDB
+              // Convert responses Map to the format expected by OfflineExamState
+              const offlineResponses = new Map<number, number[]>();
+              responses.forEach((r, questionId) => {
+                offlineResponses.set(questionId, r.selectedAnswers);
+              });
+              offlineExam.status = 'completed';
+              offlineExam.timeSpentSeconds = totalTimeSeconds;
+              offlineExam.responses = offlineResponses;
+              await saveOfflineExam(offlineExam);
+
+              // Calculate local results for immediate feedback
+              const correctCount = responsesArray.filter((r) => r.isCorrect === true).length;
+              const score = questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
+
+              span.setAttribute('offline_exam.correct_count', correctCount);
+              span.setAttribute('offline_exam.score', score);
+
+              logger.info('Offline exam submitted and queued for sync', {
+                offlineExamId,
+                correctCount,
+                totalQuestions: questions.length,
+                score,
+              });
+
+              Sentry.addBreadcrumb({
+                category: 'offline-exam',
+                message: `Offline exam queued for sync: ${correctCount}/${questions.length} correct`,
+                level: 'info',
+                data: { offlineExamId, score },
+              });
+
+              // Reset exam state
+              set({
+                examId: null,
+                offlineExamId: null,
+                currentQuestionIndex: 0,
+                questions: [],
+                responses: new Map(),
+                startTime: null,
+                timeRemaining: EXAM_DURATION,
+                isSubmitting: false,
+                isOfflineExam: false,
+              });
+
+              return { success: true, queuedForSync: true };
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              logger.error('Failed to submit offline exam', { error: errorMessage, offlineExamId });
+              Sentry.captureException(error, {
+                extra: { offlineExamId, context: 'submit_offline_exam' },
+              });
+              set({ isSubmitting: false });
+              return { success: false, queuedForSync: false, error: errorMessage };
+            }
+          }
+        );
+      },
+
+      resumeOfflineExam: async (offlineExamId) => {
+        const { logger } = Sentry;
+
+        try {
+          const offlineExam = await getOfflineExam(offlineExamId);
+          if (!offlineExam || offlineExam.status !== 'in_progress') {
+            return false;
+          }
+
+          // Fetch the actual questions from cache to restore full question data
+          const cachedQuestions = await getCachedQuestions(offlineExam.certificationId, {
+            limit: 200, // Get all cached questions
+          });
+
+          // Filter to only the questions in this exam
+          const examQuestionIds = new Set(offlineExam.questionIds);
+          const examQuestionsRaw = cachedQuestions.filter((q) => examQuestionIds.has(q.id));
+
+          // Maintain original order
+          const questionsMap = new Map(examQuestionsRaw.map((q) => [q.id, q]));
+          const orderedQuestions = offlineExam.questionIds
+            .map((id) => questionsMap.get(id))
+            .filter((q): q is QuestionWithDomain => q !== undefined);
+
+          if (orderedQuestions.length === 0) {
+            logger.warn('Could not restore offline exam questions', { offlineExamId });
+            return false;
+          }
+
+          // Convert to ExamQuestion format
+          const examQuestions = orderedQuestions.map(mapToExamQuestion);
+
+          // Restore responses
+          const responses = new Map<number, ExamResponse>();
+          examQuestions.forEach((q) => {
+            const savedResponse = offlineExam.responses.get(q.id);
+            responses.set(q.id, {
+              questionId: q.id,
+              selectedAnswers: savedResponse || [],
+              isCorrect: null, // Will be calculated on answer
+              flagged: false,
+              timeSpentSeconds: 0,
+            });
+          });
+
+          // Calculate remaining time
+          const startedAtTime = new Date(offlineExam.startedAt).getTime();
+          const elapsedSeconds = Math.floor((Date.now() - startedAtTime) / 1000);
+          const remainingTime = Math.max(0, EXAM_DURATION - elapsedSeconds);
+
+          set({
+            examId: null,
+            offlineExamId: offlineExam.id,
+            questions: examQuestions,
+            responses,
+            currentQuestionIndex: offlineExam.currentQuestionIndex,
+            startTime: startedAtTime,
+            timeRemaining: remainingTime,
+            isSubmitting: false,
+            isOfflineExam: true,
+          });
+
+          logger.info('Offline exam resumed', {
+            offlineExamId,
+            questionCount: examQuestions.length,
+          });
+
+          return true;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          logger.error('Failed to resume offline exam', { error: errorMessage, offlineExamId });
+          Sentry.captureException(error, {
+            extra: { offlineExamId, context: 'resume_offline_exam' },
+          });
+          return false;
+        }
+      },
+
+      abandonOfflineExam: async () => {
+        const { offlineExamId } = get();
+        if (!offlineExamId) return;
+
+        try {
+          await deleteOfflineExam(offlineExamId);
+        } catch (error) {
+          console.error('Failed to delete offline exam:', error);
+        }
+
+        set({
+          examId: null,
+          offlineExamId: null,
+          currentQuestionIndex: 0,
+          questions: [],
+          responses: new Map(),
+          startTime: null,
+          timeRemaining: EXAM_DURATION,
+          isSubmitting: false,
+          isOfflineExam: false,
+        });
+      },
+
+      getInProgressOfflineExam: async () => {
+        const exams = await getInProgressOfflineExams();
+        return exams.length > 0 ? exams[0] : null;
       },
 
       getCurrentQuestion: () => {
@@ -304,6 +763,8 @@ export const useExamStore = create<ExamState>()(
         currentQuestionIndex: state.currentQuestionIndex,
         startTime: state.startTime,
         timeRemaining: state.timeRemaining,
+        isOfflineExam: state.isOfflineExam,
+        offlineExamId: state.offlineExamId,
       }),
       onRehydrateStorage: () => (state) => {
         if (state && Array.isArray(state.responses)) {

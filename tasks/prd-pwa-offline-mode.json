@@ -1,0 +1,214 @@
+{
+  "project": "ace-prep",
+  "feature": "pwa-offline-mode",
+  "branchName": "ralph/pwa-offline-mode",
+  "description": "Full offline exam support with pre-caching and background sync",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add Shared Types for Offline Sync",
+      "description": "As a developer, I need TypeScript types for offline sync queue and status.",
+      "acceptanceCriteria": [
+        "Add SyncQueueItem type with id, type, payload, createdAt, retryCount, status",
+        "Add OfflineStatus type with isOnline, pendingSyncCount, lastSyncAt",
+        "Add CacheStatus type with certificationId, questionCount, cachedAt, expiresAt",
+        "Export types from shared package index",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Enhance IndexedDB Offline Storage",
+      "description": "As a developer, I need expanded IndexedDB storage for full offline exam support.",
+      "acceptanceCriteria": [
+        "Add offlineExams object store for in-progress offline exams",
+        "Add syncQueue object store for pending API requests",
+        "Add cacheMetadata object store for tracking cached content",
+        "Add versioned migrations for schema updates",
+        "Helper functions: queueForSync(), getQueuedItems(), removeFromQueue()",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create Background Sync Service",
+      "description": "As a developer, I need a service to process queued requests when online.",
+      "acceptanceCriteria": [
+        "SyncService.processQueue() sends queued items to server",
+        "Processes items in FIFO order",
+        "Exponential backoff on failure (max 5 retries)",
+        "Moves permanently failed items to dead letter store",
+        "Fires custom event on sync completion",
+        "Integrates with navigator.onLine and online/offline events",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Register Background Sync with Service Worker",
+      "description": "As a developer, I need the service worker to handle background sync events.",
+      "acceptanceCriteria": [
+        "Register for 'sync' event with tag 'ace-offline-sync'",
+        "Service worker calls SyncService on sync event",
+        "Periodic sync registration for devices that support it (daily)",
+        "Fallback to manual sync trigger for unsupported browsers",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create Question Pre-caching Service",
+      "description": "As a developer, I need a service to pre-cache questions for offline use.",
+      "acceptanceCriteria": [
+        "CacheService.cacheQuestionsForCertification(certId, count) fetches and stores questions",
+        "Default cache: 100 questions per certification",
+        "Stores in IndexedDB with expiration metadata (7 days)",
+        "CacheService.getCachedQuestions(certId, filters) retrieves from cache",
+        "CacheService.clearCache(certId) removes cached questions",
+        "CacheService.getCacheStatus(certId) returns cache metadata",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Add Pre-cache API Endpoint",
+      "description": "As a developer, I need an optimized endpoint for bulk question fetching.",
+      "acceptanceCriteria": [
+        "GET /api/questions/bulk?certificationId={id}&limit={n} returns questions for caching",
+        "Returns questions with all necessary fields (no lazy loading)",
+        "Randomized selection across domains weighted by exam percentage",
+        "Excludes questions user has answered correctly 3+ times (mastered)",
+        "Rate limited to prevent abuse",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create Offline Exam Flow",
+      "description": "As a developer, I need exam creation and completion to work offline.",
+      "acceptanceCriteria": [
+        "examStore.createOfflineExam() creates exam from cached questions",
+        "Stores exam state in IndexedDB (survives page refresh)",
+        "examStore.submitOfflineExam() queues responses for sync",
+        "Responses include offline flag and client timestamp",
+        "Server reconciles offline submissions with duplicate prevention",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create Offline Status Indicator Component",
+      "description": "As a user, I want to know when I'm offline and if data is pending sync.",
+      "acceptanceCriteria": [
+        "Persistent indicator in app header when offline",
+        "Shows pending sync count badge",
+        "Click expands to show sync status details",
+        "'Sync Now' button for manual trigger when online",
+        "Toast notification on connectivity change",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Create Cache Management UI",
+      "description": "As a user, I want to manage my offline question cache.",
+      "acceptanceCriteria": [
+        "Section in Settings page for 'Offline Mode'",
+        "Shows cache status per certification (X questions cached, expires Y)",
+        "'Download for Offline' button per certification",
+        "Progress indicator during download",
+        "'Clear Cache' button with confirmation",
+        "Storage usage indicator",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Update Exam Page for Offline Support",
+      "description": "As a user, I want to start and complete exams while offline.",
+      "acceptanceCriteria": [
+        "'Start Offline Exam' option when offline with cached questions",
+        "Exam UI works identically to online mode",
+        "'Offline' badge displayed during exam",
+        "On submit: shows 'Queued for sync' message instead of immediate results",
+        "Results page shows once synced (with notification)",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add Offline Exam Recovery",
+      "description": "As a user, I want to resume an interrupted offline exam.",
+      "acceptanceCriteria": [
+        "Detect incomplete offline exam on app load",
+        "Prompt to resume or abandon",
+        "Resume restores exact state (current question, responses, timer)",
+        "Abandon clears offline exam state",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add Sync Conflict Resolution",
+      "description": "As a developer, I need to handle sync conflicts gracefully.",
+      "acceptanceCriteria": [
+        "Server detects duplicate exam submissions (same exam ID)",
+        "Returns existing result instead of creating duplicate",
+        "Client handles 'already synced' response gracefully",
+        "Logging for conflict occurrences (Sentry breadcrumb)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Add Empty/Error States for Offline",
+      "description": "As a user, I want clear feedback on offline limitations.",
+      "acceptanceCriteria": [
+        "'No cached questions' message with download CTA when offline without cache",
+        "'Sync failed' state with retry option",
+        "'Storage full' error handling with cache clear suggestion",
+        "Offline mode feature explanation for first-time users",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

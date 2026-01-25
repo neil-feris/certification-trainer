@@ -1187,3 +1187,275 @@ export interface ReadinessResponse {
   recommendations?: ReadinessRecommendation[];
   history?: ReadinessSnapshot[];
 }
+
+// ============ QUESTION OF THE DAY TYPES ============
+
+export interface QotdQuestion {
+  id: number;
+  questionText: string;
+  questionType: QuestionType;
+  options: string[];
+  difficulty: Difficulty;
+  domain: { id: number; name: string; code: string };
+  topic: { id: number; name: string };
+}
+
+export interface QotdCompletion {
+  isCorrect: boolean;
+  selectedAnswers: number[];
+  completedAt: string;
+}
+
+export interface QotdResponse {
+  date: string; // YYYY-MM-DD
+  question: QotdQuestion;
+  correctAnswers?: number[]; // Only included if already completed
+  explanation?: string; // Only included if already completed
+  completion: QotdCompletion | null; // null if not completed today
+}
+
+export interface QotdCompletionRequest {
+  certificationId: number;
+  questionId: number;
+  selectedAnswers: number[];
+}
+
+export interface QotdCompletionResponse {
+  isCorrect: boolean;
+  correctAnswers: number[];
+  explanation: string;
+  xpAwarded: number;
+  xpUpdate?: XPAwardResponse;
+}
+
+// ============ STUDY PLAN TYPES ============
+
+export type StudyPlanStatus = 'active' | 'completed' | 'abandoned';
+
+export type StudyPlanTaskType = 'learning' | 'practice' | 'review' | 'drill';
+
+export interface StudyPlan {
+  id: number;
+  userId: number;
+  certificationId: number;
+  targetExamDate: string; // ISO date string YYYY-MM-DD
+  status: StudyPlanStatus;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface StudyPlanTask {
+  id: number;
+  studyPlanDayId: number;
+  taskType: StudyPlanTaskType;
+  targetId: number | null; // domain/topic id, null for general tasks
+  estimatedMinutes: number;
+  completedAt: Date | string | null;
+  notes: string | null;
+}
+
+export interface StudyPlanDay {
+  id: number;
+  studyPlanId: number;
+  date: string; // ISO date string YYYY-MM-DD
+  isComplete: boolean;
+  tasks: StudyPlanTask[];
+}
+
+export interface StudyPlanWithDays extends StudyPlan {
+  days: StudyPlanDay[];
+}
+
+// Study Plan API Request/Response Types
+
+export interface CreateStudyPlanRequest {
+  certificationId?: number; // Optional: uses default certification if not provided
+  targetExamDate: string; // ISO date string YYYY-MM-DD
+}
+
+export interface StudyPlanResponse {
+  plan: StudyPlanWithDays;
+  todaysTasks: StudyPlanTask[];
+  progress: {
+    totalDays: number;
+    completedDays: number;
+    totalTasks: number;
+    completedTasks: number;
+    percentComplete: number;
+  };
+}
+
+export interface CompleteTaskRequest {
+  notes?: string;
+}
+
+export interface CompleteTaskResponse {
+  task: StudyPlanTask;
+  dayComplete: boolean;
+  xpUpdate?: XPAwardResponse;
+}
+
+export interface RegenerateStudyPlanRequest {
+  keepCompletedTasks?: boolean;
+}
+
+export interface RegenerateStudyPlanResponse {
+  plan: StudyPlanWithDays;
+  tasksRemoved: number;
+  tasksGenerated: number;
+}
+
+// ============ SHARE EXAM RESULTS TYPES ============
+
+/** Domain breakdown for shared exam results */
+export interface ShareableDomainScore {
+  domainId: number;
+  domainName: string;
+  domainCode: string;
+  correctCount: number;
+  totalCount: number;
+  percentage: number;
+}
+
+/** Data structure for shareable exam results */
+export interface ShareableResult {
+  /** Unique share hash for URL */
+  shareHash: string;
+  /** Score percentage (0-100) */
+  score: number;
+  /** Pass/fail status */
+  passed: boolean;
+  /** Certification details */
+  certificationCode: string;
+  certificationName: string;
+  /** Exam completion date */
+  completedAt: string;
+  /** Total questions in exam */
+  totalQuestions: number;
+  /** Number of correct answers */
+  correctAnswers: number;
+  /** Domain-level breakdown */
+  domainBreakdown: ShareableDomainScore[];
+  /** Number of times this link has been viewed */
+  viewCount: number;
+}
+
+/** Response when creating a share link */
+export interface CreateShareLinkResponse {
+  /** The generated share hash */
+  shareHash: string;
+  /** Full shareable URL */
+  shareUrl: string;
+  /** When the share link was created */
+  createdAt: string;
+}
+
+/** Response when fetching a shared exam result (public endpoint) */
+export interface GetSharedResultResponse {
+  result: ShareableResult;
+}
+
+// ============ CERTIFICATE TYPES ============
+
+export interface Certificate {
+  id: number;
+  examId: number;
+  userId: number;
+  certificateHash: string;
+  score: number;
+  certificationId: number;
+  issuedAt: Date | string;
+}
+
+export interface CertificateResponse {
+  certificate: Certificate;
+  downloadUrl: string;
+}
+
+export interface CertificateVerification {
+  valid: boolean;
+  certificationName: string | null;
+  score: number | null;
+  issuedAt: string | null;
+}
+
+export interface GenerateCertificateRequest {
+  userName?: string; // Optional: uses authenticated user's name if not provided
+}
+
+export interface GenerateCertificateResponse {
+  certificateHash: string;
+  downloadUrl: string;
+}
+
+// ============ OFFLINE SYNC TYPES ============
+
+export type SyncQueueItemType =
+  | 'exam_submission'
+  | 'study_session'
+  | 'drill_result'
+  | 'flashcard_rating';
+export type SyncQueueItemStatus = 'pending' | 'in_progress' | 'failed' | 'dead_letter';
+
+export interface SyncQueueItem {
+  id: string;
+  type: SyncQueueItemType;
+  payload: Record<string, unknown>;
+  createdAt: Date | string;
+  retryCount: number;
+  status: SyncQueueItemStatus;
+  lastError?: string;
+  lastAttemptAt?: Date | string;
+}
+
+export interface OfflineStatus {
+  isOnline: boolean;
+  pendingSyncCount: number;
+  lastSyncAt: Date | string | null;
+}
+
+export interface CacheStatus {
+  certificationId: number;
+  certificationCode?: string;
+  certificationName?: string;
+  questionCount: number;
+  cachedAt: Date | string;
+  expiresAt: Date | string;
+  isExpired?: boolean;
+}
+
+// ============ OFFLINE EXAM TYPES ============
+
+export interface OfflineExamResponse {
+  questionId: number;
+  selectedAnswers: number[];
+  isCorrect: boolean;
+  flagged: boolean;
+  timeSpentSeconds: number;
+}
+
+export interface OfflineExamSubmission {
+  offlineExamId: string; // Client-generated UUID
+  certificationId: number;
+  questions: Array<{
+    questionId: number;
+    selectedAnswers: number[];
+    isCorrect: boolean;
+    flagged: boolean;
+    timeSpentSeconds: number;
+  }>;
+  totalTimeSeconds: number;
+  startedAt: string; // ISO timestamp from client
+  completedAt: string; // ISO timestamp from client
+  isOffline: true;
+  clientTimestamp: string; // For sync reconciliation
+}
+
+export interface OfflineExamSubmissionResult {
+  success: boolean;
+  examId?: number; // Server-assigned exam ID
+  alreadySynced?: boolean; // True if this was a duplicate submission
+  score?: number;
+  correctAnswers?: number;
+  totalQuestions?: number;
+}

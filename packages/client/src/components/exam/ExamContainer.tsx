@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { ExamRecoveryModal } from './ExamRecoveryModal';
 import { LevelUpModal } from '../common/LevelUpModal';
 import { BookmarkButton } from '../common/BookmarkButton';
+import { showToast } from '../common';
 import styles from './ExamContainer.module.css';
 
 const DIFFICULTY_STYLES: Record<string, string> = {
@@ -34,12 +35,14 @@ export function ExamContainer() {
     responses,
     timeRemaining,
     isSubmitting,
+    isOfflineExam,
     startExam,
     setCurrentQuestion,
     answerQuestion,
     toggleFlag,
     updateTimeRemaining,
     submitExam,
+    submitOfflineExam,
     getProgress,
     abandonExam,
     hasIncompleteExam,
@@ -47,10 +50,13 @@ export function ExamContainer() {
 
   const { showDifficultyDuringExam } = useSettingsStore();
 
+  // For offline exams, we don't need to fetch from API
+  const isOfflineRoute = id === 'offline';
+
   const { data: examData, isLoading } = useQuery({
     queryKey: ['exam', id],
     queryFn: () => examApi.get(parseInt(id!)),
-    enabled: !!id,
+    enabled: !!id && !isOfflineRoute, // Skip API call for offline exams
   });
 
   // Check bookmark status for all questions in the grid
@@ -75,16 +81,19 @@ export function ExamContainer() {
     }
   }, [id, recoveryChecked, examId, hasIncompleteExam]);
 
-  // Initialize exam from API data
+  // Initialize exam from API data (skip for offline exams)
   useEffect(() => {
     // Don't initialize if recovery modal is showing
     if (showRecoveryModal) return;
+
+    // For offline exams, the store is already initialized by ExamSetup
+    if (isOfflineRoute) return;
 
     if (examData && (!examId || examId !== parseInt(id!))) {
       const questions = examData.responses.map((r: any) => r.question);
       startExam(parseInt(id!), questions);
     }
-  }, [examData, id, showRecoveryModal]);
+  }, [examData, id, showRecoveryModal, isOfflineRoute]);
 
   const handleResumeExam = () => {
     // Navigate to the stored exam
@@ -102,17 +111,39 @@ export function ExamContainer() {
 
   // Memoize handleSubmit to prevent stale closures
   const handleSubmit = useCallback(async () => {
-    const result = await submitExam();
-    // Check for level-up and show modal before navigating
-    if (result?.xpUpdate?.newLevel) {
-      setLevelUpInfo({
-        oldLevel: result.xpUpdate.currentLevel - 1, // Previous level
-        newLevel: result.xpUpdate.newLevel,
-      });
+    if (isOfflineExam) {
+      // Handle offline exam submission
+      const result = await submitOfflineExam();
+      if (result.success && result.queuedForSync) {
+        // Show toast notification about queued sync
+        showToast({
+          message: 'Exam submitted! Results will be available once synced.',
+          type: 'info',
+          duration: 5000,
+        });
+        // Navigate to dashboard since we can't show results yet
+        navigate('/dashboard');
+      } else {
+        showToast({
+          message: result.error || 'Failed to submit offline exam',
+          type: 'error',
+          duration: 5000,
+        });
+      }
     } else {
-      navigate(`/exam/${id}/review`);
+      // Handle regular online exam submission
+      const result = await submitExam();
+      // Check for level-up and show modal before navigating
+      if (result?.xpUpdate?.newLevel) {
+        setLevelUpInfo({
+          oldLevel: result.xpUpdate.currentLevel - 1, // Previous level
+          newLevel: result.xpUpdate.newLevel,
+        });
+      } else {
+        navigate(`/exam/${id}/review`);
+      }
     }
-  }, [submitExam, navigate, id]);
+  }, [submitExam, submitOfflineExam, navigate, id, isOfflineExam]);
 
   // Handle level-up modal close
   const handleLevelUpClose = useCallback(() => {
@@ -269,7 +300,11 @@ export function ExamContainer() {
     );
   }
 
-  if (isLoading || !questions.length) {
+  // For offline exams, we just need questions in the store
+  // For online exams, we need to wait for API data
+  const showLoading = isOfflineRoute ? !questions.length : isLoading || !questions.length;
+
+  if (showLoading) {
     return (
       <div className={styles.loading}>
         <div className="animate-pulse">Loading exam...</div>
@@ -304,9 +339,17 @@ export function ExamContainer() {
           </div>
         </div>
 
-        <div className={`${styles.timer} ${isTimeWarning ? styles.timerWarning : ''}`}>
-          <span className={styles.timerIcon}>⏱</span>
-          <span className={styles.timerValue}>{formatTime(timeRemaining)}</span>
+        <div className={styles.headerCenter}>
+          {isOfflineExam && (
+            <span className={styles.offlineBadge}>
+              <span className={styles.offlineBadgeIcon}>📶</span>
+              Offline
+            </span>
+          )}
+          <div className={`${styles.timer} ${isTimeWarning ? styles.timerWarning : ''}`}>
+            <span className={styles.timerIcon}>⏱</span>
+            <span className={styles.timerValue}>{formatTime(timeRemaining)}</span>
+          </div>
         </div>
 
         <button
@@ -529,12 +572,18 @@ export function ExamContainer() {
               )}
             </p>
             {progress.flagged > 0 && <p>You have {progress.flagged} flagged questions.</p>}
+            {isOfflineExam && (
+              <p className={styles.offlineSubmitNote}>
+                📶 This is an offline exam. Your responses will be queued for sync and results will
+                be available once connected.
+              </p>
+            )}
             <div className={styles.modalActions}>
               <button className="btn btn-ghost" onClick={() => setShowSubmitConfirm(false)}>
                 Continue Exam
               </button>
               <button className="btn btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? 'Submitting...' : 'Submit'}
+                {isSubmitting ? 'Submitting...' : isOfflineExam ? 'Submit & Queue' : 'Submit'}
               </button>
             </div>
           </div>
