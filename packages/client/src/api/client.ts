@@ -481,17 +481,17 @@ export const progressApi = {
     const params = limit ? `?limit=${limit}` : '';
     return request<XPHistoryRecord[]>(`/progress/xp/history${params}`);
   },
-  getReadiness: (certificationId?: number, options?: { saveSnapshot?: boolean; include?: string[] }) => {
+  getReadiness: (certificationId: number, options?: { saveSnapshot?: boolean; include?: string[] }) => {
     const params = new URLSearchParams();
-    if (certificationId) params.set('certificationId', String(certificationId));
+    params.set('certificationId', String(certificationId));
     if (options?.saveSnapshot) params.set('snapshot', 'true');
     if (options?.include?.length) params.set('include', options.include.join(','));
     const query = params.toString();
     return request<ReadinessResponse>(`/progress/readiness${query ? `?${query}` : ''}`);
   },
-  getReadinessHistory: (certificationId?: number, limit?: number) => {
+  getReadinessHistory: (certificationId: number, limit?: number) => {
     const params = new URLSearchParams();
-    if (certificationId) params.set('certificationId', String(certificationId));
+    params.set('certificationId', String(certificationId));
     if (limit) params.set('limit', String(limit));
     return request<ReadinessSnapshot[]>(`/progress/readiness/history?${params}`);
   },

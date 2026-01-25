@@ -116,7 +116,7 @@ export function Dashboard() {
   // Fetch readiness score (with snapshot save for history tracking)
   const { data: readiness, isLoading: readinessLoading } = useQuery({
     queryKey: ['readiness', selectedCertificationId],
-    queryFn: () => progressApi.getReadiness(selectedCertificationId ?? undefined, { saveSnapshot: true }),
+    queryFn: () => progressApi.getReadiness(selectedCertificationId!, { saveSnapshot: true }),
     enabled: selectedCertificationId !== null,
     staleTime: 300000, // 5 min cache
   });

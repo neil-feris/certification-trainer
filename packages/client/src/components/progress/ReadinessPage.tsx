@@ -59,14 +59,14 @@ export function ReadinessPage() {
 
   const { data: readiness, isLoading } = useQuery({
     queryKey: ['readiness', certId],
-    queryFn: () => progressApi.getReadiness(certId ?? undefined, { include: ['recommendations', 'history'] }),
+    queryFn: () => progressApi.getReadiness(certId!, { include: ['recommendations', 'history'] }),
     enabled: certId !== null,
     staleTime: 300000,
   });
 
   const { data: history } = useQuery({
     queryKey: ['readinessHistory', certId],
-    queryFn: () => progressApi.getReadinessHistory(certId ?? undefined, 30),
+    queryFn: () => progressApi.getReadinessHistory(certId!, 30),
     enabled: certId !== null,
     staleTime: 300000,
   });
