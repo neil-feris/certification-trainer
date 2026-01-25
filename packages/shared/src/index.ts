@@ -1079,6 +1079,6 @@ export interface ReadinessSnapshot {
 
 export interface ReadinessResponse {
   score: ReadinessScore;
-  recommendations: ReadinessRecommendation[];
-  history: ReadinessSnapshot[];
+  recommendations?: ReadinessRecommendation[];
+  history?: ReadinessSnapshot[];
 }

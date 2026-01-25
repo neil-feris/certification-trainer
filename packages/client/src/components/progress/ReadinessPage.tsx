@@ -101,7 +101,7 @@ export function ReadinessPage() {
     );
   }
 
-  const { score, recommendations } = readiness;
+  const { score, recommendations = [] } = readiness;
   const overall = Math.round(score.overall);
   const color = getScoreColor(overall);
   const circumference = 2 * Math.PI * 56;
@@ -111,7 +111,8 @@ export function ReadinessPage() {
   const sortedDomains = [...score.domains].sort((a, b) => b.domainWeight - a.domainWeight);
 
   // Transform history for chart (oldest first)
-  const chartData = (history ?? readiness.history)
+  const historyData = history ?? readiness.history ?? [];
+  const chartData = historyData
     .slice()
     .sort((a, b) => new Date(a.calculatedAt).getTime() - new Date(b.calculatedAt).getTime())
     .map((snap) => ({
