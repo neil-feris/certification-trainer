@@ -265,7 +265,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ## Phase 3: PWA & Offline
 
 ### FEAT-012: Complete PWA Offline Mode
-- **Status**: `[ ]`
+- **Status**: `[~]`
 - **Priority**: P1 (High Impact, Medium Effort)
 - **Category**: Mobile/Offline
 

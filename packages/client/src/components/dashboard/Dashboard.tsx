@@ -7,6 +7,7 @@ import { ReadinessWidget } from '../common/ReadinessWidget';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { XPHistoryPanel } from '../common/XPHistoryPanel';
+import { OfflineFeatureGuide, useOfflineFeatureGuide } from '../common/OfflineStates';
 import { OfflineExamRecoveryModal } from '../exam/OfflineExamRecoveryModal';
 import styles from './Dashboard.module.css';
 
@@ -80,6 +81,9 @@ export function Dashboard() {
     abandonExam,
     showPrompt: showRecoveryPrompt,
   } = useOfflineExamRecovery();
+
+  // Offline feature guide for first-time users
+  const { shouldShowGuide, dismissGuide } = useOfflineFeatureGuide();
 
   const {
     data: dashboard,
@@ -172,6 +176,17 @@ export function Dashboard() {
 
   return (
     <div className={styles.dashboard}>
+      {/* Offline Feature Guide for first-time users */}
+      {shouldShowGuide && (
+        <OfflineFeatureGuide
+          onDismiss={dismissGuide}
+          onLearnMore={() => {
+            dismissGuide();
+            navigate('/settings', { state: { scrollTo: 'offline-mode' } });
+          }}
+        />
+      )}
+
       {/* Offline Exam Recovery Modal */}
       {showRecoveryPrompt && incompleteExam && (
         <OfflineExamRecoveryModal

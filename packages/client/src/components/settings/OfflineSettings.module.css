@@ -346,6 +346,26 @@
   margin-bottom: 0;
 }
 
+/* Dismiss error button */
+.dismissErrorBtn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 10px 24px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.dismissErrorBtn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .certItem {

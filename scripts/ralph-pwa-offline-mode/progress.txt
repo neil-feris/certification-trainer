@@ -34,6 +34,95 @@ Started: Sun 25 Jan 2026 15:26:41 SAST
 - ExamSetup shows 'Start Offline Exam' when offline with cached questions
 - ExamContainer shows 'Offline' badge and modified submit flow
 - useOfflineSyncNotifications hook for exam sync notifications
+- Offline exam recovery: useOfflineExamRecovery hook checks IndexedDB on Dashboard load
+- OfflineExamRecoveryModal displays resume/abandon prompt with progress details
+- examStore.resumeOfflineExam() restores full exam state from IndexedDB
+- Sync conflict resolution: syncService detects `alreadySynced` flag in server response
+- SyncResult includes `alreadySynced` count for tracking duplicate submissions resolved
+- SyncItemEventDetail includes `alreadySynced` boolean and `serverResponse` data
+- Empty/error state components: NoCachedQuestions, SyncFailed, StorageFullError, OfflineFeatureGuide
+- First-time user guide uses localStorage key `ace-offline-guide-shown` to track shown state
+- useOfflineFeatureGuide hook shows guide on Dashboard after 2 second delay for first-time users
+- Storage error detection checks for quota/storage/full keywords in error message string
+
+---
+
+## 2026-01-26T03:45:00+02:00 - US-013
+- **What was implemented**: Empty and error states for offline mode feedback
+- **Files changed**:
+  - `packages/client/src/components/common/OfflineStates.tsx` (new) - Empty/error state components
+  - `packages/client/src/components/common/OfflineStates.module.css` (new) - Styles
+  - `packages/client/src/components/common/index.ts` - Export new components
+  - `packages/client/src/components/dashboard/Dashboard.tsx` - Integrated OfflineFeatureGuide
+  - `packages/client/src/components/settings/OfflineSettings.tsx` - StorageFullError integration
+  - `packages/client/src/components/settings/OfflineSettings.module.css` - Added dismiss button style
+- **Components implemented**:
+  - `NoCachedQuestions`: Empty state when offline with no cached questions, download CTA
+  - `SyncFailed`: Error state when sync permanently fails, with retry button
+  - `StorageFullError`: Storage quota exceeded error with clear cache suggestion
+  - `OfflineFeatureGuide`: Modal explaining offline mode for first-time users
+  - `useOfflineFeatureGuide`: Hook for managing first-time guide state
+- **Integration points**:
+  - Dashboard shows OfflineFeatureGuide on first visit (once per device)
+  - OfflineSettings shows StorageFullError when cache download fails due to storage
+  - ExamSetup already had warning message for no cache scenario (enhanced)
+- **Learnings for future iterations**:
+  - Use localStorage for first-time guide tracking (simple, no IndexedDB needed)
+  - Add 2-second delay before showing guide to avoid overwhelming initial load
+  - Storage error detection via string matching on error message (no reliable API)
+  - Components exported via index.ts for easy import: `import { NoCachedQuestions } from '../common'`
+
+---
+
+## 2026-01-26T02:30:00+02:00 - US-012
+- **What was implemented**: Sync conflict resolution for handling duplicate exam submissions
+- **Files changed**:
+  - `packages/client/src/services/syncService.ts` - Enhanced to detect and handle alreadySynced response
+  - `packages/client/src/hooks/useOfflineSyncNotifications.ts` - Different toast for duplicates
+- **Features implemented**:
+  - sendToServer() now parses response body to detect alreadySynced flag
+  - processItem() logs Sentry breadcrumb when conflict is resolved
+  - SyncResult interface tracks alreadySynced count separately from successful
+  - SyncItemEventDetail includes alreadySynced boolean and full serverResponse
+  - useOfflineSyncNotifications shows "This exam was already synced" for duplicates
+  - Server-side duplicate detection via offlineExamId column (already implemented in US-007)
+- **Architecture notes**:
+  - Server returns 200 with `{ success: true, alreadySynced: true, examId, score, ... }` for duplicates
+  - Client treats alreadySynced as success (removes from queue) but with different notification
+  - Sentry breadcrumb includes: type, alreadySynced flag, serverExamId, offlineExamId
+- **Learnings for future iterations**:
+  - Duplicate detection happens server-side via offlineExamId column in exams table
+  - Client should always parse success response body to check for special flags
+  - Keep alreadySynced in the success path (not error) since data is preserved
+  - Toast messaging should differentiate between fresh sync and conflict resolution
+
+---
+
+## 2026-01-26T01:30:00+02:00 - US-011
+- **What was implemented**: Offline exam recovery - detecting and resuming interrupted offline exams
+- **Files changed**:
+  - `packages/client/src/hooks/useOfflineExamRecovery.ts` (new) - Detection hook
+  - `packages/client/src/components/exam/OfflineExamRecoveryModal.tsx` (new) - Resume/abandon modal
+  - `packages/client/src/components/exam/ExamRecoveryModal.module.css` - Added expiredNote style
+  - `packages/client/src/components/dashboard/Dashboard.tsx` - Integrated recovery detection
+- **Features implemented**:
+  - useOfflineExamRecovery hook checks for in-progress offline exams via getInProgressOfflineExams()
+  - Shows only on Dashboard (where users land after login)
+  - OfflineExamRecoveryModal displays: progress (question X of Y), answered count, time remaining
+  - Resume button calls examStore.resumeOfflineExam() then navigates to /exam/offline
+  - Abandon button deletes exam from IndexedDB via deleteOfflineExam()
+  - Handles expired timer scenario with warning message
+  - Shows relative time since exam started ("X hours ago")
+  - Sentry breadcrumbs for recovery actions
+- **Architecture decisions**:
+  - Detection only on Dashboard to avoid interrupting active exam sessions
+  - Skips detection if examStore already has an active exam (user is mid-exam)
+  - Reuses ExamRecoveryModal.module.css styles for consistency
+- **Learnings for future iterations**:
+  - examStore.getInProgressOfflineExam() returns the first in-progress exam from IndexedDB
+  - examStore.resumeOfflineExam() handles restoring questions from cache, responses from IndexedDB
+  - Time remaining calculated from startedAt timestamp vs EXAM_DURATION constant (2 hours)
+  - Modal z-index 1000 ensures it appears above all other content
 
 ---
 

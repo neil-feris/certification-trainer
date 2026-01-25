@@ -7,7 +7,7 @@ import {
   type CacheCompletedEventDetail,
   type CacheFailedEventDetail,
 } from '../../services/cacheService';
-import { showToast } from '../common';
+import { showToast, StorageFullError } from '../common';
 import type { CacheStatus } from '@ace-prep/shared';
 import styles from './OfflineSettings.module.css';
 
@@ -26,6 +26,7 @@ export function OfflineSettings() {
   const [cacheStates, setCacheStates] = useState<CertCacheState[]>([]);
   const [storageUsage, setStorageUsage] = useState<{ used: number; quota: number } | null>(null);
   const [confirmClear, setConfirmClear] = useState<number | null>(null);
+  const [showStorageError, setShowStorageError] = useState(false);
 
   // Load cache status for all certifications
   const loadCacheStatus = useCallback(async () => {
@@ -102,10 +103,20 @@ export function OfflineSettings() {
             : s
         )
       );
-      showToast({
-        message: `Failed to cache: ${detail.error}`,
-        type: 'error',
-      });
+
+      // Check if this is a storage quota error
+      if (
+        detail.error.toLowerCase().includes('quota') ||
+        detail.error.toLowerCase().includes('storage') ||
+        detail.error.toLowerCase().includes('full')
+      ) {
+        setShowStorageError(true);
+      } else {
+        showToast({
+          message: `Failed to cache: ${detail.error}`,
+          type: 'error',
+        });
+      }
     };
 
     const handleCacheCleared = () => {
@@ -185,6 +196,34 @@ export function OfflineSettings() {
     const diffMs = expiry.getTime() - now.getTime();
     return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
   };
+
+  // Handle storage full error action
+  const handleStorageErrorClearCache = async () => {
+    // Find a certification with cache to clear
+    const certWithCache = cacheStates.find((s) => s.status && s.status.questionCount > 0);
+    if (certWithCache) {
+      await CacheService.clearCache(certWithCache.certificationId);
+      showToast({
+        message: `Cleared cache for ${certWithCache.certificationCode}`,
+        type: 'success',
+      });
+    }
+    setShowStorageError(false);
+    loadCacheStatus();
+    loadStorageUsage();
+  };
+
+  // Show storage full error overlay if triggered
+  if (showStorageError) {
+    return (
+      <div className={styles.container}>
+        <StorageFullError onClearCache={handleStorageErrorClearCache} />
+        <button className={styles.dismissErrorBtn} onClick={() => setShowStorageError(false)}>
+          Dismiss
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
