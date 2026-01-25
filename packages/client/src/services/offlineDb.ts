@@ -5,6 +5,7 @@
  * - offlineExams: In-progress offline exam state
  * - syncQueue: Pending API requests for background sync
  * - cacheMetadata: Tracking cached content per certification
+ * - cachedQuestions: Pre-cached questions for offline exam use
  *
  * Uses versioned migrations for schema updates.
  */
@@ -13,17 +14,20 @@ import type {
   SyncQueueItemType,
   SyncQueueItemStatus,
   CacheStatus,
+  QuestionWithDomain,
+  Difficulty,
 } from '@ace-prep/shared';
 
 // Database configuration
 const DB_NAME = 'ace-prep-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 // Object store names
 export const STORES = {
   OFFLINE_EXAMS: 'offlineExams',
   SYNC_QUEUE: 'syncQueue',
   CACHE_METADATA: 'cacheMetadata',
+  CACHED_QUESTIONS: 'cachedQuestions',
 } as const;
 
 // Type for offline exam state stored in IndexedDB
@@ -142,8 +146,21 @@ function runMigrations(db: IDBDatabase, oldVersion: number): void {
     }
   }
 
+  // Version 2: Add cachedQuestions store
+  if (oldVersion < 2) {
+    if (!db.objectStoreNames.contains(STORES.CACHED_QUESTIONS)) {
+      const cachedQuestionsStore = db.createObjectStore(STORES.CACHED_QUESTIONS, {
+        keyPath: 'id',
+      });
+      cachedQuestionsStore.createIndex('certificationId', 'certificationId', { unique: false });
+      cachedQuestionsStore.createIndex('domainId', 'domainId', { unique: false });
+      cachedQuestionsStore.createIndex('topicId', 'topicId', { unique: false });
+      cachedQuestionsStore.createIndex('difficulty', 'difficulty', { unique: false });
+    }
+  }
+
   // Future migrations would be added here:
-  // if (oldVersion < 2) { ... }
+  // if (oldVersion < 3) { ... }
 }
 
 /**
@@ -363,6 +380,136 @@ export async function deleteCacheMetadata(certificationId: number): Promise<void
   await promisifyRequest(store.delete(certificationId));
 }
 
+// ============ CACHED QUESTIONS ============
+
+/**
+ * Cached question with certification ID for indexing
+ */
+export interface CachedQuestion extends QuestionWithDomain {
+  certificationId: number;
+}
+
+/**
+ * Filter options for retrieving cached questions
+ */
+export interface CachedQuestionFilters {
+  domainId?: number;
+  topicId?: number;
+  difficulty?: Difficulty;
+  limit?: number;
+  excludeIds?: number[];
+}
+
+/**
+ * Save multiple questions to the cache
+ */
+export async function saveCachedQuestions(
+  certificationId: number,
+  questions: QuestionWithDomain[]
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORES.CACHED_QUESTIONS, 'readwrite');
+    const store = transaction.objectStore(STORES.CACHED_QUESTIONS);
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+
+    for (const question of questions) {
+      const cachedQuestion: CachedQuestion = {
+        ...question,
+        certificationId,
+      };
+      store.put(cachedQuestion);
+    }
+  });
+}
+
+/**
+ * Get cached questions for a certification with optional filters
+ */
+export async function getCachedQuestions(
+  certificationId: number,
+  filters?: CachedQuestionFilters
+): Promise<QuestionWithDomain[]> {
+  const store = await getStore(STORES.CACHED_QUESTIONS);
+  const index = store.index('certificationId');
+  const results = await promisifyRequest<CachedQuestion[]>(
+    index.getAll(IDBKeyRange.only(certificationId))
+  );
+
+  let filtered = results;
+
+  // Apply filters
+  if (filters?.domainId) {
+    filtered = filtered.filter((q) => q.domainId === filters.domainId);
+  }
+  if (filters?.topicId) {
+    filtered = filtered.filter((q) => q.topicId === filters.topicId);
+  }
+  if (filters?.difficulty) {
+    filtered = filtered.filter((q) => q.difficulty === filters.difficulty);
+  }
+  if (filters?.excludeIds && filters.excludeIds.length > 0) {
+    const excludeSet = new Set(filters.excludeIds);
+    filtered = filtered.filter((q) => !excludeSet.has(q.id));
+  }
+
+  // Apply limit
+  if (filters?.limit && filters.limit > 0) {
+    filtered = filtered.slice(0, filters.limit);
+  }
+
+  // Return as QuestionWithDomain (strip certificationId)
+  return filtered.map(({ certificationId: _, ...question }) => question);
+}
+
+/**
+ * Get count of cached questions for a certification
+ */
+export async function getCachedQuestionCount(certificationId: number): Promise<number> {
+  const store = await getStore(STORES.CACHED_QUESTIONS);
+  const index = store.index('certificationId');
+  return promisifyRequest(index.count(IDBKeyRange.only(certificationId)));
+}
+
+/**
+ * Delete all cached questions for a certification
+ */
+export async function deleteCachedQuestions(certificationId: number): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORES.CACHED_QUESTIONS, 'readwrite');
+    const store = transaction.objectStore(STORES.CACHED_QUESTIONS);
+    const index = store.index('certificationId');
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+
+    const request = index.openCursor(IDBKeyRange.only(certificationId));
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      }
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * Clear all cached questions (all certifications)
+ */
+export async function clearAllCachedQuestions(): Promise<void> {
+  const store = await getStore(STORES.CACHED_QUESTIONS, 'readwrite');
+  await promisifyRequest(store.clear());
+}
+
 // ============ DATABASE MANAGEMENT ============
 
 /**
@@ -396,6 +543,7 @@ export async function getDatabaseStats(): Promise<{
   offlineExamCount: number;
   pendingSyncCount: number;
   cacheMetadataCount: number;
+  cachedQuestionCount: number;
 }> {
   const db = await openDatabase();
 
@@ -409,15 +557,18 @@ export async function getDatabaseStats(): Promise<{
     });
   };
 
-  const [offlineExamCount, pendingSyncCount, cacheMetadataCount] = await Promise.all([
-    getCount(STORES.OFFLINE_EXAMS),
-    getPendingSyncCount(),
-    getCount(STORES.CACHE_METADATA),
-  ]);
+  const [offlineExamCount, pendingSyncCount, cacheMetadataCount, cachedQuestionCount] =
+    await Promise.all([
+      getCount(STORES.OFFLINE_EXAMS),
+      getPendingSyncCount(),
+      getCount(STORES.CACHE_METADATA),
+      getCount(STORES.CACHED_QUESTIONS),
+    ]);
 
   return {
     offlineExamCount,
     pendingSyncCount,
     cacheMetadataCount,
+    cachedQuestionCount,
   };
 }
