@@ -8,7 +8,7 @@
  * - Volume (10%): ratio of total attempts vs threshold (capped at 1.0)
  */
 
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import * as schemaTypes from '../db/schema.js';
 import { domains, performanceStats } from '../db/schema.js';
@@ -139,6 +139,8 @@ export async function calculateReadinessScore(
   }
 
   // Get performance stats per domain for this user
+  // Filter to domain-aggregate rows only (topicId IS NULL) to avoid double-counting
+  // when both domain-level and topic-level stats exist
   const stats = await db
     .select({
       domainId: performanceStats.domainId,
@@ -150,7 +152,8 @@ export async function calculateReadinessScore(
     .where(
       and(
         eq(performanceStats.userId, userId),
-        inArray(performanceStats.domainId, certDomains.map(d => d.id))
+        inArray(performanceStats.domainId, certDomains.map(d => d.id)),
+        isNull(performanceStats.topicId)
       )
     )
     .all();
