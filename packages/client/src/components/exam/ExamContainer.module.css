@@ -40,6 +40,29 @@
   color: var(--text-muted);
 }
 
+.headerCenter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.offlineBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 171, 0, 0.15);
+  border: 1px solid var(--warning);
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.offlineBadgeIcon {
+  font-size: 14px;
+}
+
 .timer {
   display: flex;
   align-items: center;
@@ -348,6 +371,16 @@
 .modalContent p {
   color: var(--text-secondary);
   margin-bottom: 12px;
+}
+
+.offlineSubmitNote {
+  padding: 12px;
+  background: rgba(255, 171, 0, 0.1);
+  border: 1px solid rgba(255, 171, 0, 0.3);
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  color: var(--warning);
+  margin-top: 8px;
 }
 
 .modalActions {

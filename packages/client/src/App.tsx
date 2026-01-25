@@ -21,6 +21,7 @@ import { BookmarksPage } from './components/bookmarks/BookmarksPage';
 import { NotesPage } from './components/notes/NotesPage';
 import { LoginPage, AuthCallbackPage } from './pages';
 import { useAuthStore } from './stores/authStore';
+import { useOfflineSyncNotifications } from './hooks/useOfflineSyncNotifications';
 
 // Root redirect component - handles auth-aware redirects
 function RootRedirect() {
@@ -79,6 +80,9 @@ function RootRedirect() {
 }
 
 function App() {
+  // Listen for offline exam sync notifications
+  useOfflineSyncNotifications();
+
   return (
     <ErrorBoundary>
       <Toast />
