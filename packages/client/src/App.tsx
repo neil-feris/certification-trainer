@@ -19,7 +19,7 @@ import { CaseStudiesPage, CaseStudyDetail } from './components/case-studies';
 import { AchievementsPage } from './components/achievements/AchievementsPage';
 import { BookmarksPage } from './components/bookmarks/BookmarksPage';
 import { NotesPage } from './components/notes/NotesPage';
-import { LoginPage, AuthCallbackPage } from './pages';
+import { LoginPage, AuthCallbackPage, VerifyCertificatePage } from './pages';
 import { useAuthStore } from './stores/authStore';
 
 // Root redirect component - handles auth-aware redirects
@@ -89,6 +89,7 @@ function App() {
         {/* Public auth routes - no AppShell, no ProtectedRoute */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/verify/:hash" element={<VerifyCertificatePage />} />
 
         {/* Protected routes - wrapped in AppShell and ProtectedRoute */}
         <Route
