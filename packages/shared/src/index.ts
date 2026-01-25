@@ -1070,7 +1070,7 @@ export interface ReadinessRecommendation {
 
 export interface ReadinessSnapshot {
   id: number;
-  userId: string;
+  userId: number;
   certificationId: number;
   overallScore: number;
   domainScoresJson: string;

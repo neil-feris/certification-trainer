@@ -269,7 +269,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
       response.history = historyRows.map((row) => ({
         id: row.id,
-        userId: String(row.userId),
+        userId: row.userId,
         certificationId: row.certificationId,
         overallScore: row.overallScore,
         domainScoresJson: row.domainScoresJson,
@@ -319,7 +319,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     const history: ReadinessSnapshot[] = historyRows.map((row) => ({
       id: row.id,
-      userId: String(row.userId),
+      userId: row.userId,
       certificationId: row.certificationId,
       overallScore: row.overallScore,
       domainScoresJson: row.domainScoresJson,
