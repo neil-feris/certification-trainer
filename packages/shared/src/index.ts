@@ -1387,3 +1387,75 @@ export interface GenerateCertificateResponse {
   certificateHash: string;
   downloadUrl: string;
 }
+
+// ============ OFFLINE SYNC TYPES ============
+
+export type SyncQueueItemType =
+  | 'exam_submission'
+  | 'study_session'
+  | 'drill_result'
+  | 'flashcard_rating';
+export type SyncQueueItemStatus = 'pending' | 'in_progress' | 'failed' | 'dead_letter';
+
+export interface SyncQueueItem {
+  id: string;
+  type: SyncQueueItemType;
+  payload: Record<string, unknown>;
+  createdAt: Date | string;
+  retryCount: number;
+  status: SyncQueueItemStatus;
+  lastError?: string;
+  lastAttemptAt?: Date | string;
+}
+
+export interface OfflineStatus {
+  isOnline: boolean;
+  pendingSyncCount: number;
+  lastSyncAt: Date | string | null;
+}
+
+export interface CacheStatus {
+  certificationId: number;
+  certificationCode?: string;
+  certificationName?: string;
+  questionCount: number;
+  cachedAt: Date | string;
+  expiresAt: Date | string;
+  isExpired?: boolean;
+}
+
+// ============ OFFLINE EXAM TYPES ============
+
+export interface OfflineExamResponse {
+  questionId: number;
+  selectedAnswers: number[];
+  isCorrect: boolean;
+  flagged: boolean;
+  timeSpentSeconds: number;
+}
+
+export interface OfflineExamSubmission {
+  offlineExamId: string; // Client-generated UUID
+  certificationId: number;
+  questions: Array<{
+    questionId: number;
+    selectedAnswers: number[];
+    isCorrect: boolean;
+    flagged: boolean;
+    timeSpentSeconds: number;
+  }>;
+  totalTimeSeconds: number;
+  startedAt: string; // ISO timestamp from client
+  completedAt: string; // ISO timestamp from client
+  isOffline: true;
+  clientTimestamp: string; // For sync reconciliation
+}
+
+export interface OfflineExamSubmissionResult {
+  success: boolean;
+  examId?: number; // Server-assigned exam ID
+  alreadySynced?: boolean; // True if this was a duplicate submission
+  score?: number;
+  correctAnswers?: number;
+  totalQuestions?: number;
+}

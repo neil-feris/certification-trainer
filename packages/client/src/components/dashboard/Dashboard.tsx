@@ -2,12 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { progressApi, questionApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
+import { useOfflineExamRecovery } from '../../hooks/useOfflineExamRecovery';
 import { ReadinessWidget } from '../common/ReadinessWidget';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { XPHistoryPanel } from '../common/XPHistoryPanel';
 import { QotdWidget } from '../qotd';
 import { StudyPlanWidget } from './StudyPlanWidget';
+import { OfflineFeatureGuide, useOfflineFeatureGuide } from '../common/OfflineStates';
+import { OfflineExamRecoveryModal } from '../exam/OfflineExamRecoveryModal';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -72,6 +75,18 @@ export function Dashboard() {
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
   );
+
+  // Offline exam recovery detection
+  const {
+    incompleteExam,
+    isResuming,
+    resumeExam,
+    abandonExam,
+    showPrompt: showRecoveryPrompt,
+  } = useOfflineExamRecovery();
+
+  // Offline feature guide for first-time users
+  const { shouldShowGuide, dismissGuide } = useOfflineFeatureGuide();
 
   const {
     data: dashboard,
@@ -194,6 +209,27 @@ export function Dashboard() {
 
   return (
     <div className={styles.dashboard}>
+      {/* Offline Feature Guide for first-time users */}
+      {shouldShowGuide && (
+        <OfflineFeatureGuide
+          onDismiss={dismissGuide}
+          onLearnMore={() => {
+            dismissGuide();
+            navigate('/settings', { state: { scrollTo: 'offline-mode' } });
+          }}
+        />
+      )}
+
+      {/* Offline Exam Recovery Modal */}
+      {showRecoveryPrompt && incompleteExam && (
+        <OfflineExamRecoveryModal
+          offlineExam={incompleteExam}
+          onResume={resumeExam}
+          onAbandon={abandonExam}
+          isResuming={isResuming}
+        />
+      )}
+
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>Dashboard</h1>

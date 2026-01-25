@@ -3,6 +3,7 @@ import { NavLink, useLocation, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CertificationSelector } from '../common/CertificationSelector';
 import { OfflineBanner } from '../common/OfflineBanner';
+import { OfflineStatusIndicator } from '../common/OfflineStatusIndicator';
 import { StreakDisplay } from '../common/StreakDisplay';
 import { XPDisplay } from '../common/XPDisplay';
 import { useCertificationStore } from '../../stores/certificationStore';
@@ -138,6 +139,7 @@ export function AppShell({ children }: AppShellProps) {
 
           <div className={styles.footer}>
             <div className={styles.footerStats}>
+              <OfflineStatusIndicator variant="compact" />
               {streakData && <StreakDisplay streak={streakData} variant="compact" />}
               {xpData && <XPDisplay xp={xpData} variant="compact" />}
             </div>

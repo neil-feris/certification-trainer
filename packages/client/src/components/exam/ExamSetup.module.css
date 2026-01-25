@@ -153,6 +153,29 @@
   color: var(--error);
 }
 
+.offlineReady {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(0, 212, 170, 0.1);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--border-radius);
+  margin-bottom: 24px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--accent-primary);
+}
+
+.offlineIcon {
+  font-size: 20px;
+}
+
+.offlineNote {
+  opacity: 0.8;
+  font-size: 13px;
+}
+
 .domains {
   text-align: left;
   margin-bottom: 32px;
