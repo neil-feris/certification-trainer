@@ -364,7 +364,7 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
 
   // GET /api/study/flashcards/last-session - Get last completed flashcard session stats
   fastify.get('/last-session', async (request) => {
-    const userId = (request as any).userId as number;
+    const userId = parseInt(request.user!.id, 10);
 
     const [session] = await db
       .select()
