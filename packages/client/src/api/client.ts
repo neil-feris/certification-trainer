@@ -60,6 +60,7 @@ import type {
   LastFlashcardSessionResponse,
   ReadinessResponse,
   ReadinessSnapshot,
+  CreateShareLinkResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -737,5 +738,13 @@ export const notesApi = {
   delete: (questionId: number) =>
     request<{ success: boolean }>(`/notes/${questionId}`, {
       method: 'DELETE',
+    }),
+};
+
+// Share
+export const shareApi = {
+  createShareLink: (examId: number) =>
+    request<CreateShareLinkResponse>(`/exams/${examId}/share`, {
+      method: 'POST',
     }),
 };
