@@ -15,6 +15,7 @@ import {
   type OpenAIModel,
   type DifficultyOption,
 } from '@ace-prep/shared';
+import { OfflineSettings } from './OfflineSettings';
 import styles from './Settings.module.css';
 
 const DIFFICULTY_LABELS: Record<DifficultyOption, string> = {
@@ -431,6 +432,11 @@ export function Settings() {
             Display easy/medium/hard badge next to each question while taking an exam
           </span>
         </div>
+      </section>
+
+      {/* Offline Mode */}
+      <section className={`card ${styles.section}`}>
+        <OfflineSettings />
       </section>
 
       {/* Data Management */}

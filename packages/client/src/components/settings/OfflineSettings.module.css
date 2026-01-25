@@ -1,0 +1,382 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.headerText {
+  flex: 1;
+  min-width: 200px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.description {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.connectionStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.online {
+  background: rgba(0, 200, 83, 0.12);
+  color: var(--success);
+}
+
+.offline {
+  background: rgba(255, 152, 0, 0.12);
+  color: var(--warning);
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Storage usage */
+.storageInfo {
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.storageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.storageLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.storageValue {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.storageBar {
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.storageFill {
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease-out;
+}
+
+/* Certification list */
+.certList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.certItem {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  flex-wrap: wrap;
+}
+
+.certInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 160px;
+}
+
+.certCode {
+  padding: 4px 8px;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.certName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.cacheInfo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.cacheStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.questionCount {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.expiryText {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.expiredBadge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 152, 0, 0.15);
+  color: var(--warning);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.noCacheText {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.downloadProgress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--accent-primary);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--bg-elevated);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Actions */
+.certActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.actionBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+}
+
+.downloadBtn {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.downloadBtn:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+}
+
+.refreshBtn {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.refreshBtn:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.clearBtn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.clearBtn:hover {
+  background: rgba(255, 82, 82, 0.1);
+  color: var(--error);
+  border-color: var(--error);
+}
+
+/* Confirmation dialog */
+.confirmDialog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.confirmText {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.confirmYes {
+  background: var(--error);
+  color: white;
+  padding: 6px 12px;
+}
+
+.confirmYes:hover {
+  background: var(--error-hover, #e04545);
+}
+
+.confirmNo {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+}
+
+.confirmNo:hover {
+  background: var(--bg-secondary);
+}
+
+/* Empty state */
+.emptyState {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Info box */
+.infoBox {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+  border-radius: var(--border-radius);
+}
+
+.infoIcon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.infoText {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.infoText strong {
+  display: block;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.infoText ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.infoText li {
+  margin-bottom: 4px;
+}
+
+.infoText li:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .certItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .certInfo {
+    width: 100%;
+  }
+
+  .cacheInfo {
+    width: 100%;
+  }
+
+  .certActions {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .actionBtn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .connectionStatus {
+    align-self: flex-start;
+  }
+}
