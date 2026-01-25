@@ -48,7 +48,7 @@ export function ReadinessWidget({ readiness, isLoading }: ReadinessWidgetProps) 
   }
 
   const { score } = readiness;
-  const overall = Math.round(score.overall * 100);
+  const overall = Math.round(score.overall);
   const color = getScoreColor(overall);
   const circumference = 2 * Math.PI * 42;
   const strokeDashoffset = circumference - (overall / 100) * circumference;
@@ -95,7 +95,7 @@ export function ReadinessWidget({ readiness, isLoading }: ReadinessWidgetProps) 
 
       <div className={styles.domainBars}>
         {topDomains.map((domain) => {
-          const domainScore = Math.round(domain.score * 100);
+          const domainScore = Math.round(domain.score);
           return (
             <div key={domain.domainId} className={styles.domainBar}>
               <div className={styles.domainLabel}>

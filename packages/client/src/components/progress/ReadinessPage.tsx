@@ -102,7 +102,7 @@ export function ReadinessPage() {
   }
 
   const { score, recommendations } = readiness;
-  const overall = Math.round(score.overall * 100);
+  const overall = Math.round(score.overall);
   const color = getScoreColor(overall);
   const circumference = 2 * Math.PI * 56;
   const strokeDashoffset = circumference - (overall / 100) * circumference;
@@ -116,7 +116,7 @@ export function ReadinessPage() {
     .sort((a, b) => new Date(a.calculatedAt).getTime() - new Date(b.calculatedAt).getTime())
     .map((snap) => ({
       date: formatDate(snap.calculatedAt),
-      score: Math.round(snap.overallScore * 100),
+      score: Math.round(snap.overallScore),
     }));
 
   return (
@@ -272,7 +272,7 @@ export function ReadinessPage() {
           </thead>
           <tbody>
             {sortedDomains.map((domain: DomainReadiness) => {
-              const domainScore = Math.round(domain.score * 100);
+              const domainScore = Math.round(domain.score);
               return (
                 <tr key={domain.domainId}>
                   <td className={styles.domainName}>{domain.domainName}</td>
@@ -296,7 +296,7 @@ export function ReadinessPage() {
           <h2 className={styles.sectionTitle}>Recommendations</h2>
           <div className={styles.recommendations}>
             {recommendations.slice(0, 5).map((rec) => {
-              const recScore = Math.round(rec.currentScore * 100);
+              const recScore = Math.round(rec.currentScore);
               return (
                 <div key={rec.domainId} className={styles.recCard}>
                   <div className={styles.recInfo}>
