@@ -21,7 +21,7 @@
     "@ace-prep/shared": "*",
     "@anthropic-ai/sdk": "^0.39.0",
     "@fastify/cookie": "^11.0.2",
-    "@fastify/cors": "^10.0.2",
+    "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^8.0.4",
     "@sentry/node": "^10.36.0",
