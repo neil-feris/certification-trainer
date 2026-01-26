@@ -75,7 +75,7 @@ jobs:
 
     steps:
       - name: Execute rollback via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.4
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -108,7 +108,7 @@ jobs:
       # Post-rollback verification
       # ---------------------------------
       - name: Verify rollback health
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.4
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
