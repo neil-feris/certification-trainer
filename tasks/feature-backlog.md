@@ -2,7 +2,7 @@
 
 Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks/feature-backlog.md`
 
-**Last Updated**: 2026-01-24
+**Last Updated**: 2026-01-27
 **Status Legend**: `[ ]` Todo | `[~]` In Progress | `[x]` Done
 
 ---
@@ -242,7 +242,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-011: Question Quality Feedback
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P2 (Medium Impact, Low Effort)
 - **Category**: Content
 
