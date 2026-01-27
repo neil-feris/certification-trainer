@@ -9,6 +9,7 @@ import { queueResponse } from '../../services/syncQueue';
 import { showToast } from '../common/Toast';
 import { showStreakMilestoneToast } from '../../utils/streakNotifications';
 import { showAchievementUnlockToasts } from '../../utils/achievementNotifications';
+import { QuestionFeedback } from '../common/QuestionFeedback';
 import styles from './Review.module.css';
 
 type Quality = 'again' | 'hard' | 'good' | 'easy';
@@ -296,6 +297,8 @@ export function Review() {
               <p>{currentQuestion.explanation}</p>
             </div>
           )}
+
+          {isRevealed && <QuestionFeedback questionId={currentQuestion.id} />}
         </div>
 
         {!isRevealed ? (

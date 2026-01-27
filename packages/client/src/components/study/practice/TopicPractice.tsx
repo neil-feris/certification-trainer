@@ -4,6 +4,7 @@ import { useSwipeNavigation } from '../../../hooks/useSwipeNavigation';
 import { showToast } from '../../common/Toast';
 import { BookmarkButton } from '../../common/BookmarkButton';
 import { NotesPanel } from '../../common/NotesPanel';
+import { QuestionFeedback } from '../../common/QuestionFeedback';
 import { PracticeQuestion } from './PracticeQuestion';
 import { PracticeSummary } from './PracticeSummary';
 import styles from './Practice.module.css';
@@ -150,6 +151,7 @@ export function TopicPractice({ onExit }: TopicPracticeProps) {
             <div className={styles.explanation}>
               <strong>Explanation:</strong> {currentQuestion.explanation}
             </div>
+            <QuestionFeedback questionId={currentQuestion.id} />
           </div>
         )}
 

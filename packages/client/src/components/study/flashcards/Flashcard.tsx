@@ -1,6 +1,7 @@
 import type { FlashcardCard } from '@ace-prep/shared';
 import type { SwipeState } from './FlashcardContainer';
 import { BookmarkButton } from '../../common/BookmarkButton';
+import { QuestionFeedback } from '../../common/QuestionFeedback';
 import styles from './Flashcard.module.css';
 
 interface FlashcardProps {
@@ -104,6 +105,8 @@ export function Flashcard({ card, isFlipped, onFlip, swipeState }: FlashcardProp
                 <p className={styles.noteText}>{card.note}</p>
               </div>
             )}
+
+            <QuestionFeedback questionId={card.questionId} />
           </div>
 
           <div className={styles.cardFooter}>
