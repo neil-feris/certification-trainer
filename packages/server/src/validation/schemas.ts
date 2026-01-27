@@ -49,6 +49,10 @@ export const completeExamSchema = z.object({
   totalTimeSeconds: z.number().int().min(0, 'Total time must be non-negative'),
 });
 
+export const batchSubmitSchema = z.object({
+  responses: z.array(submitAnswerSchema).min(1).max(200),
+});
+
 // ============ Question Schemas ============
 
 // Pagination defaults and limits

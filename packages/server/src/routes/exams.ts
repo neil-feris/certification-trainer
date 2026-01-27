@@ -19,6 +19,7 @@ import {
   idParamSchema,
   createExamSchema,
   submitAnswerSchema,
+  batchSubmitSchema,
   completeExamSchema,
   formatZodError,
 } from '../validation/schemas.js';
@@ -210,6 +211,12 @@ export async function examRoutes(fastify: FastifyInstance) {
     const examId = paramResult.data.id;
     const userId = parseInt(request.user!.id, 10);
 
+    // Validate request body
+    const bodyResult = batchSubmitSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+
     // Verify exam ownership
     const [exam] = await db
       .select()
@@ -219,14 +226,14 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Exam not found' });
     }
 
-    const { responses: submittedResponses } = request.body;
+    const { responses: submittedResponses } = bodyResult.data;
 
     // Get all questions for this exam in one query
     const questionIds = submittedResponses.map((r) => r.questionId);
     const examQuestions = await db
       .select()
       .from(questions)
-      .where(sql`${questions.id} IN ${sql.raw(`(${questionIds.join(',')})`)}`)
+      .where(inArray(questions.id, questionIds))
       .all();
 
     const questionMap = new Map(examQuestions.map((q) => [q.id, q]));
@@ -844,39 +851,43 @@ export async function examRoutes(fastify: FastifyInstance) {
     const totalQuestions = verifiedResponses.length;
     const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
 
-    // Create the exam record with offline metadata
-    const [newExam] = await db
-      .insert(exams)
-      .values({
-        userId,
-        certificationId,
-        startedAt: new Date(startedAt),
-        completedAt: new Date(completedAt),
-        timeSpentSeconds: totalTimeSeconds,
-        totalQuestions,
-        correctAnswers: correctCount,
-        score,
-        status: 'completed',
-        offlineExamId, // Store for duplicate detection
-        contentHash, // Secondary deduplication via content hash
-      })
-      .returning();
-
-    // Insert exam responses with server-verified correctness
-    if (verifiedResponses.length > 0) {
-      await db.insert(examResponses).values(
-        verifiedResponses.map((q, index) => ({
+    // Create the exam record with offline metadata and responses atomically
+    const [newExam] = await db.transaction(async (tx) => {
+      const [exam] = await tx
+        .insert(exams)
+        .values({
           userId,
-          examId: newExam.id,
-          questionId: q.questionId,
-          selectedAnswers: JSON.stringify(q.selectedAnswers),
-          isCorrect: q.isCorrect, // Now server-verified, not client-provided
-          timeSpentSeconds: q.timeSpentSeconds,
-          flagged: q.flagged,
-          orderIndex: index,
-        }))
-      );
-    }
+          certificationId,
+          startedAt: new Date(startedAt),
+          completedAt: new Date(completedAt),
+          timeSpentSeconds: totalTimeSeconds,
+          totalQuestions,
+          correctAnswers: correctCount,
+          score,
+          status: 'completed',
+          offlineExamId, // Store for duplicate detection
+          contentHash, // Secondary deduplication via content hash
+        })
+        .returning();
+
+      // Insert exam responses with server-verified correctness
+      if (verifiedResponses.length > 0) {
+        await tx.insert(examResponses).values(
+          verifiedResponses.map((q, index) => ({
+            userId,
+            examId: exam.id,
+            questionId: q.questionId,
+            selectedAnswers: JSON.stringify(q.selectedAnswers),
+            isCorrect: q.isCorrect, // Now server-verified, not client-provided
+            timeSpentSeconds: q.timeSpentSeconds,
+            flagged: q.flagged,
+            orderIndex: index,
+          }))
+        );
+      }
+
+      return [exam];
+    });
 
     // Update streak (with error handling)
     let streakUpdate;

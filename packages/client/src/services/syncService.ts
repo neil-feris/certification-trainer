@@ -315,9 +315,10 @@ async function processItem(item: SyncQueueItem): Promise<ProcessItemResult> {
 
 /**
  * Process all pending items in the sync queue (FIFO order)
+ * Uses Web Locks API to prevent concurrent processing across tabs
  */
 export async function processQueue(): Promise<SyncResult> {
-  const result: SyncResult = {
+  const emptyResult: SyncResult = {
     totalProcessed: 0,
     successful: 0,
     failed: 0,
@@ -327,8 +328,36 @@ export async function processQueue(): Promise<SyncResult> {
 
   // Check if online before processing
   if (isBrowser() && !navigator.onLine) {
-    return result;
+    return emptyResult;
   }
+
+  // Use Web Locks API to prevent concurrent sync across tabs
+  // If lock is unavailable (another tab syncing), return empty result
+  if (isBrowser() && 'locks' in navigator) {
+    return navigator.locks.request('ace-sync-queue-lock', { ifAvailable: true }, async (lock) => {
+      if (!lock) {
+        // Another tab is already syncing
+        return emptyResult;
+      }
+      return processQueueInternal();
+    });
+  }
+
+  // Fallback for browsers without Web Locks API
+  return processQueueInternal();
+}
+
+/**
+ * Internal queue processing (called with lock held)
+ */
+async function processQueueInternal(): Promise<SyncResult> {
+  const result: SyncResult = {
+    totalProcessed: 0,
+    successful: 0,
+    failed: 0,
+    movedToDeadLetter: 0,
+    alreadySynced: 0,
+  };
 
   // Get pending items in FIFO order
   const items = await getPendingItems();
