@@ -109,6 +109,17 @@ export const reviewRatingSchema = z.object({
   quality: z.enum(['again', 'hard', 'good', 'easy']),
 });
 
+// ============ Feedback Schemas ============
+
+export const feedbackRatingSchema = z.object({
+  rating: z.enum(['up', 'down']),
+});
+
+export const reportIssueSchema = z.object({
+  issueType: z.enum(['wrong_answer', 'unclear', 'outdated', 'other']),
+  comment: z.string().max(1000).optional(),
+});
+
 // Bulk questions schema for offline pre-caching
 export const bulkQuestionsQuerySchema = z.object({
   certificationId: z
