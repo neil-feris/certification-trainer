@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { BookmarkButton } from '../common/BookmarkButton';
 import { CertificateButton } from '../common/CertificateButton';
 import { NotesPanel } from '../common/NotesPanel';
+import { QuestionFeedback } from '../common/QuestionFeedback';
 import { ShareButton } from '../share/ShareButton';
 import styles from './ExamReview.module.css';
 
@@ -193,6 +194,7 @@ export function ExamReview() {
               </div>
 
               <NotesPanel questionId={question.id} className={styles.notesSection} />
+              <QuestionFeedback questionId={question.id} />
             </div>
           );
         })}

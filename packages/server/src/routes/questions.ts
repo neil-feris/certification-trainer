@@ -35,9 +35,17 @@ import {
   generateQuestionsSchema,
   reviewRatingSchema,
   bulkQuestionsQuerySchema,
+  feedbackRatingSchema,
+  reportIssueSchema,
   formatZodError,
   PAGINATION_DEFAULTS,
 } from '../validation/schemas.js';
+import {
+  submitRating,
+  removeRating,
+  submitReport,
+  getUserFeedback,
+} from '../services/feedbackService.js';
 import type {
   PaginatedResponse,
   QuestionWithDomain,
@@ -45,6 +53,12 @@ import type {
   QotdResponse,
   QotdCompletionRequest,
   QotdCompletionResponse,
+  SubmitFeedbackRequest,
+  SubmitFeedbackResponse,
+  DeleteFeedbackResponse,
+  SubmitReportRequest,
+  SubmitReportResponse,
+  UserFeedbackResponse,
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
@@ -1083,6 +1097,95 @@ export async function questionRoutes(fastify: FastifyInstance) {
         excludedMasteredCount: excludeIds.length,
         cachedAt: new Date().toISOString(),
       };
+    }
+  );
+
+  // ============ QUESTION FEEDBACK ENDPOINTS ============
+
+  // Get user's feedback for a question
+  fastify.get<{ Params: { id: string } }>('/:id/feedback', async (request, reply) => {
+    const parseResult = idParamSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const questionId = parseResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    const feedback = await getUserFeedback(userId, questionId);
+    const response: UserFeedbackResponse = feedback;
+    return response;
+  });
+
+  // Submit or update rating
+  fastify.post<{ Params: { id: string }; Body: SubmitFeedbackRequest }>(
+    '/:id/feedback',
+    async (request, reply) => {
+      const paramResult = idParamSchema.safeParse(request.params);
+      if (!paramResult.success) {
+        return reply.status(400).send(formatZodError(paramResult.error));
+      }
+      const bodyResult = feedbackRatingSchema.safeParse(request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send(formatZodError(bodyResult.error));
+      }
+
+      const questionId = paramResult.data.id;
+      const userId = parseInt(request.user!.id, 10);
+      const { rating } = bodyResult.data;
+
+      const aggregates = await submitRating(userId, questionId, rating);
+
+      const response: SubmitFeedbackResponse = {
+        success: true,
+        userRating: rating,
+        aggregates,
+      };
+      return response;
+    }
+  );
+
+  // Remove rating
+  fastify.delete<{ Params: { id: string } }>('/:id/feedback', async (request, reply) => {
+    const parseResult = idParamSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return reply.status(400).send(formatZodError(parseResult.error));
+    }
+    const questionId = parseResult.data.id;
+    const userId = parseInt(request.user!.id, 10);
+
+    const aggregates = await removeRating(userId, questionId);
+
+    const response: DeleteFeedbackResponse = {
+      success: true,
+      aggregates,
+    };
+    return response;
+  });
+
+  // Submit issue report
+  fastify.post<{ Params: { id: string }; Body: SubmitReportRequest }>(
+    '/:id/report',
+    async (request, reply) => {
+      const paramResult = idParamSchema.safeParse(request.params);
+      if (!paramResult.success) {
+        return reply.status(400).send(formatZodError(paramResult.error));
+      }
+      const bodyResult = reportIssueSchema.safeParse(request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send(formatZodError(bodyResult.error));
+      }
+
+      const questionId = paramResult.data.id;
+      const userId = parseInt(request.user!.id, 10);
+      const { issueType, comment } = bodyResult.data;
+
+      const aggregates = await submitReport(userId, questionId, issueType, comment);
+
+      const response: SubmitReportResponse = {
+        success: true,
+        aggregates,
+      };
+      return response;
     }
   );
 }
