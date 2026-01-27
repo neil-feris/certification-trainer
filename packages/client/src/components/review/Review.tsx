@@ -240,7 +240,7 @@ export function Review() {
       <div className={styles.main}>
         <div className={styles.questionCard}>
           <div className={styles.questionHeader}>
-            <span className="badge badge-accent">{currentQuestion.domain.name}</span>
+            <span className="badge badge-accent">{currentQuestion.domain?.name || 'Review'}</span>
             {currentQuestion.spacedRepetition && (
               <span className={styles.srInfo}>
                 Interval: {currentQuestion.spacedRepetition.interval}d
