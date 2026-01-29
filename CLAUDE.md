@@ -134,6 +134,22 @@ Sentry.startSpan({ op: "ui.click", name: "Button Click" }, (span) => {
 
 ## Git Workflow
 
-- **Branches**: `feature/<name>`, `bugfix/<name>` from `uat`
-- **Deploy**: PR to `uat` → CI → PR to `main` for production
-- Never commit directly to `uat` or `main`
+**CRITICAL**: Never merge any branch directly into `main`. All changes flow through `uat` first.
+
+```
+feature/xxx  ──PR──►  uat  ──PR──►  main
+bugfix/xxx   ──PR──►  uat  ──PR──►  main
+```
+
+1. Create branch from `uat`: `git checkout -b feature/xxx origin/uat`
+2. Make changes and commit
+3. Create PR to `uat` (CI runs, review)
+4. After merge to `uat`, create PR from `uat` to `main` for production
+5. After `uat→main` merge, sync back: PR from `main` to `uat`
+
+**Branch naming**: `feature/<name>`, `bugfix/<name>`, `hotfix/<name>`
+
+**Never**:
+- Merge feature/bugfix branches directly to `main`
+- Commit directly to `uat` or `main`
+- Force-push to `uat` or `main`
