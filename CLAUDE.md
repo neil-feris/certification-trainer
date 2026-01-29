@@ -15,15 +15,13 @@ npm run db:setup         # Create tables + seed (domains, topics, sample questio
 npm run db:generate      # Generate Drizzle migrations
 npm run db:migrate       # Run migrations
 npm run db:seed          # Seed data only
-npm run db:add-pca       # Add PCA certification data
 
-# Build
-npm run build            # Build shared → server → client (order matters)
+# Build (order matters: shared → server → client)
+npm run build
 
-# Individual package builds
-npm run build -w @ace-prep/shared   # Must build first
-npm run build -w @ace-prep/server
-npm run build -w @ace-prep/client
+# Testing
+npm run test             # Run all tests once
+npm run test:watch       # Watch mode
 ```
 
 ## Architecture
@@ -32,38 +30,110 @@ Monorepo with npm workspaces: `packages/{client,server,shared}`
 
 ### Client (`@ace-prep/client`)
 - React 18 + Vite + TypeScript
-- **State**: Zustand stores (`examStore`, `studyStore`, `settingsStore`, `certificationStore`)
-- **Data fetching**: TanStack Query
-- **Routes**: `/dashboard`, `/exam`, `/exam/:id`, `/exam/:id/review`, `/study`, `/review`, `/settings`
-- **Styling**: CSS Modules + CSS Variables
-- **Charts**: Recharts for progress visualization
+- **State**: Zustand stores with persistence (`examStore`, `studyStore`, `settingsStore`)
+- **Data fetching**: TanStack Query with typed API client
+- **Styling**: CSS Modules + CSS Variables (from `globals.css`)
+- **Routing**: React Router v7 (`/dashboard`, `/exam/:id`, `/study`, `/review`, `/settings`)
 
 ### Server (`@ace-prep/server`)
-- Fastify with CORS configured for localhost:5173
-- Drizzle ORM + better-sqlite3 (database at `data/ace-prep.db`)
+- Fastify + Drizzle ORM + better-sqlite3
 - **Routes**: `routes/{exams,questions,progress,study,settings,certifications}.ts`
-- **LLM**: `services/questionGenerator.ts` - Claude 3.5 Sonnet or GPT-4o
+- **Services**: `services/{questionGenerator,readinessService,streakService,xpService}.ts`
+- **Validation**: Zod schemas in `validation/schemas.ts`
 
 ### Shared (`@ace-prep/shared`)
 - TypeScript types for API contracts
-- Must build first before other packages
+- Constants (`EXAM_SIZE_OPTIONS`, `DRILL_QUESTION_COUNTS`)
+- **Must build first** before other packages
+
+## Critical Patterns
+
+### better-sqlite3 Transactions (Synchronous)
+**CRITICAL**: Transactions must be synchronous - cannot use `async/await`:
+
+```typescript
+// ✅ CORRECT - Synchronous transaction
+db.transaction((tx) => {
+  const [result] = tx.select().from(table).where(...).all();
+  tx.insert(table).values({...}).run();
+  tx.update(table).set({...}).where(...).run();
+});
+
+// ❌ WRONG - Will throw "Transaction function cannot return a promise"
+await db.transaction(async (tx) => {
+  const [result] = await tx.select()...
+});
+```
+
+### JSON Field Handling
+Database stores arrays as JSON strings - always parse/stringify:
+
+```typescript
+// Reading
+const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+
+// Writing
+await db.insert(examResponses).values({
+  selectedAnswers: JSON.stringify(selectedAnswers),
+});
+```
+
+### Zod Validation with Transforms
+When using `.transform(Number)`, defaults must match the output type:
+
+```typescript
+// ✅ CORRECT - default is number after transform
+.transform(Number)
+.optional()
+.default(100)
+
+// ❌ WRONG - default is string but transform outputs number
+.transform(Number)
+.optional()
+.default('100')
+```
+
+### Route Validation Pattern
+Always validate with Zod schemas before processing:
+
+```typescript
+const paramResult = idParamSchema.safeParse(request.params);
+if (!paramResult.success) {
+  return reply.status(400).send(formatZodError(paramResult.error));
+}
+const examId = paramResult.data.id;
+```
 
 ## Database Schema
 
 Key tables in `packages/server/src/db/schema.ts`:
-- `certifications` - Available certifications (ACE, PCA) with metadata
-- `domains` - Certification domains with percentage weights (linked to certifications)
-- `topics` - Topics linked to domains
-- `questions` - Question bank (JSON `options`/`correctAnswers` fields)
-- `exams` / `examResponses` - Full exam tracking
-- `studySessions` / `studySessionResponses` - Topic practice sessions
-- `spacedRepetition` - SM-2 algorithm for review scheduling
-- `learningPathProgress` - Learning path completion tracking
-- `performanceStats` - Domain/topic performance aggregates
-- `settings` - API keys (`llmProvider`, `anthropicApiKey`, `openaiApiKey`)
+- `certifications` - ACE, PCA with metadata
+- `domains` / `topics` - Certification structure with weights
+- `questions` - Question bank (JSON `options`/`correctAnswers`)
+- `exams` / `examResponses` - Exam tracking
+- `spacedRepetition` - SM-2 scheduling
+- `performanceStats` - Domain/topic aggregates
+- `readinessSnapshots` - Historical readiness scores
 
 ## Data Flow
 
-1. **Question Generation**: Settings → LLM provider → `questionGenerator.ts` → validate → insert to `questions`
-2. **Exam Flow**: Create exam → shuffle questions → track responses → calculate score → update stats
-3. **Spaced Repetition**: Wrong answers → SM-2 calculation → schedule in `spacedRepetition` → surface in Review page
+1. **Question Generation**: Settings → LLM provider → `questionGenerator.ts` → validate → sanitize (strip difficulty prefix) → insert
+2. **Exam Flow**: Create exam → shuffle questions → track responses → verify answers server-side → update stats
+3. **Readiness Score**: Query `performanceStats` → calculate coverage/accuracy/recency/volume → cache 5min
+
+## Sentry Integration
+
+Use `Sentry.captureException(error)` for error tracking. For spans:
+
+```typescript
+Sentry.startSpan({ op: "ui.click", name: "Button Click" }, (span) => {
+  span.setAttribute("key", value);
+  doSomething();
+});
+```
+
+## Git Workflow
+
+- **Branches**: `feature/<name>`, `bugfix/<name>` from `uat`
+- **Deploy**: PR to `uat` → CI → PR to `main` for production
+- Never commit directly to `uat` or `main`
