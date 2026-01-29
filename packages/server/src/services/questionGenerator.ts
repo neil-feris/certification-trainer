@@ -183,7 +183,8 @@ IMPORTANT:
 - correctAnswers is an array of 0-based indices
 - For single-select, correctAnswers should have exactly 1 element
 - For multiple-select, correctAnswers should have 2-3 elements
-- Return ONLY valid JSON, no markdown code blocks`;
+- Return ONLY valid JSON, no markdown code blocks
+- CRITICAL: Do NOT include difficulty level in the questionText field (e.g., do NOT start with "Difficulty: Hard"). The difficulty should ONLY appear in the "difficulty" JSON field.`;
 }
 
 export async function generateQuestions(params: GenerateParams): Promise<GeneratedQuestion[]> {
@@ -367,8 +368,13 @@ function validateQuestions(
           : 'medium'
         : requestedDifficulty;
 
+    // Strip difficulty prefix if LLM included it in questionText (e.g., "Difficulty: Easy ...")
+    const cleanedQuestionText = q.questionText
+      .replace(/^Difficulty:\s*(easy|medium|hard)[.:\s]*/i, '')
+      .trim();
+
     return {
-      questionText: q.questionText,
+      questionText: cleanedQuestionText,
       questionType: q.questionType,
       options: q.options,
       correctAnswers: q.correctAnswers,
