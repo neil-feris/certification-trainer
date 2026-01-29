@@ -245,7 +245,7 @@ export function PerformanceTrendsChart({
                 borderRadius: 'var(--border-radius)',
                 color: 'var(--text-primary)',
               }}
-              formatter={(value: number) => [`${value}%`, 'Score']}
+              formatter={(value) => [`${value ?? 0}%`, 'Score']}
             />
             <ReferenceLine
               y={passingScore}

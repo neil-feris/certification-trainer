@@ -75,14 +75,14 @@ export const questionQuerySchema = z.object({
       message: `Limit must be between 1 and ${PAGINATION_DEFAULTS.maxLimit}`,
     })
     .optional()
-    .default(String(PAGINATION_DEFAULTS.limit)),
+    .default(PAGINATION_DEFAULTS.limit),
   offset: z
     .string()
     .regex(/^\d+$/)
     .transform(Number)
     .refine((val) => val >= 0, { message: 'Offset must be non-negative' })
     .optional()
-    .default(String(PAGINATION_DEFAULTS.offset)),
+    .default(PAGINATION_DEFAULTS.offset),
 });
 
 export const questionBrowseQuerySchema = questionQuerySchema.extend({
@@ -138,7 +138,7 @@ export const bulkQuestionsQuerySchema = z.object({
       message: 'Limit must be between 1 and 200',
     })
     .optional()
-    .default('100'),
+    .default(100),
 });
 
 // ============ Study Schemas ============
