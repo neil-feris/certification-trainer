@@ -16,12 +16,13 @@
 # Review date: 2026-01-25
 CVE-2025-64756
 
-# tar 6.2.1/7.4.3 - Arbitrary file overwrite via symlink poisoning
+# tar 6.2.1/7.4.3/7.5.4 - Arbitrary file overwrite via symlink poisoning
 # Impact: Medium (requires processing malicious tar archives)
 # Node.js bundled npm dependency - awaiting Node.js image update
-# Review date: 2026-01-25
+# Review date: 2026-01-29
 CVE-2026-23745
 CVE-2026-23950
+CVE-2026-24842
 
 # --- esbuild Transitive Dependencies (Go stdlib) ---
 # These CVEs are in esbuild's Go runtime, a build-time dependency.
