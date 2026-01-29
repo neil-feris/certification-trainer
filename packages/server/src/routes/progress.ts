@@ -209,28 +209,67 @@ export async function progressRoutes(fastify: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
-      if (certId === null) return;
-      const userId = parseInt(request.user!.id, 10);
+      try {
+        const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+        if (certId === null) return;
+        const userId = parseInt(request.user!.id, 10);
 
-      // Parse include param to determine which fields to return
-      const includeSet = new Set((request.query.include || '').split(',').filter(Boolean));
-      const includeRecommendations = includeSet.has('recommendations');
-      const includeHistory = includeSet.has('history');
+        // Parse include param to determine which fields to return
+        const includeSet = new Set((request.query.include || '').split(',').filter(Boolean));
+        const includeRecommendations = includeSet.has('recommendations');
+        const includeHistory = includeSet.has('history');
 
-      // Calculate current readiness score (recommendations computed only if needed)
-      const { score, recommendations } = await calculateReadinessScore(userId, certId, db);
+        // Calculate current readiness score (recommendations computed only if needed)
+        const { score, recommendations } = await calculateReadinessScore(userId, certId, db);
 
-      // Only save snapshot if client explicitly requests it (opt-in for REST idempotency)
-      const shouldAttemptSave = request.query.snapshot === 'true';
+        // Only save snapshot if client explicitly requests it (opt-in for REST idempotency)
+        const shouldAttemptSave = request.query.snapshot === 'true';
 
-      if (shouldAttemptSave) {
-        // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
-        // Wrapped in transaction to prevent race condition with concurrent requests
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        await db.transaction(async (tx) => {
-          const [lastSnapshot] = await tx
-            .select({ calculatedAt: readinessSnapshots.calculatedAt })
+        if (shouldAttemptSave) {
+          // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
+          // Wrapped in transaction to prevent race condition with concurrent requests
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          await db.transaction(async (tx) => {
+            const [lastSnapshot] = await tx
+              .select({ calculatedAt: readinessSnapshots.calculatedAt })
+              .from(readinessSnapshots)
+              .where(
+                and(
+                  eq(readinessSnapshots.userId, userId),
+                  eq(readinessSnapshots.certificationId, certId)
+                )
+              )
+              .orderBy(desc(readinessSnapshots.calculatedAt))
+              .limit(1);
+
+            const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
+            if (shouldSave) {
+              await tx.insert(readinessSnapshots).values({
+                userId,
+                certificationId: certId,
+                overallScore: score.overall,
+                domainScoresJson: JSON.stringify(score.domains),
+                calculatedAt: new Date(),
+              });
+            }
+          });
+        }
+
+        // Build response with only requested fields
+        const response: {
+          score: typeof score;
+          recommendations?: typeof recommendations;
+          history?: ReadinessSnapshot[];
+        } = { score };
+
+        if (includeRecommendations) {
+          response.recommendations = recommendations;
+        }
+
+        if (includeHistory) {
+          // Fetch recent history (last 10 snapshots for context)
+          const historyRows = await db
+            .select()
             .from(readinessSnapshots)
             .where(
               and(
@@ -239,57 +278,27 @@ export async function progressRoutes(fastify: FastifyInstance) {
               )
             )
             .orderBy(desc(readinessSnapshots.calculatedAt))
-            .limit(1);
+            .limit(10);
 
-          const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
-          if (shouldSave) {
-            await tx.insert(readinessSnapshots).values({
-              userId,
-              certificationId: certId,
-              overallScore: score.overall,
-              domainScoresJson: JSON.stringify(score.domains),
-              calculatedAt: new Date(),
-            });
-          }
+          response.history = historyRows.map((row) => ({
+            id: row.id,
+            userId: row.userId,
+            certificationId: row.certificationId,
+            overallScore: row.overallScore,
+            domainScoresJson: row.domainScoresJson,
+            calculatedAt: row.calculatedAt.toISOString(),
+          }));
+        }
+
+        return response;
+      } catch (error) {
+        request.log.error({ err: error }, 'Readiness calculation failed');
+        console.error('Readiness error:', error);
+        return reply.status(500).send({
+          error: 'Failed to calculate readiness',
+          message: error instanceof Error ? error.message : 'Unknown error',
         });
       }
-
-      // Build response with only requested fields
-      const response: {
-        score: typeof score;
-        recommendations?: typeof recommendations;
-        history?: ReadinessSnapshot[];
-      } = { score };
-
-      if (includeRecommendations) {
-        response.recommendations = recommendations;
-      }
-
-      if (includeHistory) {
-        // Fetch recent history (last 10 snapshots for context)
-        const historyRows = await db
-          .select()
-          .from(readinessSnapshots)
-          .where(
-            and(
-              eq(readinessSnapshots.userId, userId),
-              eq(readinessSnapshots.certificationId, certId)
-            )
-          )
-          .orderBy(desc(readinessSnapshots.calculatedAt))
-          .limit(10);
-
-        response.history = historyRows.map((row) => ({
-          id: row.id,
-          userId: row.userId,
-          certificationId: row.certificationId,
-          overallScore: row.overallScore,
-          domainScoresJson: row.domainScoresJson,
-          calculatedAt: row.calculatedAt.toISOString(),
-        }));
-      }
-
-      return response;
     }
   );
 
