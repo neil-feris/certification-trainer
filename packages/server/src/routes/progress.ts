@@ -227,10 +227,10 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
         if (shouldAttemptSave) {
           // Debounce snapshot: only save if last snapshot for this user+cert is older than 1 hour
-          // Wrapped in transaction to prevent race condition with concurrent requests
+          // Note: better-sqlite3 transactions are synchronous - use .all() and .run()
           const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-          await db.transaction(async (tx) => {
-            const [lastSnapshot] = await tx
+          db.transaction((tx) => {
+            const [lastSnapshot] = tx
               .select({ calculatedAt: readinessSnapshots.calculatedAt })
               .from(readinessSnapshots)
               .where(
@@ -240,17 +240,20 @@ export async function progressRoutes(fastify: FastifyInstance) {
                 )
               )
               .orderBy(desc(readinessSnapshots.calculatedAt))
-              .limit(1);
+              .limit(1)
+              .all();
 
             const shouldSave = !lastSnapshot || lastSnapshot.calculatedAt < oneHourAgo;
             if (shouldSave) {
-              await tx.insert(readinessSnapshots).values({
-                userId,
-                certificationId: certId,
-                overallScore: score.overall,
-                domainScoresJson: JSON.stringify(score.domains),
-                calculatedAt: new Date(),
-              });
+              tx.insert(readinessSnapshots)
+                .values({
+                  userId,
+                  certificationId: certId,
+                  overallScore: score.overall,
+                  domainScoresJson: JSON.stringify(score.domains),
+                  calculatedAt: new Date(),
+                })
+                .run();
             }
           });
         }
