@@ -11,7 +11,7 @@
   "dependencies": {
     "@ace-prep/shared": "*",
     "@sentry/react": "^10.36.0",
-    "@tanstack/react-query": "^5.64.1",
+    "@tanstack/react-query": "^5.90.20",
     "html2canvas": "^1.4.1",
     "idb-keyval": "^6.2.2",
     "react": "^19.2.3",
@@ -20,7 +20,7 @@
     "react-swipeable": "^7.0.2",
     "recharts": "^3.7.0",
     "vite-plugin-pwa": "^1.2.0",
-    "zustand": "^5.0.2"
+    "zustand": "^5.0.10"
   },
   "devDependencies": {
     "@types/react": "^19.2.9",
