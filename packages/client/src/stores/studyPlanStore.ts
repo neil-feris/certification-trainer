@@ -50,6 +50,7 @@ export const useStudyPlanStore = create<StudyPlanState>()(
         set({ isLoading: true, error: null });
 
         try {
+          // API returns null for 404 (no active plan) - this is expected, not an error
           const result = await studyPlanApi.getActive(certId);
           set({ activePlan: result, isLoading: false });
         } catch (error) {
@@ -57,7 +58,7 @@ export const useStudyPlanStore = create<StudyPlanState>()(
           Sentry.captureException(error, {
             extra: { certificationId: certId },
           });
-          set({ error: message, isLoading: false });
+          set({ error: message, isLoading: false, activePlan: null });
           throw error;
         }
       },

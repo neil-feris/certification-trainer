@@ -772,9 +772,17 @@ export const studyPlanApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  getActive: (certificationId?: number) => {
+  getActive: async (certificationId?: number): Promise<StudyPlanResponse | null> => {
     const params = certificationId ? `?certificationId=${certificationId}` : '';
-    return request<StudyPlanResponse | null>(`/study-plans/active${params}`);
+    try {
+      return await request<StudyPlanResponse>(`/study-plans/active${params}`);
+    } catch (error) {
+      // 404 means no active plan exists - this is expected behavior, not an error
+      if (error instanceof Error && error.message === 'No active study plan found') {
+        return null;
+      }
+      throw error;
+    }
   },
   get: (planId: number) => request<StudyPlanResponse>(`/study-plans/${planId}`),
   completeTask: (planId: number, taskId: number, data?: CompleteTaskRequest) =>
