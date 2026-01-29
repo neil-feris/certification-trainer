@@ -9,6 +9,7 @@ import { queueResponse } from '../../services/syncQueue';
 import { showToast } from '../common/Toast';
 import { showStreakMilestoneToast } from '../../utils/streakNotifications';
 import { showAchievementUnlockToasts } from '../../utils/achievementNotifications';
+import { QuestionFeedback } from '../common/QuestionFeedback';
 import styles from './Review.module.css';
 
 type Quality = 'again' | 'hard' | 'good' | 'easy';
@@ -239,7 +240,7 @@ export function Review() {
       <div className={styles.main}>
         <div className={styles.questionCard}>
           <div className={styles.questionHeader}>
-            <span className="badge badge-accent">{currentQuestion.domain.name}</span>
+            <span className="badge badge-accent">{currentQuestion.domain?.name || 'Review'}</span>
             {currentQuestion.spacedRepetition && (
               <span className={styles.srInfo}>
                 Interval: {currentQuestion.spacedRepetition.interval}d
@@ -296,6 +297,8 @@ export function Review() {
               <p>{currentQuestion.explanation}</p>
             </div>
           )}
+
+          {isRevealed && <QuestionFeedback questionId={currentQuestion.id} />}
         </div>
 
         {!isRevealed ? (

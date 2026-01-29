@@ -117,6 +117,10 @@ export const questions = sqliteTable(
     difficulty: text('difficulty').notNull(), // 'easy' | 'medium' | 'hard'
     gcpServices: text('gcp_services'), // JSON array
     isGenerated: integer('is_generated', { mode: 'boolean' }).default(true),
+    thumbsUpCount: integer('thumbs_up_count').notNull().default(0),
+    thumbsDownCount: integer('thumbs_down_count').notNull().default(0),
+    reportCount: integer('report_count').notNull().default(0),
+    isFlagged: integer('is_flagged', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   },
   (table) => [
@@ -526,6 +530,49 @@ export const userNotes = sqliteTable(
   ]
 );
 
+// ============ QUESTION FEEDBACK ============
+export const questionFeedback = sqliteTable(
+  'question_feedback',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'cascade' }),
+    rating: text('rating'), // 'up' | 'down' | null
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('question_feedback_user_question_idx').on(table.userId, table.questionId),
+    index('question_feedback_question_idx').on(table.questionId),
+  ]
+);
+
+export const questionReports = sqliteTable(
+  'question_reports',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'cascade' }),
+    issueType: text('issue_type').notNull(), // 'wrong_answer' | 'unclear' | 'outdated' | 'other'
+    comment: text('comment'),
+    status: text('status').notNull().default('pending'), // 'pending' | 'reviewed' | 'resolved'
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('question_reports_user_question_idx').on(table.userId, table.questionId),
+    index('question_reports_question_idx').on(table.questionId),
+    index('question_reports_status_idx').on(table.status),
+  ]
+);
+
 // ============ CERTIFICATES ============
 export const certificates = sqliteTable(
   'certificates',
@@ -762,3 +809,7 @@ export type ExamShareRecord = typeof examShares.$inferSelect;
 export type NewExamShare = typeof examShares.$inferInsert;
 export type CertificateRecord = typeof certificates.$inferSelect;
 export type NewCertificate = typeof certificates.$inferInsert;
+export type QuestionFeedbackRecord = typeof questionFeedback.$inferSelect;
+export type NewQuestionFeedback = typeof questionFeedback.$inferInsert;
+export type QuestionReportRecord = typeof questionReports.$inferSelect;
+export type NewQuestionReport = typeof questionReports.$inferInsert;

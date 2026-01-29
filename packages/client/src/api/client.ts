@@ -72,6 +72,10 @@ import type {
   RegenerateStudyPlanRequest,
   RegenerateStudyPlanResponse,
   CreateShareLinkResponse,
+  UserFeedbackResponse,
+  SubmitFeedbackResponse,
+  DeleteFeedbackResponse,
+  SubmitReportResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -806,4 +810,45 @@ export const certificateApi = {
   verify: (hash: string) =>
     request<CertificateVerification>(`/certificates/${hash}/verify`, {}, false),
   getDownloadUrl: (hash: string) => `${API_BASE}/certificates/${hash}/download`,
+};
+
+// Question Feedback
+export const feedbackApi = {
+  getUserFeedback: async (questionId: number): Promise<UserFeedbackResponse> => {
+    const response = await request<UserFeedbackResponse>(`/questions/${questionId}/feedback`);
+    return response;
+  },
+
+  submitRating: async (
+    questionId: number,
+    rating: 'up' | 'down'
+  ): Promise<SubmitFeedbackResponse> => {
+    const response = await request<SubmitFeedbackResponse>(`/questions/${questionId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ rating }),
+    });
+    return response;
+  },
+
+  removeRating: async (questionId: number): Promise<DeleteFeedbackResponse> => {
+    const response = await request<DeleteFeedbackResponse>(`/questions/${questionId}/feedback`, {
+      method: 'DELETE',
+    });
+    return response;
+  },
+
+  submitReport: async (
+    questionId: number,
+    issueType: 'wrong_answer' | 'unclear' | 'outdated' | 'other',
+    comment?: string
+  ): Promise<SubmitReportResponse> => {
+    const response = await request<SubmitReportResponse>(`/questions/${questionId}/report`, {
+      method: 'POST',
+      body: JSON.stringify({
+        issueType,
+        comment,
+      }),
+    });
+    return response;
+  },
 };

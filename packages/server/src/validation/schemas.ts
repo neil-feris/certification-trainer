@@ -49,6 +49,10 @@ export const completeExamSchema = z.object({
   totalTimeSeconds: z.number().int().min(0, 'Total time must be non-negative'),
 });
 
+export const batchSubmitSchema = z.object({
+  responses: z.array(submitAnswerSchema).min(1).max(200),
+});
+
 // ============ Question Schemas ============
 
 // Pagination defaults and limits
@@ -107,6 +111,17 @@ export const generateQuestionsSchema = z.object({
 export const reviewRatingSchema = z.object({
   questionId: z.number().int().positive('Question ID must be a positive integer'),
   quality: z.enum(['again', 'hard', 'good', 'easy']),
+});
+
+// ============ Feedback Schemas ============
+
+export const feedbackRatingSchema = z.object({
+  rating: z.enum(['up', 'down']),
+});
+
+export const reportIssueSchema = z.object({
+  issueType: z.enum(['wrong_answer', 'unclear', 'outdated', 'other']),
+  comment: z.string().max(1000).optional(),
 });
 
 // Bulk questions schema for offline pre-caching

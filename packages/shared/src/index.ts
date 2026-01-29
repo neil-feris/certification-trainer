@@ -1459,3 +1459,51 @@ export interface OfflineExamSubmissionResult {
   correctAnswers?: number;
   totalQuestions?: number;
 }
+
+// ============ QUESTION FEEDBACK ============
+
+export type FeedbackRating = 'up' | 'down';
+
+export type IssueType = 'wrong_answer' | 'unclear' | 'outdated' | 'other';
+
+export type ReportStatus = 'pending' | 'reviewed' | 'resolved';
+
+export interface QuestionFeedbackAggregates {
+  thumbsUp: number;
+  thumbsDown: number;
+  reportCount: number;
+  isFlagged: boolean;
+}
+
+export interface SubmitFeedbackRequest {
+  rating: FeedbackRating;
+}
+
+export interface SubmitFeedbackResponse {
+  success: boolean;
+  userRating: FeedbackRating;
+  aggregates: QuestionFeedbackAggregates;
+}
+
+export interface DeleteFeedbackResponse {
+  success: boolean;
+  aggregates: QuestionFeedbackAggregates;
+}
+
+export interface SubmitReportRequest {
+  issueType: IssueType;
+  comment?: string;
+}
+
+export interface SubmitReportResponse {
+  success: boolean;
+  aggregates: Pick<QuestionFeedbackAggregates, 'reportCount' | 'isFlagged'>;
+}
+
+export interface UserFeedbackResponse {
+  rating: FeedbackRating | null;
+  report: {
+    issueType: IssueType;
+    comment: string | null;
+  } | null;
+}
