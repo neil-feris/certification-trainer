@@ -852,8 +852,9 @@ export async function examRoutes(fastify: FastifyInstance) {
     const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
 
     // Create the exam record with offline metadata and responses atomically
-    const [newExam] = await db.transaction(async (tx) => {
-      const [exam] = await tx
+    // Note: better-sqlite3 transactions are synchronous - use .all() and .run()
+    const [newExam] = db.transaction((tx) => {
+      const [exam] = tx
         .insert(exams)
         .values({
           userId,
@@ -868,22 +869,25 @@ export async function examRoutes(fastify: FastifyInstance) {
           offlineExamId, // Store for duplicate detection
           contentHash, // Secondary deduplication via content hash
         })
-        .returning();
+        .returning()
+        .all();
 
       // Insert exam responses with server-verified correctness
       if (verifiedResponses.length > 0) {
-        await tx.insert(examResponses).values(
-          verifiedResponses.map((q, index) => ({
-            userId,
-            examId: exam.id,
-            questionId: q.questionId,
-            selectedAnswers: JSON.stringify(q.selectedAnswers),
-            isCorrect: q.isCorrect, // Now server-verified, not client-provided
-            timeSpentSeconds: q.timeSpentSeconds,
-            flagged: q.flagged,
-            orderIndex: index,
-          }))
-        );
+        tx.insert(examResponses)
+          .values(
+            verifiedResponses.map((q, index) => ({
+              userId,
+              examId: exam.id,
+              questionId: q.questionId,
+              selectedAnswers: JSON.stringify(q.selectedAnswers),
+              isCorrect: q.isCorrect, // Now server-verified, not client-provided
+              timeSpentSeconds: q.timeSpentSeconds,
+              flagged: q.flagged,
+              orderIndex: index,
+            }))
+          )
+          .run();
       }
 
       return [exam];

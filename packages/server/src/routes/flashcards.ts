@@ -272,9 +272,10 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
       }
 
       // Wrap rating operations in transaction for data consistency
-      const srResult = await db.transaction(async (tx) => {
+      // Note: better-sqlite3 transactions are synchronous - use .all() and .run()
+      const srResult = db.transaction((tx) => {
         // Check if rating already exists before upsert
-        const [existingRating] = await tx
+        const [existingRating] = tx
           .select({ id: flashcardSessionRatings.id })
           .from(flashcardSessionRatings)
           .where(
@@ -282,13 +283,13 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
               eq(flashcardSessionRatings.sessionId, sessionId),
               eq(flashcardSessionRatings.questionId, questionId)
             )
-          );
+          )
+          .all();
 
         const isFirstRating = !existingRating;
 
         // Upsert rating with ON CONFLICT to handle race conditions gracefully
-        await tx
-          .insert(flashcardSessionRatings)
+        tx.insert(flashcardSessionRatings)
           .values({
             sessionId,
             questionId,
@@ -298,26 +299,28 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
           .onConflictDoUpdate({
             target: [flashcardSessionRatings.sessionId, flashcardSessionRatings.questionId],
             set: { rating, ratedAt: new Date() },
-          });
+          })
+          .run();
 
         // Increment cardsReviewed atomically only on first rating
         if (isFirstRating) {
-          await tx
-            .update(flashcardSessions)
+          tx.update(flashcardSessions)
             .set({ cardsReviewed: sql`${flashcardSessions.cardsReviewed} + 1` })
-            .where(eq(flashcardSessions.id, sessionId));
+            .where(eq(flashcardSessions.id, sessionId))
+            .run();
         }
 
         // Update spaced repetition schedule
-        let [sr] = await tx
+        let [sr] = tx
           .select()
           .from(spacedRepetition)
           .where(
             and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId))
-          );
+          )
+          .all();
 
         if (!sr) {
-          [sr] = await tx
+          [sr] = tx
             .insert(spacedRepetition)
             .values({
               userId,
@@ -327,13 +330,13 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
               repetitions: 0,
               nextReviewAt: new Date(),
             })
-            .returning();
+            .returning()
+            .all();
         }
 
         const result = calculateNextReview(rating, sr.easeFactor, sr.interval, sr.repetitions);
 
-        await tx
-          .update(spacedRepetition)
+        tx.update(spacedRepetition)
           .set({
             easeFactor: result.easeFactor,
             interval: result.interval,
@@ -341,7 +344,8 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
             nextReviewAt: result.nextReviewAt,
             lastReviewedAt: new Date(),
           })
-          .where(eq(spacedRepetition.id, sr.id));
+          .where(eq(spacedRepetition.id, sr.id))
+          .run();
 
         return result;
       });
