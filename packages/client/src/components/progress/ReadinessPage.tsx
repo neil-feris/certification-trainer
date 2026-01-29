@@ -237,7 +237,7 @@ export function ReadinessPage() {
                     borderRadius: 'var(--border-radius)',
                     color: 'var(--text-primary)',
                   }}
-                  formatter={(value: number) => [`${value}%`, 'Readiness']}
+                  formatter={(value) => [`${value ?? 0}%`, 'Readiness']}
                 />
                 <ReferenceLine
                   y={70}
