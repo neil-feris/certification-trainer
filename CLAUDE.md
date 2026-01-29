@@ -137,15 +137,21 @@ Sentry.startSpan({ op: "ui.click", name: "Button Click" }, (span) => {
 **CRITICAL**: Never merge any branch directly into `main`. All changes flow through `uat` first.
 
 ```
-feature/xxx  ──PR──►  uat  ──PR──►  main
-bugfix/xxx   ──PR──►  uat  ──PR──►  main
+feature/xxx  ──PR──►  uat  ──fast-forward──►  main
+bugfix/xxx   ──PR──►  uat  ──fast-forward──►  main
 ```
 
 1. Create branch from `uat`: `git checkout -b feature/xxx origin/uat`
 2. Make changes and commit
 3. Create PR to `uat` (CI runs, review)
-4. After merge to `uat`, create PR from `uat` to `main` for production
-5. After `uat→main` merge, sync back: PR from `main` to `uat`
+4. After merge to `uat`, deploy to `main` using **fast-forward merge** (no PR):
+   ```bash
+   git checkout main && git pull
+   git merge --ff-only origin/uat
+   git push
+   ```
+
+**Why fast-forward?** GitHub PRs create merge commits, causing `main` to diverge from `uat` and requiring constant sync-back PRs. Fast-forward keeps branches identical.
 
 **Branch naming**: `feature/<name>`, `bugfix/<name>`, `hotfix/<name>`
 
@@ -153,3 +159,4 @@ bugfix/xxx   ──PR──►  uat  ──PR──►  main
 - Merge feature/bugfix branches directly to `main`
 - Commit directly to `uat` or `main`
 - Force-push to `uat` or `main`
+- Use GitHub PR for `uat→main` (creates merge commits)
