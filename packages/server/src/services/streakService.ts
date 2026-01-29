@@ -69,15 +69,16 @@ function daysBetween(dateA: string, dateB: string | null): number {
  * @returns The updated streak data and whether a milestone was hit
  */
 export async function updateStreak(userId: number): Promise<UpdateStreakResult> {
-  return db.transaction(async (tx) => {
+  // CRITICAL: better-sqlite3 transactions must be synchronous - no async/await
+  return db.transaction((tx) => {
     const today = getTodayDateString();
 
     // Get existing streak record with transaction isolation
-    const existing = await tx
+    const [existing] = tx
       .select()
       .from(schema.userStreaks)
       .where(eq(schema.userStreaks.userId, userId))
-      .get();
+      .all();
 
     if (!existing) {
       // First activity ever - create new record with streak of 1
@@ -89,7 +90,7 @@ export async function updateStreak(userId: number): Promise<UpdateStreakResult> 
         updatedAt: new Date(),
       };
 
-      await tx.insert(schema.userStreaks).values(newStreak);
+      tx.insert(schema.userStreaks).values(newStreak).run();
 
       const milestone = checkMilestone(1);
       return {
@@ -137,15 +138,15 @@ export async function updateStreak(userId: number): Promise<UpdateStreakResult> 
     const newLongestStreak = Math.max(longestStreak, newCurrentStreak);
 
     // Persist the update within transaction
-    await tx
-      .update(schema.userStreaks)
+    tx.update(schema.userStreaks)
       .set({
         currentStreak: newCurrentStreak,
         longestStreak: newLongestStreak,
         lastActivityDate: today,
         updatedAt: new Date(),
       })
-      .where(eq(schema.userStreaks.userId, userId));
+      .where(eq(schema.userStreaks.userId, userId))
+      .run();
 
     const milestone = checkMilestone(newCurrentStreak);
 

@@ -44,33 +44,38 @@ export async function getXP(userId: number): Promise<UserXP> {
 export async function awardXP(userId: number, xpType: XPAwardType): Promise<XPAwardResponse> {
   const awardAmount = XP_AWARDS[xpType];
 
-  return db.transaction(async (tx) => {
+  // CRITICAL: better-sqlite3 transactions must be synchronous - no async/await
+  return db.transaction((tx) => {
     // Get existing XP record to check for level-up detection
-    const existing = await tx
+    const [existing] = tx
       .select()
       .from(schema.userXp)
       .where(eq(schema.userXp.userId, userId))
-      .get();
+      .all();
 
     const previousLevel = existing?.currentLevel ?? 1;
 
     if (!existing) {
       // First XP ever - create new record
       const levelInfo = calculateLevel(awardAmount);
-      await tx.insert(schema.userXp).values({
-        userId,
-        totalXp: awardAmount,
-        currentLevel: levelInfo.currentLevel,
-        updatedAt: new Date(),
-      });
+      tx.insert(schema.userXp)
+        .values({
+          userId,
+          totalXp: awardAmount,
+          currentLevel: levelInfo.currentLevel,
+          updatedAt: new Date(),
+        })
+        .run();
 
       // Record XP in history
-      await tx.insert(schema.xpHistory).values({
-        userId,
-        amount: awardAmount,
-        source: xpType,
-        createdAt: new Date(),
-      });
+      tx.insert(schema.xpHistory)
+        .values({
+          userId,
+          amount: awardAmount,
+          source: xpType,
+          createdAt: new Date(),
+        })
+        .run();
 
       // Detect level-up
       const leveledUp = levelInfo.currentLevel > previousLevel;
@@ -91,20 +96,16 @@ export async function awardXP(userId: number, xpType: XPAwardType): Promise<XPAw
     }
 
     // Atomic increment for race-free update
-    await tx
-      .update(schema.userXp)
+    tx.update(schema.userXp)
       .set({
         totalXp: sql`${schema.userXp.totalXp} + ${awardAmount}`,
         updatedAt: new Date(),
       })
-      .where(eq(schema.userXp.userId, userId));
+      .where(eq(schema.userXp.userId, userId))
+      .run();
 
     // Read back updated values for level calculation
-    const updated = await tx
-      .select()
-      .from(schema.userXp)
-      .where(eq(schema.userXp.userId, userId))
-      .get();
+    const [updated] = tx.select().from(schema.userXp).where(eq(schema.userXp.userId, userId)).all();
 
     if (!updated) {
       throw new Error('Failed to read updated XP record');
@@ -113,22 +114,24 @@ export async function awardXP(userId: number, xpType: XPAwardType): Promise<XPAw
     // Calculate new level and update if changed
     const levelInfo = calculateLevel(updated.totalXp);
     if (levelInfo.currentLevel !== updated.currentLevel) {
-      await tx
-        .update(schema.userXp)
+      tx.update(schema.userXp)
         .set({
           currentLevel: levelInfo.currentLevel,
           updatedAt: new Date(),
         })
-        .where(eq(schema.userXp.userId, userId));
+        .where(eq(schema.userXp.userId, userId))
+        .run();
     }
 
     // Record XP in history
-    await tx.insert(schema.xpHistory).values({
-      userId,
-      amount: awardAmount,
-      source: xpType,
-      createdAt: new Date(),
-    });
+    tx.insert(schema.xpHistory)
+      .values({
+        userId,
+        amount: awardAmount,
+        source: xpType,
+        createdAt: new Date(),
+      })
+      .run();
 
     // Detect level-up
     const leveledUp = levelInfo.currentLevel > previousLevel;
@@ -163,44 +166,49 @@ export async function awardCustomXP(
   amount: number,
   source: string = 'CUSTOM'
 ): Promise<XPAwardResponse | null> {
-  return db.transaction(async (tx) => {
+  // CRITICAL: better-sqlite3 transactions must be synchronous - no async/await
+  return db.transaction((tx) => {
     // Idempotency check inside transaction to prevent TOCTOU race conditions
-    const alreadyAwarded = await tx
+    const [alreadyAwarded] = tx
       .select({ id: schema.xpHistory.id })
       .from(schema.xpHistory)
       .where(and(eq(schema.xpHistory.userId, userId), eq(schema.xpHistory.source, source)))
-      .get();
+      .all();
 
     if (alreadyAwarded) {
       return null;
     }
 
     // Get existing XP record to check for level-up detection
-    const existing = await tx
+    const [existing] = tx
       .select()
       .from(schema.userXp)
       .where(eq(schema.userXp.userId, userId))
-      .get();
+      .all();
 
     const previousLevel = existing?.currentLevel ?? 1;
 
     if (!existing) {
       // First XP ever - create new record
       const levelInfo = calculateLevel(amount);
-      await tx.insert(schema.userXp).values({
-        userId,
-        totalXp: amount,
-        currentLevel: levelInfo.currentLevel,
-        updatedAt: new Date(),
-      });
+      tx.insert(schema.userXp)
+        .values({
+          userId,
+          totalXp: amount,
+          currentLevel: levelInfo.currentLevel,
+          updatedAt: new Date(),
+        })
+        .run();
 
       // Record XP in history
-      await tx.insert(schema.xpHistory).values({
-        userId,
-        amount,
-        source,
-        createdAt: new Date(),
-      });
+      tx.insert(schema.xpHistory)
+        .values({
+          userId,
+          amount,
+          source,
+          createdAt: new Date(),
+        })
+        .run();
 
       // Detect level-up
       const leveledUp = levelInfo.currentLevel > previousLevel;
@@ -221,20 +229,16 @@ export async function awardCustomXP(
     }
 
     // Atomic increment for race-free update
-    await tx
-      .update(schema.userXp)
+    tx.update(schema.userXp)
       .set({
         totalXp: sql`${schema.userXp.totalXp} + ${amount}`,
         updatedAt: new Date(),
       })
-      .where(eq(schema.userXp.userId, userId));
+      .where(eq(schema.userXp.userId, userId))
+      .run();
 
     // Read back updated values for level calculation
-    const updated = await tx
-      .select()
-      .from(schema.userXp)
-      .where(eq(schema.userXp.userId, userId))
-      .get();
+    const [updated] = tx.select().from(schema.userXp).where(eq(schema.userXp.userId, userId)).all();
 
     if (!updated) {
       throw new Error('Failed to read updated XP record');
@@ -243,22 +247,24 @@ export async function awardCustomXP(
     // Calculate new level and update if changed
     const levelInfo = calculateLevel(updated.totalXp);
     if (levelInfo.currentLevel !== updated.currentLevel) {
-      await tx
-        .update(schema.userXp)
+      tx.update(schema.userXp)
         .set({
           currentLevel: levelInfo.currentLevel,
           updatedAt: new Date(),
         })
-        .where(eq(schema.userXp.userId, userId));
+        .where(eq(schema.userXp.userId, userId))
+        .run();
     }
 
     // Record XP in history
-    await tx.insert(schema.xpHistory).values({
-      userId,
-      amount,
-      source,
-      createdAt: new Date(),
-    });
+    tx.insert(schema.xpHistory)
+      .values({
+        userId,
+        amount,
+        source,
+        createdAt: new Date(),
+      })
+      .run();
 
     // Detect level-up
     const leveledUp = levelInfo.currentLevel > previousLevel;

@@ -29,7 +29,7 @@ npm run test:watch       # Watch mode
 Monorepo with npm workspaces: `packages/{client,server,shared}`
 
 ### Client (`@ace-prep/client`)
-- React 18 + Vite + TypeScript
+- React 19 + Vite + TypeScript
 - **State**: Zustand stores with persistence (`examStore`, `studyStore`, `settingsStore`)
 - **Data fetching**: TanStack Query with typed API client
 - **Styling**: CSS Modules + CSS Variables (from `globals.css`)
