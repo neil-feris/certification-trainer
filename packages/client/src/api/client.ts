@@ -86,11 +86,71 @@ const API_BASE = '/api';
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 
+// Circuit breaker for auth refresh - prevents hammering the server after repeated failures
+let refreshFailureCount = 0;
+let lastRefreshFailure = 0;
+const REFRESH_CIRCUIT_BREAKER_THRESHOLD = 3;
+const REFRESH_CIRCUIT_BREAKER_RESET_MS = 30000; // 30 seconds
+
+/**
+ * Check if the refresh circuit breaker is open (preventing refresh attempts)
+ */
+function isRefreshCircuitOpen(): boolean {
+  // Reset circuit breaker after timeout
+  if (Date.now() - lastRefreshFailure > REFRESH_CIRCUIT_BREAKER_RESET_MS) {
+    refreshFailureCount = 0;
+  }
+  return refreshFailureCount >= REFRESH_CIRCUIT_BREAKER_THRESHOLD;
+}
+
+/**
+ * Record a refresh failure and potentially open the circuit
+ */
+function recordRefreshFailure(): void {
+  refreshFailureCount++;
+  lastRefreshFailure = Date.now();
+}
+
+/**
+ * Reset the circuit breaker on successful refresh
+ */
+function resetRefreshCircuit(): void {
+  refreshFailureCount = 0;
+}
+
+/**
+ * Custom error class for rate limiting - allows consumers to identify rate limit errors
+ */
+export class RateLimitError extends Error {
+  retryAfter: number;
+
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Custom error class for auth errors - allows consumers to identify auth failures
+ */
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
 /**
  * Attempt to refresh the access token using the httpOnly refresh token cookie
  * Returns new access token or null if refresh failed
  */
 async function refreshAccessToken(): Promise<string | null> {
+  // Check circuit breaker before attempting refresh
+  if (isRefreshCircuitOpen()) {
+    return null;
+  }
+
   try {
     const response = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
@@ -98,12 +158,15 @@ async function refreshAccessToken(): Promise<string | null> {
     });
 
     if (!response.ok) {
+      recordRefreshFailure();
       return null;
     }
 
     const data: { accessToken: string; expiresAt: number } = await response.json();
+    resetRefreshCircuit();
     return data.accessToken;
   } catch {
+    recordRefreshFailure();
     return null;
   }
 }
@@ -112,6 +175,16 @@ async function refreshAccessToken(): Promise<string | null> {
  * Handle 401 response by attempting token refresh and retrying the request
  */
 async function handleUnauthorized<T>(endpoint: string, options: RequestInit): Promise<T | null> {
+  // Check circuit breaker - if open, skip refresh attempt entirely
+  if (isRefreshCircuitOpen()) {
+    const authStore = useAuthStore.getState();
+    authStore.logout();
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login?error=session_expired';
+    }
+    return null;
+  }
+
   // If already refreshing, wait for that to complete
   if (isRefreshing && refreshPromise) {
     const newToken = await refreshPromise;
@@ -297,8 +370,8 @@ async function request<T>(
         if (result !== null) {
           return result;
         }
-        // If handleUnauthorized returned null, throw error
-        const sessionError = new Error('Session expired. Please log in again.');
+        // If handleUnauthorized returned null, throw AuthError (which TanStack Query won't retry)
+        const sessionError = new AuthError('Session expired. Please log in again.');
         Sentry.captureException(sessionError, {
           extra: {
             endpoint,
@@ -308,6 +381,24 @@ async function request<T>(
           },
         });
         throw sessionError;
+      }
+
+      // Handle 429 Rate Limit - show user-friendly message and don't retry
+      if (response.status === 429) {
+        const errorBody = await response.json().catch(() => ({ message: 'Rate limit exceeded' }));
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '30', 10);
+
+        showToast({
+          message: `Too many requests. Please wait ${retryAfter} seconds.`,
+          type: 'warning',
+          duration: 5000,
+        });
+
+        // Throw a RateLimitError so TanStack Query can skip retries
+        throw new RateLimitError(
+          errorBody.message || 'Rate limit exceeded. Please wait and try again.',
+          retryAfter
+        );
       }
 
       if (!response.ok) {
