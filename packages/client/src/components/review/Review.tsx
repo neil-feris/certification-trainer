@@ -90,6 +90,15 @@ export function Review() {
   // Use online questions when available, fall back to offline
   const questions = isOnline ? onlineQuestions : offlineQuestions;
 
+  // Reset currentIndex if it's out of bounds (can happen when questions array shrinks)
+  useEffect(() => {
+    if (questions.length > 0 && currentIndex >= questions.length) {
+      setCurrentIndex(0);
+      setSelectedAnswers([]);
+      setIsRevealed(false);
+    }
+  }, [questions.length, currentIndex]);
+
   const submitMutation = useMutation({
     mutationFn: ({ questionId, quality }: { questionId: number; quality: Quality }) =>
       questionApi.submitReview(questionId, quality),
@@ -201,7 +210,9 @@ export function Review() {
     );
   }
 
-  const currentQuestion = questions[currentIndex];
+  // Guard against stale currentIndex (can happen if questions array shrinks between renders)
+  const safeIndex = currentIndex >= questions.length ? 0 : currentIndex;
+  const currentQuestion = questions[safeIndex];
   const isCorrect = (index: number) => currentQuestion.correctAnswers.includes(index);
   const isSelected = (index: number) => selectedAnswers.includes(index);
 
