@@ -85,50 +85,35 @@ export async function notificationRoutes(fastify: FastifyInstance) {
     const userId = parseInt(request.user!.id, 10);
     const now = new Date();
 
-    // Check if this endpoint already exists for this user
-    const [existing] = await db
-      .select()
-      .from(schema.pushSubscriptions)
-      .where(
-        and(
-          eq(schema.pushSubscriptions.userId, userId),
-          eq(schema.pushSubscriptions.endpoint, endpoint)
-        )
-      );
-
-    if (existing) {
-      // Update existing subscription (keys may have changed)
-      await db
-        .update(schema.pushSubscriptions)
-        .set({
-          p256dh: keys.p256dh,
-          auth: keys.auth,
-          createdAt: now,
-        })
-        .where(eq(schema.pushSubscriptions.id, existing.id));
-    } else {
-      // Create new subscription
-      await db.insert(schema.pushSubscriptions).values({
+    // Upsert subscription - handles race condition with ON CONFLICT
+    await db
+      .insert(schema.pushSubscriptions)
+      .values({
         userId,
         endpoint,
         p256dh: keys.p256dh,
         auth: keys.auth,
         createdAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [schema.pushSubscriptions.userId, schema.pushSubscriptions.endpoint],
+        set: {
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          createdAt: now,
+        },
       });
-    }
 
-    // Ensure notification preferences exist
-    const [prefs] = await db
-      .select()
-      .from(schema.notificationPreferences)
-      .where(eq(schema.notificationPreferences.userId, userId));
-
-    if (!prefs) {
-      await db.insert(schema.notificationPreferences).values({
+    // Upsert notification preferences
+    await db
+      .insert(schema.notificationPreferences)
+      .values({
         userId,
         updatedAt: now,
+      })
+      .onConflictDoNothing({
+        target: schema.notificationPreferences.userId,
       });
-    }
 
     return { success: true };
   });
@@ -207,24 +192,18 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       const userId = parseInt(request.user!.id, 10);
       const now = new Date();
 
-      // Upsert preferences
-      const [existing] = await db
-        .select()
-        .from(schema.notificationPreferences)
-        .where(eq(schema.notificationPreferences.userId, userId));
-
-      if (existing) {
-        await db
-          .update(schema.notificationPreferences)
-          .set({ ...updates, updatedAt: now })
-          .where(eq(schema.notificationPreferences.userId, userId));
-      } else {
-        await db.insert(schema.notificationPreferences).values({
+      // Upsert preferences with ON CONFLICT to avoid race conditions
+      await db
+        .insert(schema.notificationPreferences)
+        .values({
           userId,
           ...updates,
           updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: schema.notificationPreferences.userId,
+          set: { ...updates, updatedAt: now },
         });
-      }
 
       return { success: true };
     }
