@@ -2,7 +2,7 @@
 
 Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks/feature-backlog.md`
 
-**Last Updated**: 2026-01-29
+**Last Updated**: 2026-01-30
 **Status Legend**: `[ ]` Todo | `[~]` In Progress | `[x]` Done
 
 ---
@@ -265,25 +265,25 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ## Phase 3: PWA & Offline
 
 ### FEAT-012: Complete PWA Offline Mode
-- **Status**: `[~]`
+- **Status**: `[x]`
 - **Priority**: P1 (High Impact, Medium Effort)
 - **Category**: Mobile/Offline
 
-**Description**: Full offline support - take exams offline, auto-sync when back online. Currently partial (caches questions but can't complete exams offline).
+**Description**: Full offline support - take exams offline, auto-sync when back online.
+
+**Implemented**: Automatic offline fallback when network fails, sync status widget on dashboard, improved offline awareness badges, accessibility-compliant modal. Deployed 2026-01-30.
 
 **Requirements**:
 - Pre-cache questions for selected certification/topics
 - Full exam flow works offline (stored locally, synced later)
 - Background sync when connectivity restored
 - Clear offline indicator in UI
-- Push notifications for review reminders (with permission)
 
 **Technical Notes**:
-- Implement Background Sync API for queue flush
-- Expand `syncQueue.ts` to handle full exam submissions
-- Add service worker push notification handlers
-- PWA install prompt handling
-- Pre-cache strategy: on certification select, cache 100 questions
+- `OfflineFallbackModal` for graceful degradation on network failure
+- `SyncStatusWidget` shows pending sync count with manual trigger
+- Network error detection utility for robust offline detection
+- Escape key and ARIA support for accessibility
 
 ---
 
@@ -314,13 +314,13 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ## Phase 4: Analytics & Insights
 
 ### FEAT-014: Study Time Tracking
-- **Status**: `[~]`
+- **Status**: `[x]`
 - **Priority**: P2 (Medium Impact, Low Effort)
 - **Category**: Analytics
 
 **Description**: Track time spent studying. Show daily/weekly totals, study heatmap by time of day.
 
-**Partial Implementation**: `timeSpentSeconds` tracked on exam/drill responses. Missing: dashboard widget, aggregation, heatmap.
+**Implemented**: Dashboard widget with weekly total, activity heatmap by day/hour, progress over time chart. Deployed 2026-01-30.
 
 **Requirements**:
 - Track session duration (already have `timeSpentSeconds` on responses)
@@ -511,17 +511,17 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 
 | Status | Count | Features |
 |--------|-------|----------|
-| **Done** | 12 | FEAT-001-011, FEAT-020 |
-| **In Progress** | 2 | FEAT-012 (PWA), FEAT-014 (Time Tracking) |
+| **Done** | 14 | FEAT-001-012, FEAT-014, FEAT-020 |
+| **In Progress** | 0 | — |
 | **Remaining** | 8 | FEAT-013, 015-019, 021-022 |
 
 | Phase | Features | Status |
 |-------|----------|--------|
 | **1: Engagement** | FEAT-001 to FEAT-006 | ✅ Complete |
 | **2: Intelligence** | FEAT-007 to FEAT-011 | ✅ Complete |
-| **3: PWA/Offline** | FEAT-012 to FEAT-013 | 🔄 Partial (PWA in progress, Push not started) |
-| **4: Analytics** | FEAT-014 to FEAT-016 | 🔄 Partial (Time tracking partial, others not started) |
+| **3: PWA/Offline** | FEAT-012 to FEAT-013 | 🔄 Partial (PWA done, Push not started) |
+| **4: Analytics** | FEAT-014 to FEAT-016 | 🔄 Partial (Time tracking done, Mastery Map & Benchmarking not started) |
 | **5: Social** | FEAT-017 to FEAT-019 | ❌ Not started |
 | **6: Technical** | FEAT-020 to FEAT-022 | 🔄 Partial (Sentry done, Import/Admin not started) |
 
-**Recommended Next**: FEAT-012 (Complete PWA Offline) or FEAT-013 (Push Notifications) to finish Phase 3.
+**Recommended Next**: FEAT-013 (Push Notifications) to finish Phase 3, or FEAT-015 (GCP Service Mastery Map) for analytics.

@@ -6,6 +6,8 @@ import { useCertificationStore } from '../../stores/certificationStore';
 import { useExamStore } from '../../stores/examStore';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { hasValidCache, getCacheStatus } from '../../services/cacheService';
+import { isNetworkError } from '../../utils/networkError';
+import { OfflineFallbackModal } from './OfflineFallbackModal';
 import type { CacheStatus } from '@ace-prep/shared';
 import {
   EXAM_SIZE_OPTIONS as EXAM_SIZES,
@@ -56,6 +58,7 @@ export function ExamSetup() {
   const [selectedSize, setSelectedSize] = useState<ExamSize>(EXAM_SIZE_DEFAULT);
   const [cacheStatus, setCacheStatus] = useState<CacheStatus | null>(null);
   const [hasCachedQuestions, setHasCachedQuestions] = useState(false);
+  const [showOfflineFallback, setShowOfflineFallback] = useState(false);
 
   const { isOnline } = useOnlineStatus();
   const { createOfflineExam } = useExamStore();
@@ -102,6 +105,12 @@ export function ExamSetup() {
       });
       navigate(`/exam/${result.examId}`);
     } catch (err: any) {
+      // Check if this is a network error - offer offline fallback
+      if (isNetworkError(err) || !navigator.onLine) {
+        setIsStarting(false);
+        setShowOfflineFallback(true);
+        return;
+      }
       setError(err.message || 'Failed to start exam');
       setIsStarting(false);
     }
@@ -199,11 +208,13 @@ export function ExamSetup() {
           </div>
         )}
 
-        {!isOnline && hasCachedQuestions && (
+        {hasCachedQuestions && (
           <div className={styles.offlineReady}>
-            <span className={styles.offlineIcon}>✓</span>
+            <span className={styles.offlineIcon}>{isOnline ? '📶' : '✓'}</span>
             <span>
-              {cacheStatus?.questionCount} questions cached for offline use.
+              {isOnline ? 'Offline Ready: ' : ''}
+              {cacheStatus?.questionCount} questions cached
+              {isOnline ? ' — works without internet' : ' for offline use'}.
               {cacheStatus && selectedSize > cacheStatus.questionCount && (
                 <span className={styles.offlineNote}>
                   {' '}
@@ -250,6 +261,15 @@ export function ExamSetup() {
           for review and navigate freely between questions.
         </p>
       </div>
+
+      <OfflineFallbackModal
+        isOpen={showOfflineFallback}
+        onClose={() => setShowOfflineFallback(false)}
+        onStartOffline={startOfflineExam}
+        cachedQuestionCount={cacheStatus?.questionCount ?? 0}
+        hasCachedQuestions={hasCachedQuestions}
+        isStarting={isStartingOffline}
+      />
     </div>
   );
 }
