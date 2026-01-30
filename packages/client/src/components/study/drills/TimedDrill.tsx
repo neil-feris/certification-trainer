@@ -168,7 +168,7 @@ export function TimedDrill({ onExit }: TimedDrillProps) {
       {/* Question Area */}
       <div className={styles.questionArea}>
         <div className={styles.topicBadge}>
-          {currentQuestion.domain.name} / {currentQuestion.topic.name}
+          {currentQuestion.domain?.name ?? 'Unknown'} / {currentQuestion.topic?.name ?? 'Unknown'}
         </div>
 
         <div className={styles.questionCard}>

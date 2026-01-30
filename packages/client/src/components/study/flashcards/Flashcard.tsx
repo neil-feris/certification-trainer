@@ -51,7 +51,7 @@ export function Flashcard({ card, isFlipped, onFlip, swipeState }: FlashcardProp
         {/* Front - Question */}
         <div className={styles.front}>
           <div className={styles.cardHeader}>
-            <span className={styles.domain}>{card.domain.name}</span>
+            <span className={styles.domain}>{card.domain?.name ?? 'Unknown'}</span>
             <BookmarkButton targetType="question" targetId={card.questionId} size="sm" />
           </div>
 
@@ -71,7 +71,7 @@ export function Flashcard({ card, isFlipped, onFlip, swipeState }: FlashcardProp
           </div>
 
           <div className={styles.cardFooter}>
-            <span className={styles.meta}>{card.topic.name}</span>
+            <span className={styles.meta}>{card.topic?.name ?? 'Unknown'}</span>
             <span className={styles.flipHint}>Click or press Space to flip</span>
           </div>
         </div>
@@ -111,7 +111,7 @@ export function Flashcard({ card, isFlipped, onFlip, swipeState }: FlashcardProp
 
           <div className={styles.cardFooter}>
             <span className={styles.meta}>
-              {card.difficulty} &middot; {card.domain.code}
+              {card.difficulty} &middot; {card.domain?.code ?? ''}
             </span>
             <span className={styles.flipHint}>Swipe to rate &middot; Click to flip back</span>
           </div>

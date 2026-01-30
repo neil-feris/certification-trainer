@@ -266,7 +266,9 @@ export function Dashboard() {
               <StudyIcon />
             </span>
             <span className={styles.quickActionText}>
-              <span className={styles.quickActionLabel}>Continue: {weakestDomain.domain.name}</span>
+              <span className={styles.quickActionLabel}>
+                Continue: {weakestDomain.domain?.name ?? 'Unknown'}
+              </span>
               <span className={styles.quickActionMeta}>
                 {weakestDomain.accuracy.toFixed(0)}% accuracy
               </span>
@@ -359,9 +361,9 @@ export function Dashboard() {
           <h2 className={styles.sectionTitle}>Domain Performance</h2>
           <div className={styles.domainList}>
             {domainStats?.map((stat) => (
-              <div key={stat.domain.id} className={styles.domainItem}>
+              <div key={stat.domain?.id ?? `stat-${stat.accuracy}`} className={styles.domainItem}>
                 <div className={styles.domainHeader}>
-                  <span className={styles.domainName}>{stat.domain.name}</span>
+                  <span className={styles.domainName}>{stat.domain?.name ?? 'Unknown'}</span>
                   <span
                     className={`${styles.domainScore} ${stat.accuracy >= passingScore ? styles.passing : stat.accuracy < 50 ? styles.failing : ''}`}
                   >
@@ -396,7 +398,10 @@ export function Dashboard() {
           {weakAreas && weakAreas.length > 0 ? (
             <div className={styles.weakAreasList}>
               {weakAreas.map((area) => (
-                <div key={`${area.domain.id}-${area.topic.id}`} className={styles.weakAreaItem}>
+                <div
+                  key={`${area.domain?.id ?? 'unknown'}-${area.topic?.id ?? 'unknown'}-${area.accuracy}`}
+                  className={styles.weakAreaItem}
+                >
                   <div className={styles.weakAreaBadge}>
                     <span
                       className={`badge ${area.accuracy < 50 ? 'badge-error' : 'badge-warning'}`}
@@ -405,8 +410,8 @@ export function Dashboard() {
                     </span>
                   </div>
                   <div className={styles.weakAreaInfo}>
-                    <div className={styles.weakAreaTopic}>{area.topic.name}</div>
-                    <div className={styles.weakAreaDomain}>{area.domain.name}</div>
+                    <div className={styles.weakAreaTopic}>{area.topic?.name ?? 'Unknown'}</div>
+                    <div className={styles.weakAreaDomain}>{area.domain?.name ?? 'Unknown'}</div>
                   </div>
                 </div>
               ))}
