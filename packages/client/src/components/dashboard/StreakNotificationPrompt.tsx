@@ -15,6 +15,24 @@ import styles from './StreakNotificationPrompt.module.css';
 
 const DISMISS_KEY = 'ace-notification-prompt-dismissed';
 
+/** Safe localStorage getter for private browsing mode */
+function getStorageItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Safe localStorage setter for private browsing mode */
+function setStorageItem(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore - private browsing or quota exceeded
+  }
+}
+
 interface StreakNotificationPromptProps {
   currentStreak: number;
 }
@@ -22,7 +40,7 @@ interface StreakNotificationPromptProps {
 export function StreakNotificationPrompt({ currentStreak }: StreakNotificationPromptProps) {
   const { isSupported, isSubscribed, isLoading, subscribe } = usePushNotifications();
   const [isDismissed, setIsDismissed] = useState(() => {
-    return localStorage.getItem(DISMISS_KEY) === 'true';
+    return getStorageItem(DISMISS_KEY) === 'true';
   });
   const [isEnabling, setIsEnabling] = useState(false);
 
@@ -41,14 +59,14 @@ export function StreakNotificationPrompt({ currentStreak }: StreakNotificationPr
     const success = await subscribe();
     if (!success) {
       // Permission denied or error - dismiss to avoid nagging
-      localStorage.setItem(DISMISS_KEY, 'true');
+      setStorageItem(DISMISS_KEY, 'true');
       setIsDismissed(true);
     }
     setIsEnabling(false);
   };
 
   const handleDismiss = () => {
-    localStorage.setItem(DISMISS_KEY, 'true');
+    setStorageItem(DISMISS_KEY, 'true');
     setIsDismissed(true);
   };
 
