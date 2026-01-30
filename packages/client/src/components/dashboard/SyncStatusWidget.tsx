@@ -72,13 +72,8 @@ export function SyncStatusWidget() {
 
   const handleManualSync = async () => {
     if (!isOnline || isSyncing) return;
-    setIsSyncing(true);
-    try {
-      await triggerManualSync();
-    } finally {
-      setIsSyncing(false);
-      loadPendingCount();
-    }
+    // State updates handled by SYNC_EVENTS listeners - avoid race condition
+    await triggerManualSync();
   };
 
   return (
