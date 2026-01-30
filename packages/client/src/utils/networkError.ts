@@ -16,10 +16,7 @@ export function isNetworkError(error: unknown): boolean {
     return true;
   }
 
-  // AbortError from timeout or cancelled request
-  if (error instanceof Error && error.name === 'AbortError') {
-    return true;
-  }
+  // Note: AbortError intentionally excluded - indicates user/code cancellation, not network failure
 
   // Check for common network error messages
   if (error instanceof Error) {
