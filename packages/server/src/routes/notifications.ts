@@ -34,12 +34,10 @@ const preferencesSchema = z.object({
 });
 
 export async function notificationRoutes(fastify: FastifyInstance) {
-  // All routes require authentication
-  fastify.addHook('preHandler', authenticate);
-
   /**
    * GET /api/notifications/vapid-public-key
    * Get the VAPID public key for client-side subscription
+   * NOTE: Public endpoint - VAPID public key is not secret
    */
   fastify.get('/vapid-public-key', async (_request, reply) => {
     const publicKey = getVapidPublicKey();
@@ -51,6 +49,9 @@ export async function notificationRoutes(fastify: FastifyInstance) {
     }
     return { publicKey };
   });
+
+  // All remaining routes require authentication
+  fastify.addHook('preHandler', authenticate);
 
   /**
    * GET /api/notifications/status
