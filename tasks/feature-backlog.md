@@ -2,7 +2,7 @@
 
 Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks/feature-backlog.md`
 
-**Last Updated**: 2026-01-27
+**Last Updated**: 2026-01-29
 **Status Legend**: `[ ]` Todo | `[~]` In Progress | `[x]` Done
 
 ---
@@ -103,7 +103,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-005: Question of the Day
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P1 (Medium Impact, Low Effort)
 - **Category**: Engagement
 
@@ -124,7 +124,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-006: Flashcard Mode
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P0 (High Impact, Low Effort)
 - **Category**: Study Tools
 
@@ -173,7 +173,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-008: Study Plan Generator
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P1 (High Impact, Medium Effort)
 - **Category**: Study Tools
 
@@ -197,7 +197,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-009: Share Exam Results
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P2 (Medium Impact, Low Effort)
 - **Category**: Social/Growth
 
@@ -221,7 +221,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-010: Completion Certificates
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P2 (Medium Impact, Low Effort)
 - **Category**: Social/Growth
 
@@ -314,11 +314,13 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ## Phase 4: Analytics & Insights
 
 ### FEAT-014: Study Time Tracking
-- **Status**: `[ ]`
+- **Status**: `[~]`
 - **Priority**: P2 (Medium Impact, Low Effort)
 - **Category**: Analytics
 
 **Description**: Track time spent studying. Show daily/weekly totals, study heatmap by time of day.
+
+**Partial Implementation**: `timeSpentSeconds` tracked on exam/drill responses. Missing: dashboard widget, aggregation, heatmap.
 
 **Requirements**:
 - Track session duration (already have `timeSpentSeconds` on responses)
@@ -507,13 +509,19 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 
 ## Backlog Summary
 
-| Phase | Features | Priority Items |
-|-------|----------|----------------|
-| **1: Engagement** | FEAT-001 to FEAT-006 | Streaks, XP, Badges, Bookmarks, QOTD, Flashcards |
-| **2: Intelligence** | FEAT-007 to FEAT-011 | Readiness Score, Study Plan, Share, Certificates, Feedback |
-| **3: PWA/Offline** | FEAT-012 to FEAT-013 | Complete Offline, Push Notifications |
-| **4: Analytics** | FEAT-014 to FEAT-016 | Time Tracking, Mastery Map, Benchmarking |
-| **5: Social** | FEAT-017 to FEAT-019 | Leaderboards, Challenges, Discussions |
-| **6: Technical** | FEAT-020 to FEAT-022 | Sentry, Import, Admin |
+| Status | Count | Features |
+|--------|-------|----------|
+| **Done** | 12 | FEAT-001-011, FEAT-020 |
+| **In Progress** | 2 | FEAT-012 (PWA), FEAT-014 (Time Tracking) |
+| **Remaining** | 8 | FEAT-013, 015-019, 021-022 |
 
-**Recommended Next**: Start with Phase 1 (FEAT-001 through FEAT-006) for maximum engagement impact.
+| Phase | Features | Status |
+|-------|----------|--------|
+| **1: Engagement** | FEAT-001 to FEAT-006 | ✅ Complete |
+| **2: Intelligence** | FEAT-007 to FEAT-011 | ✅ Complete |
+| **3: PWA/Offline** | FEAT-012 to FEAT-013 | 🔄 Partial (PWA in progress, Push not started) |
+| **4: Analytics** | FEAT-014 to FEAT-016 | 🔄 Partial (Time tracking partial, others not started) |
+| **5: Social** | FEAT-017 to FEAT-019 | ❌ Not started |
+| **6: Technical** | FEAT-020 to FEAT-022 | 🔄 Partial (Sentry done, Import/Admin not started) |
+
+**Recommended Next**: FEAT-012 (Complete PWA Offline) or FEAT-013 (Push Notifications) to finish Phase 3.
