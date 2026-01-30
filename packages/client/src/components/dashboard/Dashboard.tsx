@@ -361,7 +361,7 @@ export function Dashboard() {
           <h2 className={styles.sectionTitle}>Domain Performance</h2>
           <div className={styles.domainList}>
             {domainStats?.map((stat) => (
-              <div key={stat.domain?.id ?? stat.domainId} className={styles.domainItem}>
+              <div key={stat.domain?.id ?? `stat-${stat.accuracy}`} className={styles.domainItem}>
                 <div className={styles.domainHeader}>
                   <span className={styles.domainName}>{stat.domain?.name ?? 'Unknown'}</span>
                   <span
@@ -399,7 +399,7 @@ export function Dashboard() {
             <div className={styles.weakAreasList}>
               {weakAreas.map((area) => (
                 <div
-                  key={`${area.domain?.id ?? area.domainId}-${area.topic?.id ?? area.topicId}`}
+                  key={`${area.domain?.id ?? 'unknown'}-${area.topic?.id ?? 'unknown'}-${area.accuracy}`}
                   className={styles.weakAreaItem}
                 >
                   <div className={styles.weakAreaBadge}>
