@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthLoader, ErrorBoundary, RouteErrorBoundary, Toast } from './components/common';
@@ -24,13 +24,18 @@ import { LoginPage, AuthCallbackPage, ShareExamPage, VerifyCertificatePage } fro
 import { useAuthStore } from './stores/authStore';
 import { useOfflineSyncNotifications } from './hooks/useOfflineSyncNotifications';
 
-// Root redirect component - handles auth-aware redirects
+// Root redirect component - redirects to dashboard or login
+// Auth verification is handled by ProtectedRoute
 function RootRedirect() {
   const { isAuthenticated, isLoading, accessToken, setLoading, login, logout } = useAuthStore();
+  const authCheckStarted = useRef(false);
 
-  // Handle auth initialization on mount
+  // Verify auth on mount if we have a stored token
   useEffect(() => {
-    const initAuth = async () => {
+    if (!isLoading || authCheckStarted.current) return;
+    authCheckStarted.current = true;
+
+    const verifyAuth = async () => {
       if (!accessToken) {
         setLoading(false);
         return;
@@ -38,9 +43,7 @@ function RootRedirect() {
 
       try {
         const response = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+          headers: { Authorization: `Bearer ${accessToken}` },
           credentials: 'include',
         });
 
@@ -66,10 +69,8 @@ function RootRedirect() {
       }
     };
 
-    if (isLoading) {
-      initAuth();
-    }
-  }, [accessToken, isLoading, setLoading, login, logout]);
+    verifyAuth();
+  }, [isLoading, accessToken, setLoading, login, logout]);
 
   // While loading auth state, show full-screen loader
   if (isLoading) {
