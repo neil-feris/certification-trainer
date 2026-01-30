@@ -223,9 +223,9 @@ export function ShareButton({
     correctAnswers,
     domainBreakdown: domainPerformance.map(
       (dp): ShareableDomainScore => ({
-        domainId: dp.domain.id,
-        domainName: dp.domain.name,
-        domainCode: dp.domain.code ?? '',
+        domainId: dp.domain?.id ?? 0,
+        domainName: dp.domain?.name ?? 'Unknown',
+        domainCode: dp.domain?.code ?? '',
         correctCount: dp.correct,
         totalCount: dp.total,
         percentage: dp.percentage,

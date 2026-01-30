@@ -123,8 +123,12 @@ function mapToExamQuestion(q: QuestionWithDomain): ExamQuestion {
     correctAnswers: q.correctAnswers,
     explanation: q.explanation,
     difficulty: q.difficulty,
-    domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
-    topic: { id: q.topic.id, name: q.topic.name },
+    domain: {
+      id: q.domain?.id ?? 0,
+      name: q.domain?.name ?? 'Unknown',
+      code: q.domain?.code ?? '',
+    },
+    topic: { id: q.topic?.id ?? 0, name: q.topic?.name ?? 'Unknown' },
     caseStudy: q.caseStudy,
   };
 }
