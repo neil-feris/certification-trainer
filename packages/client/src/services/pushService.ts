@@ -30,7 +30,7 @@ async function getVapidPublicKey(): Promise<string | null> {
 }
 
 /**
- * Convert a base64 string to Uint8Array for applicationServerKey
+ * Convert a URL-safe base64 string to Uint8Array for applicationServerKey
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -41,6 +41,15 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray as Uint8Array<ArrayBuffer>;
+}
+
+/**
+ * Convert Uint8Array to URL-safe base64 string
+ * Required for push subscription keys sent to server
+ */
+function uint8ArrayToUrlBase64(array: Uint8Array): string {
+  const base64 = btoa(String.fromCharCode(...array));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 /**
@@ -99,7 +108,7 @@ export async function subscribeToPush(): Promise<boolean> {
       applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
     });
 
-    // Send subscription to server
+    // Send subscription to server with URL-safe base64 encoded keys
     const response = await fetch(`${API_BASE}/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -107,8 +116,8 @@ export async function subscribeToPush(): Promise<boolean> {
       body: JSON.stringify({
         endpoint: subscription.endpoint,
         keys: {
-          p256dh: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')!))),
-          auth: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')!))),
+          p256dh: uint8ArrayToUrlBase64(new Uint8Array(subscription.getKey('p256dh')!)),
+          auth: uint8ArrayToUrlBase64(new Uint8Array(subscription.getKey('auth')!)),
         },
       }),
     });
