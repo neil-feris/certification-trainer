@@ -28,6 +28,18 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 };
 
+/**
+ * Round time to nearest 15-minute slot to match scheduler intervals
+ * e.g., "09:07" → "09:00", "09:08" → "09:15"
+ */
+function roundToQuarterHour(time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  const roundedM = Math.round(m / 15) * 15;
+  const adjustedH = roundedM === 60 ? (h + 1) % 24 : h;
+  const adjustedM = roundedM === 60 ? 0 : roundedM;
+  return `${String(adjustedH).padStart(2, '0')}:${String(adjustedM).padStart(2, '0')}`;
+}
+
 export function NotificationSettings() {
   const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications();
   const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_PREFERENCES);
@@ -231,9 +243,12 @@ export function NotificationSettings() {
                       id="notification-time"
                       type="time"
                       value={preferences.preferredTime}
-                      onChange={(e) => savePreferences({ preferredTime: e.target.value })}
+                      onChange={(e) =>
+                        savePreferences({ preferredTime: roundToQuarterHour(e.target.value) })
+                      }
                       className={styles.timeInput}
                       disabled={isSaving}
+                      step="900"
                       aria-describedby="timezone-hint"
                     />
                     <span className={styles.hint} id="timezone-hint">
