@@ -211,8 +211,8 @@ export const useExamStore = create<ExamState>()(
             span.setAttribute('question.id', questionId);
             span.setAttribute('question.type', question.questionType);
             span.setAttribute('question.difficulty', question.difficulty);
-            span.setAttribute('question.domain', question.domain.name);
-            span.setAttribute('question.topic', question.topic.name);
+            span.setAttribute('question.domain', question.domain?.name ?? 'unknown');
+            span.setAttribute('question.topic', question.topic?.name ?? 'unknown');
 
             const newResponses = new Map(responses);
             const existing = newResponses.get(questionId);
