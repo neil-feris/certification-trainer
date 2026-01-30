@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db } from '../db/index.js';
+import { db, sqlite } from '../db/index.js';
 import {
   exams,
   examResponses,
@@ -19,6 +19,7 @@ import type {
   TrendDataPoint,
   TrendsResponse,
   ReadinessSnapshot,
+  StudyTimeResponse,
 } from '@ace-prep/shared';
 import { authenticate } from '../middleware/auth.js';
 import { getStreak } from '../services/streakService.js';
@@ -148,6 +149,171 @@ export async function progressRoutes(fastify: FastifyInstance) {
     dataPoints.sort((a, b) => a.date.localeCompare(b.date));
 
     return { data: dataPoints, totalExamCount } satisfies TrendsResponse;
+  });
+
+  // Get study time tracking data (weekly total, heatmap, daily chart)
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/study-time', async (request, reply) => {
+    const userId = parseInt(request.user!.id, 10);
+    const certificationId = await parseCertificationIdFromQuery(
+      request.query.certificationId,
+      reply
+    );
+
+    // Calculate timestamps for date ranges (in seconds for SQLite)
+    const now = new Date();
+    const fourWeeksAgoTs = Math.floor((now.getTime() - 28 * 24 * 60 * 60 * 1000) / 1000);
+    const thirtyDaysAgoTs = Math.floor((now.getTime() - 30 * 24 * 60 * 60 * 1000) / 1000);
+
+    // Get start of current week (Monday)
+    const dayOfWeek = now.getUTCDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const currentWeekStart = new Date(now);
+    currentWeekStart.setUTCDate(now.getUTCDate() - daysToMonday);
+    currentWeekStart.setUTCHours(0, 0, 0, 0);
+    const currentWeekStartTs = Math.floor(currentWeekStart.getTime() / 1000);
+
+    // Previous week start/end
+    const previousWeekStartTs = currentWeekStartTs - 7 * 24 * 60 * 60;
+    const previousWeekEndTs = currentWeekStartTs;
+
+    // Build certification filter clause
+    const certClause = certificationId !== null ? 'AND certification_id = ?' : '';
+    const certParams = certificationId !== null ? [certificationId] : [];
+
+    // Query 1: Current week total
+    const weeklyQuery = sqlite.prepare(`
+      SELECT COALESCE(SUM(time_spent_seconds), 0) as total FROM (
+        SELECT time_spent_seconds FROM exams
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT time_spent_seconds FROM study_sessions
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT time_spent_seconds FROM flashcard_sessions
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+      )
+    `);
+    const currentWeekResult = weeklyQuery.get(
+      userId,
+      currentWeekStartTs,
+      ...certParams,
+      userId,
+      currentWeekStartTs,
+      ...certParams,
+      userId,
+      currentWeekStartTs,
+      ...certParams
+    ) as { total: number };
+
+    // Query 2: Previous week total
+    const prevWeekQuery = sqlite.prepare(`
+      SELECT COALESCE(SUM(time_spent_seconds), 0) as total FROM (
+        SELECT time_spent_seconds FROM exams
+        WHERE user_id = ? AND completed_at >= ? AND completed_at < ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT time_spent_seconds FROM study_sessions
+        WHERE user_id = ? AND completed_at >= ? AND completed_at < ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT time_spent_seconds FROM flashcard_sessions
+        WHERE user_id = ? AND completed_at >= ? AND completed_at < ? AND time_spent_seconds IS NOT NULL ${certClause}
+      )
+    `);
+    const previousWeekResult = prevWeekQuery.get(
+      userId,
+      previousWeekStartTs,
+      previousWeekEndTs,
+      ...certParams,
+      userId,
+      previousWeekStartTs,
+      previousWeekEndTs,
+      ...certParams,
+      userId,
+      previousWeekStartTs,
+      previousWeekEndTs,
+      ...certParams
+    ) as { total: number };
+
+    // Query 3: Heatmap data (last 4 weeks, grouped by day of week and hour)
+    const heatmapQuery = sqlite.prepare(`
+      SELECT
+        CAST(strftime('%w', datetime(completed_at, 'unixepoch')) AS INTEGER) as dayOfWeek,
+        CAST(strftime('%H', datetime(completed_at, 'unixepoch')) AS INTEGER) as hour,
+        SUM(time_spent_seconds) as totalSeconds,
+        COUNT(*) as sessionCount
+      FROM (
+        SELECT completed_at, time_spent_seconds FROM exams
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT completed_at, time_spent_seconds FROM study_sessions
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT completed_at, time_spent_seconds FROM flashcard_sessions
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+      )
+      GROUP BY dayOfWeek, hour
+    `);
+    const heatmapResult = heatmapQuery.all(
+      userId,
+      fourWeeksAgoTs,
+      ...certParams,
+      userId,
+      fourWeeksAgoTs,
+      ...certParams,
+      userId,
+      fourWeeksAgoTs,
+      ...certParams
+    ) as { dayOfWeek: number; hour: number; totalSeconds: number; sessionCount: number }[];
+
+    // Query 4: Daily data (last 30 days)
+    const dailyQuery = sqlite.prepare(`
+      SELECT
+        date(completed_at, 'unixepoch') as date,
+        SUM(time_spent_seconds) as totalSeconds,
+        SUM(questions_count) as questionsAnswered
+      FROM (
+        SELECT completed_at, time_spent_seconds, total_questions as questions_count FROM exams
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT completed_at, time_spent_seconds, total_questions as questions_count FROM study_sessions
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+        UNION ALL
+        SELECT completed_at, time_spent_seconds, cards_reviewed as questions_count FROM flashcard_sessions
+        WHERE user_id = ? AND completed_at >= ? AND time_spent_seconds IS NOT NULL ${certClause}
+      )
+      GROUP BY date
+      ORDER BY date
+    `);
+    const dailyResult = dailyQuery.all(
+      userId,
+      thirtyDaysAgoTs,
+      ...certParams,
+      userId,
+      thirtyDaysAgoTs,
+      ...certParams,
+      userId,
+      thirtyDaysAgoTs,
+      ...certParams
+    ) as { date: string; totalSeconds: number; questionsAnswered: number }[];
+
+    const response: StudyTimeResponse = {
+      weeklyTotalSeconds: currentWeekResult?.total ?? 0,
+      previousWeekTotalSeconds: previousWeekResult?.total ?? 0,
+      heatmap: heatmapResult.map((row) => ({
+        dayOfWeek: row.dayOfWeek,
+        hour: row.hour,
+        totalSeconds: row.totalSeconds ?? 0,
+        sessionCount: row.sessionCount ?? 0,
+      })),
+      daily: dailyResult.map((row) => ({
+        date: row.date,
+        totalSeconds: row.totalSeconds ?? 0,
+        questionsAnswered: row.questionsAnswered ?? 0,
+      })),
+    };
+
+    return response;
   });
 
   // Get user's current streak data

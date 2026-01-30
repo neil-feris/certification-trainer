@@ -615,6 +615,28 @@ export interface TrendsResponse {
   totalExamCount: number;
 }
 
+// ============ STUDY TIME TRACKING TYPES ============
+
+export interface HeatmapDataPoint {
+  dayOfWeek: number; // 0=Sun, 6=Sat
+  hour: number; // 0-23
+  totalSeconds: number;
+  sessionCount: number;
+}
+
+export interface DailyStudyDataPoint {
+  date: string; // "2026-01-15"
+  totalSeconds: number;
+  questionsAnswered: number;
+}
+
+export interface StudyTimeResponse {
+  weeklyTotalSeconds: number;
+  previousWeekTotalSeconds: number;
+  heatmap: HeatmapDataPoint[];
+  daily: DailyStudyDataPoint[];
+}
+
 // ============ QUESTION BROWSER TYPES ============
 
 export interface QuestionBrowseParams {
