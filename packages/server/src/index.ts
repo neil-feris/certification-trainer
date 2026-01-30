@@ -44,6 +44,7 @@ import { shareRoutes } from './routes/share.js';
 import { getShareData, generateShareHtml } from './services/shareHtml.js';
 import { readFileSync } from 'fs';
 import { certificateRoutes } from './routes/certificates.js';
+import { notificationRoutes } from './routes/notifications.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -110,6 +111,7 @@ fastify.register(noteRoutes, { prefix: '/api/notes' });
 fastify.register(studyPlanRoutes, { prefix: '/api/study-plans' });
 fastify.register(shareRoutes, { prefix: '/api/share' });
 fastify.register(certificateRoutes, { prefix: '/api/certificates' });
+fastify.register(notificationRoutes, { prefix: '/api/notifications' });
 
 // Health check
 fastify.get('/api/health', async () => {
