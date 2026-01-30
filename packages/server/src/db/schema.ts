@@ -154,6 +154,7 @@ export const exams = sqliteTable(
     index('exams_user_idx').on(table.userId),
     index('exams_offline_id_idx').on(table.offlineExamId),
     index('exams_content_hash_idx').on(table.contentHash),
+    index('exams_user_completed_idx').on(table.userId, table.completedAt),
   ]
 );
 
@@ -289,6 +290,7 @@ export const studySessions = sqliteTable(
     index('sessions_topic_idx').on(table.topicId),
     index('sessions_cert_idx').on(table.certificationId),
     index('sessions_user_idx').on(table.userId),
+    index('sessions_user_completed_idx').on(table.userId, table.completedAt),
   ]
 );
 
@@ -705,6 +707,7 @@ export const flashcardSessions = sqliteTable(
     index('flashcard_sessions_user_idx').on(table.userId),
     index('flashcard_sessions_status_idx').on(table.status),
     index('flashcard_sessions_cert_idx').on(table.certificationId),
+    index('flashcard_sessions_user_completed_idx').on(table.userId, table.completedAt),
   ]
 );
 
