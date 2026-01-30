@@ -616,10 +616,12 @@ export interface TrendsResponse {
 }
 
 // ============ STUDY TIME TRACKING TYPES ============
+// NOTE: All study time data uses UTC timestamps. Week boundaries and
+// heatmap day/hour values are calculated in UTC, not the user's local time.
 
 export interface HeatmapDataPoint {
-  dayOfWeek: number; // 0=Sun, 6=Sat
-  hour: number; // 0-23
+  dayOfWeek: number; // 0=Sun, 6=Sat (SQLite strftime %w, UTC)
+  hour: number; // 0-23 (UTC)
   totalSeconds: number;
   sessionCount: number;
 }

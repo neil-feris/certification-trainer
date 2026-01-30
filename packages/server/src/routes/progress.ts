@@ -152,6 +152,9 @@ export async function progressRoutes(fastify: FastifyInstance) {
   });
 
   // Get study time tracking data (weekly total, heatmap, daily chart)
+  // NOTE: All timestamps use UTC. Week boundaries and heatmap day/hour values
+  // are calculated in UTC. This may cause activity to appear on different
+  // days/hours than the user's local time for users in non-UTC timezones.
   fastify.get<{
     Querystring: { certificationId?: string };
   }>('/study-time', async (request, reply) => {
@@ -162,12 +165,12 @@ export async function progressRoutes(fastify: FastifyInstance) {
     );
     if (certificationId === null) return;
 
-    // Calculate timestamps for date ranges (in seconds for SQLite)
+    // Calculate timestamps for date ranges (in seconds for SQLite, all UTC)
     const now = new Date();
     const fourWeeksAgoTs = Math.floor((now.getTime() - 28 * 24 * 60 * 60 * 1000) / 1000);
     const thirtyDaysAgoTs = Math.floor((now.getTime() - 30 * 24 * 60 * 60 * 1000) / 1000);
 
-    // Get start of current week (Monday)
+    // Get start of current week (Monday, UTC)
     const dayOfWeek = now.getUTCDay();
     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const currentWeekStart = new Date(now);
