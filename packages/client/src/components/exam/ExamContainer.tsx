@@ -367,7 +367,7 @@ export function ExamContainer() {
         <div className={styles.questionCard}>
           <div className={styles.questionHeader}>
             <div className={styles.questionHeaderLeft}>
-              <span className={`badge badge-accent`}>{currentQuestion.domain.name}</span>
+              <span className={`badge badge-accent`}>{currentQuestion.domain?.name ?? 'Unknown'}</span>
               {showDifficultyDuringExam && currentQuestion.difficulty && (
                 <span
                   className={`${styles.difficultyBadge} ${DIFFICULTY_STYLES[currentQuestion.difficulty]}`}

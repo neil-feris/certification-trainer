@@ -423,7 +423,7 @@ export function LearningPathDetail() {
                     : question.questionText}
                 </p>
                 <div className={styles.questionMeta}>
-                  <span className={styles.domainTag}>{question.domain.name}</span>
+                  <span className={styles.domainTag}>{question.domain?.name ?? 'Unknown'}</span>
                 </div>
               </div>
             ))}

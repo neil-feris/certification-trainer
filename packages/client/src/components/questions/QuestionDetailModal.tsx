@@ -28,7 +28,7 @@ export function QuestionDetailModal({ question, onClose }: QuestionDetailModalPr
         </button>
 
         <div className={styles.header}>
-          <span className={styles.domain}>{question.domain.name}</span>
+          <span className={styles.domain}>{question.domain?.name ?? 'Unknown'}</span>
           <span className={`${styles.difficulty} ${styles[question.difficulty]}`}>
             {question.difficulty}
           </span>

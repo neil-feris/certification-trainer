@@ -255,8 +255,8 @@ export const useStudyStore = create<StudySessionState>()(
             span.setAttribute('question.id', questionId);
             span.setAttribute('question.type', question.questionType);
             span.setAttribute('question.difficulty', question.difficulty);
-            span.setAttribute('question.domain', question.domain.name);
-            span.setAttribute('question.topic', question.topic.name);
+            span.setAttribute('question.domain', question.domain?.name ?? 'unknown');
+            span.setAttribute('question.topic', question.topic?.name ?? 'unknown');
             span.setAttribute('answer.selected_count', selectedAnswers.length);
 
             const newResponses = new Map(responses);

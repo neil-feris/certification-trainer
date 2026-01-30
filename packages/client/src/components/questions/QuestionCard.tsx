@@ -21,7 +21,7 @@ export function QuestionCard({ question, hasNote, onClick }: QuestionCardProps) 
         <BookmarkButton targetType="question" targetId={question.id} size="sm" />
       </div>
       <div className={styles.meta}>
-        <span className={styles.domain}>{question.domain.name}</span>
+        <span className={styles.domain}>{question.domain?.name ?? 'Unknown'}</span>
         <span className={`${styles.difficulty} ${styles[question.difficulty]}`}>
           {question.difficulty}
         </span>

@@ -121,9 +121,9 @@ export function ExamReview() {
         <h2 className={styles.sectionTitle}>Performance by Domain</h2>
         <div className={styles.domainList}>
           {domainPerformance.map((perf: any) => (
-            <div key={perf.domain.id} className={styles.domainItem}>
+            <div key={perf.domain?.id ?? perf.domainId} className={styles.domainItem}>
               <div className={styles.domainHeader}>
-                <span>{perf.domain.name}</span>
+                <span>{perf.domain?.name ?? 'Unknown Domain'}</span>
                 <span
                   className={`${styles.domainScore} ${perf.percentage >= passingScore ? styles.passing : ''}`}
                 >
@@ -159,7 +159,7 @@ export function ExamReview() {
                 <span className={`badge ${isCorrect ? 'badge-success' : 'badge-error'}`}>
                   {isCorrect ? 'Correct' : 'Incorrect'}
                 </span>
-                <span className="badge">{question.domain.name}</span>
+                <span className="badge">{question.domain?.name ?? 'Unknown'}</span>
                 <BookmarkButton
                   targetType="question"
                   targetId={question.id}
