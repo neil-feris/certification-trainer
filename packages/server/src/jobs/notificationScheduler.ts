@@ -6,7 +6,7 @@
  */
 
 import cron from 'node-cron';
-import { eq, and, lte, sql } from 'drizzle-orm';
+import { eq, and, lte, sql, inArray } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import {
   sendStreakWarning,
@@ -82,6 +82,9 @@ function convertPreferredTimeToUTC(preferredTime: string, timezone: string): str
   }
 }
 
+/** Minimum cards due to trigger review reminder */
+const MIN_DUE_FOR_REMINDER = 5;
+
 /**
  * Get today's date as YYYY-MM-DD
  */
@@ -90,42 +93,78 @@ function getTodayDateString(): string {
   return now.toISOString().split('T')[0];
 }
 
-/**
- * Check if user has studied today
- */
-async function hasStudiedToday(userId: number): Promise<boolean> {
-  const [streak] = await db
-    .select()
-    .from(schema.userStreaks)
-    .where(eq(schema.userStreaks.userId, userId));
-
-  if (!streak) return false;
-  return streak.lastActivityDate === getTodayDateString();
+/** Data needed to process a user's notifications (batch-fetched) */
+interface UserNotificationData {
+  prefs: typeof schema.notificationPreferences.$inferSelect;
+  streak: { currentStreak: number; lastActivityDate: string | null } | null;
+  dueReviewCount: number;
 }
 
 /**
- * Get count of cards due for review
+ * Batch-fetch all data needed for notification processing
+ * Eliminates N+1 queries by fetching streak and review data for all users at once
  */
-async function getDueReviewCount(userId: number): Promise<number> {
+async function batchFetchUserData(
+  userIds: number[]
+): Promise<Map<number, { streak: UserNotificationData['streak']; dueReviewCount: number }>> {
+  if (userIds.length === 0) return new Map();
+
   const now = new Date();
-  const result = await db
-    .select({ count: sql<number>`count(*)` })
+
+  // Batch fetch streaks for all users
+  const streaks = await db
+    .select({
+      userId: schema.userStreaks.userId,
+      currentStreak: schema.userStreaks.currentStreak,
+      lastActivityDate: schema.userStreaks.lastActivityDate,
+    })
+    .from(schema.userStreaks)
+    .where(inArray(schema.userStreaks.userId, userIds));
+
+  // Batch fetch due review counts for all users
+  const reviewCounts = await db
+    .select({
+      userId: schema.spacedRepetition.userId,
+      count: sql<number>`count(*)`.as('count'),
+    })
     .from(schema.spacedRepetition)
     .where(
       and(
-        eq(schema.spacedRepetition.userId, userId),
+        inArray(schema.spacedRepetition.userId, userIds),
         lte(schema.spacedRepetition.nextReviewAt, now)
       )
-    );
-  return result[0]?.count || 0;
+    )
+    .groupBy(schema.spacedRepetition.userId);
+
+  // Build lookup maps
+  const streakMap = new Map(streaks.map((s) => [s.userId, s]));
+  const reviewMap = new Map(reviewCounts.map((r) => [r.userId, r.count]));
+
+  // Combine into result map
+  const result = new Map<
+    number,
+    { streak: UserNotificationData['streak']; dueReviewCount: number }
+  >();
+  for (const userId of userIds) {
+    const streak = streakMap.get(userId) || null;
+    result.set(userId, {
+      streak: streak
+        ? { currentStreak: streak.currentStreak, lastActivityDate: streak.lastActivityDate }
+        : null,
+      dueReviewCount: reviewMap.get(userId) || 0,
+    });
+  }
+
+  return result;
 }
 
 /**
- * Process notifications for a single user
+ * Process notifications for a single user (using pre-fetched data)
  */
 async function processUserNotifications(
   userId: number,
-  prefs: typeof schema.notificationPreferences.$inferSelect
+  prefs: typeof schema.notificationPreferences.$inferSelect,
+  userData: { streak: UserNotificationData['streak']; dueReviewCount: number }
 ): Promise<void> {
   const today = getTodayDateString();
   const lastNotified = prefs.lastNotifiedAt?.toISOString().split('T')[0];
@@ -135,34 +174,23 @@ async function processUserNotifications(
     return;
   }
 
-  // Check streak warning
-  if (prefs.streakReminders) {
-    const [streak] = await db
-      .select()
-      .from(schema.userStreaks)
-      .where(eq(schema.userStreaks.userId, userId));
+  // Check streak warning (using pre-fetched data)
+  if (prefs.streakReminders && userData.streak) {
+    const { currentStreak, lastActivityDate } = userData.streak;
+    const hasStudiedToday = lastActivityDate === today;
 
-    if (streak && streak.currentStreak > 0) {
-      const hasStudied = await hasStudiedToday(userId);
-      if (!hasStudied) {
-        console.log(`[Scheduler] Sending streak warning to user ${userId}`);
-        await sendStreakWarning(userId, streak.currentStreak);
-      }
+    if (currentStreak > 0 && !hasStudiedToday) {
+      await sendStreakWarning(userId, currentStreak);
     }
   }
 
-  // Check review reminders
-  if (prefs.reviewReminders) {
-    const dueCount = await getDueReviewCount(userId);
-    if (dueCount >= 5) {
-      console.log(`[Scheduler] Sending review reminder to user ${userId} (${dueCount} due)`);
-      await sendReviewReminder(userId, dueCount);
-    }
+  // Check review reminders (using pre-fetched count)
+  if (prefs.reviewReminders && userData.dueReviewCount >= MIN_DUE_FOR_REMINDER) {
+    await sendReviewReminder(userId, userData.dueReviewCount);
   }
 
-  // Check QOTD reminder
+  // Send QOTD reminder
   if (prefs.qotdReminders) {
-    console.log(`[Scheduler] Sending QOTD notification to user ${userId}`);
     await sendQotdNotification(userId);
   }
 
@@ -209,11 +237,18 @@ async function runNotificationJob(): Promise<void> {
       return userUTCSlot === currentUTCSlot;
     });
 
-    console.log(`[Scheduler] Found ${eligibleUsers.length} eligible users`);
+    if (eligibleUsers.length === 0) {
+      return;
+    }
+
+    // Batch-fetch streak and review data for all eligible users (eliminates N+1)
+    const userIds = eligibleUsers.map(({ userId }) => userId);
+    const userData = await batchFetchUserData(userIds);
 
     for (const { userId, prefs } of eligibleUsers) {
       try {
-        await processUserNotifications(userId, prefs);
+        const data = userData.get(userId) || { streak: null, dueReviewCount: 0 };
+        await processUserNotifications(userId, prefs, data);
       } catch (error) {
         console.error(`[Scheduler] Error processing user ${userId}:`, error);
       }
