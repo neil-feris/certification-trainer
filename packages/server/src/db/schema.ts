@@ -624,6 +624,44 @@ export const userSettings = sqliteTable(
   ]
 );
 
+// ============ PUSH NOTIFICATIONS ============
+export const pushSubscriptions = sqliteTable(
+  'push_subscriptions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    index('push_subscriptions_user_idx').on(table.userId),
+    uniqueIndex('push_subscriptions_user_endpoint_idx').on(table.userId, table.endpoint),
+  ]
+);
+
+export const notificationPreferences = sqliteTable(
+  'notification_preferences',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    streakReminders: integer('streak_reminders', { mode: 'boolean' }).notNull().default(true),
+    reviewReminders: integer('review_reminders', { mode: 'boolean' }).notNull().default(true),
+    qotdReminders: integer('qotd_reminders', { mode: 'boolean' }).notNull().default(true),
+    preferredTime: text('preferred_time').notNull().default('09:00'),
+    timezone: text('timezone').notNull().default('UTC'),
+    lastNotifiedAt: integer('last_notified_at', { mode: 'timestamp' }),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [uniqueIndex('notification_preferences_user_idx').on(table.userId)]
+);
+
 // ============ STUDY PLANS ============
 export const studyPlans = sqliteTable(
   'study_plans',
@@ -816,3 +854,7 @@ export type QuestionFeedbackRecord = typeof questionFeedback.$inferSelect;
 export type NewQuestionFeedback = typeof questionFeedback.$inferInsert;
 export type QuestionReportRecord = typeof questionReports.$inferSelect;
 export type NewQuestionReport = typeof questionReports.$inferInsert;
+export type PushSubscriptionRecord = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
+export type NotificationPreferencesRecord = typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreferences = typeof notificationPreferences.$inferInsert;
