@@ -16,14 +16,70 @@ import {
 } from '../services/pushNotificationService.js';
 
 /**
- * Get current time in HH:mm format
+ * Get current UTC time slot in HH:mm format (rounded to 15-min)
  */
-function getCurrentTimeSlot(): string {
+function getCurrentUTCTimeSlot(): string {
   const now = new Date();
   const hours = String(now.getUTCHours()).padStart(2, '0');
-  // Round to nearest 15-minute slot
   const minutes = String(Math.floor(now.getUTCMinutes() / 15) * 15).padStart(2, '0');
   return `${hours}:${minutes}`;
+}
+
+/**
+ * Convert user's preferred time (in their timezone) to UTC time slot
+ * Returns the HH:mm in UTC that corresponds to their local preferred time
+ */
+function convertPreferredTimeToUTC(preferredTime: string, timezone: string): string {
+  try {
+    // Parse the preferred time
+    const [hours, minutes] = preferredTime.split(':').map(Number);
+
+    // Use today's date as reference for timezone offset calculation
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const day = now.getUTCDate();
+
+    // Use Intl to find the UTC offset for this timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+    });
+
+    // Get the timezone offset by comparing formatted local time with UTC
+    const testDate = new Date(Date.UTC(year, month, day, hours, minutes, 0));
+    const parts = formatter.formatToParts(testDate);
+    const localHour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0', 10);
+    const localMinute = parseInt(parts.find((p) => p.type === 'minute')?.value || '0', 10);
+
+    // Calculate the offset in minutes
+    const localTotalMinutes = localHour * 60 + localMinute;
+    const utcTotalMinutes = hours * 60 + minutes;
+    let offsetMinutes = localTotalMinutes - utcTotalMinutes;
+
+    // Normalize offset to handle day boundaries
+    if (offsetMinutes > 720) offsetMinutes -= 1440;
+    if (offsetMinutes < -720) offsetMinutes += 1440;
+
+    // Convert user's preferred local time to UTC
+    let utcMinutes = hours * 60 + minutes - offsetMinutes;
+
+    // Handle day wrap-around
+    if (utcMinutes < 0) utcMinutes += 1440;
+    if (utcMinutes >= 1440) utcMinutes -= 1440;
+
+    // Round to nearest 15-minute slot
+    const roundedMinutes = Math.floor(utcMinutes / 15) * 15;
+    const utcHours = Math.floor(roundedMinutes / 60) % 24;
+    const utcMins = roundedMinutes % 60;
+
+    return `${String(utcHours).padStart(2, '0')}:${String(utcMins).padStart(2, '0')}`;
+  } catch {
+    // Fallback: treat as UTC if timezone is invalid
+    return preferredTime;
+  }
 }
 
 /**
@@ -126,15 +182,15 @@ async function runNotificationJob(): Promise<void> {
     return;
   }
 
-  const currentTimeSlot = getCurrentTimeSlot();
-  console.log(`[Scheduler] Running notification job for time slot ${currentTimeSlot}`);
+  const currentUTCSlot = getCurrentUTCTimeSlot();
+  console.log(`[Scheduler] Running notification job for UTC slot ${currentUTCSlot}`);
 
   try {
     // Find users with:
     // 1. At least one push subscription
     // 2. Notifications enabled
-    // 3. Preferred time matches current slot (with timezone consideration simplified to UTC for now)
-    const eligibleUsers = await db
+    // We fetch all enabled users and filter by timezone-converted preferred time
+    const allEnabledUsers = await db
       .select({
         userId: schema.notificationPreferences.userId,
         prefs: schema.notificationPreferences,
@@ -144,13 +200,14 @@ async function runNotificationJob(): Promise<void> {
         schema.pushSubscriptions,
         eq(schema.notificationPreferences.userId, schema.pushSubscriptions.userId)
       )
-      .where(
-        and(
-          eq(schema.notificationPreferences.enabled, true),
-          eq(schema.notificationPreferences.preferredTime, currentTimeSlot)
-        )
-      )
+      .where(eq(schema.notificationPreferences.enabled, true))
       .groupBy(schema.notificationPreferences.userId);
+
+    // Filter users whose preferred time (converted to UTC) matches current slot
+    const eligibleUsers = allEnabledUsers.filter(({ prefs }) => {
+      const userUTCSlot = convertPreferredTimeToUTC(prefs.preferredTime, prefs.timezone);
+      return userUTCSlot === currentUTCSlot;
+    });
 
     console.log(`[Scheduler] Found ${eligibleUsers.length} eligible users`);
 
