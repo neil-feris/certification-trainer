@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthLoader, ErrorBoundary, RouteErrorBoundary, Toast } from './components/common';
@@ -23,53 +22,14 @@ import { NotesPage } from './components/notes/NotesPage';
 import { LoginPage, AuthCallbackPage, ShareExamPage, VerifyCertificatePage } from './pages';
 import { useAuthStore } from './stores/authStore';
 import { useOfflineSyncNotifications } from './hooks/useOfflineSyncNotifications';
+import { useAuthVerification } from './hooks/useAuthVerification';
 
-// Root redirect component - handles auth-aware redirects
+// Root redirect component - redirects to dashboard or login
 function RootRedirect() {
-  const { isAuthenticated, isLoading, accessToken, setLoading, login, logout } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuthStore();
 
-  // Handle auth initialization on mount
-  useEffect(() => {
-    const initAuth = async () => {
-      if (!accessToken) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          credentials: 'include',
-        });
-
-        if (response.ok) {
-          const user = await response.json();
-          login(user, accessToken);
-        } else {
-          // Token invalid, try refresh
-          const refreshResponse = await fetch('/api/auth/refresh', {
-            method: 'POST',
-            credentials: 'include',
-          });
-
-          if (refreshResponse.ok) {
-            const { accessToken: newToken, user } = await refreshResponse.json();
-            login(user, newToken);
-          } else {
-            logout();
-          }
-        }
-      } catch {
-        logout();
-      }
-    };
-
-    if (isLoading) {
-      initAuth();
-    }
-  }, [accessToken, isLoading, setLoading, login, logout]);
+  // Verify auth on mount
+  useAuthVerification();
 
   // While loading auth state, show full-screen loader
   if (isLoading) {
