@@ -10,7 +10,8 @@ interface ActivityHeatmapProps {
   data: HeatmapDataPoint[];
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Monday-first to match weekly total calculation
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const HOUR_LABELS = [
   { hour: 6, label: '6am' },
@@ -35,12 +36,18 @@ function formatDuration(seconds: number): string {
   return `${hours}h ${minutes}m`;
 }
 
+// Convert SQLite dayOfWeek (0=Sun) to Monday-based (0=Mon)
+function toMondayBasedDay(sqliteDayOfWeek: number): number {
+  return sqliteDayOfWeek === 0 ? 6 : sqliteDayOfWeek - 1;
+}
+
 export function ActivityHeatmap({ data }: ActivityHeatmapProps) {
-  // Create a map for quick lookup
+  // Create a map for quick lookup (convert to Monday-based index)
   const dataMap = useMemo(() => {
     const map = new Map<string, HeatmapDataPoint>();
     for (const point of data) {
-      map.set(`${point.dayOfWeek}-${point.hour}`, point);
+      const mondayBasedDay = toMondayBasedDay(point.dayOfWeek);
+      map.set(`${mondayBasedDay}-${point.hour}`, point);
     }
     return map;
   }, [data]);
