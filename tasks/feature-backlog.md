@@ -288,11 +288,13 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ---
 
 ### FEAT-013: Push Notifications
-- **Status**: `[ ]`
+- **Status**: `[x]`
 - **Priority**: P2 (Medium Impact, Medium Effort)
 - **Category**: Engagement
 
 **Description**: Browser push notifications for review reminders, streak warnings, and daily questions.
+
+**Implemented**: VAPID-authenticated Web Push with user preferences, timezone-aware scheduling, streak/review/QOTD notifications, service worker handlers. Deployed 2026-01-30 (v0.0.31).
 
 **Requirements**:
 - Permission request flow (non-intrusive)
@@ -307,7 +309,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 - Web Push API with service worker
 - Store push subscriptions in `push_subscriptions` table
 - Server-side push via `web-push` npm package
-- Scheduled job for daily notifications
+- Scheduled job for daily notifications (15-min intervals)
 
 ---
 
@@ -511,17 +513,17 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 
 | Status | Count | Features |
 |--------|-------|----------|
-| **Done** | 14 | FEAT-001-012, FEAT-014, FEAT-020 |
+| **Done** | 15 | FEAT-001-014, FEAT-020 |
 | **In Progress** | 0 | — |
-| **Remaining** | 8 | FEAT-013, 015-019, 021-022 |
+| **Remaining** | 7 | FEAT-015-019, 021-022 |
 
 | Phase | Features | Status |
 |-------|----------|--------|
 | **1: Engagement** | FEAT-001 to FEAT-006 | ✅ Complete |
 | **2: Intelligence** | FEAT-007 to FEAT-011 | ✅ Complete |
-| **3: PWA/Offline** | FEAT-012 to FEAT-013 | 🔄 Partial (PWA done, Push not started) |
+| **3: PWA/Offline** | FEAT-012 to FEAT-013 | ✅ Complete |
 | **4: Analytics** | FEAT-014 to FEAT-016 | 🔄 Partial (Time tracking done, Mastery Map & Benchmarking not started) |
 | **5: Social** | FEAT-017 to FEAT-019 | ❌ Not started |
 | **6: Technical** | FEAT-020 to FEAT-022 | 🔄 Partial (Sentry done, Import/Admin not started) |
 
-**Recommended Next**: FEAT-013 (Push Notifications) to finish Phase 3, or FEAT-015 (GCP Service Mastery Map) for analytics.
+**Recommended Next**: FEAT-015 (GCP Service Mastery Map) for analytics, or FEAT-021 (Data Import) to complete data portability.
