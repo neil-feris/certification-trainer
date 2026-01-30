@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthLoader, ErrorBoundary, RouteErrorBoundary, Toast } from './components/common';
@@ -23,54 +22,14 @@ import { NotesPage } from './components/notes/NotesPage';
 import { LoginPage, AuthCallbackPage, ShareExamPage, VerifyCertificatePage } from './pages';
 import { useAuthStore } from './stores/authStore';
 import { useOfflineSyncNotifications } from './hooks/useOfflineSyncNotifications';
+import { useAuthVerification } from './hooks/useAuthVerification';
 
 // Root redirect component - redirects to dashboard or login
-// Auth verification is handled by ProtectedRoute
 function RootRedirect() {
-  const { isAuthenticated, isLoading, accessToken, setLoading, login, logout } = useAuthStore();
-  const authCheckStarted = useRef(false);
+  const { isAuthenticated, isLoading } = useAuthStore();
 
-  // Verify auth on mount if we have a stored token
-  useEffect(() => {
-    if (!isLoading || authCheckStarted.current) return;
-    authCheckStarted.current = true;
-
-    const verifyAuth = async () => {
-      if (!accessToken) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          credentials: 'include',
-        });
-
-        if (response.ok) {
-          const user = await response.json();
-          login(user, accessToken);
-        } else {
-          // Token invalid, try refresh
-          const refreshResponse = await fetch('/api/auth/refresh', {
-            method: 'POST',
-            credentials: 'include',
-          });
-
-          if (refreshResponse.ok) {
-            const { accessToken: newToken, user } = await refreshResponse.json();
-            login(user, newToken);
-          } else {
-            logout();
-          }
-        }
-      } catch {
-        logout();
-      }
-    };
-
-    verifyAuth();
-  }, [isLoading, accessToken, setLoading, login, logout]);
+  // Verify auth on mount
+  useAuthVerification();
 
   // While loading auth state, show full-screen loader
   if (isLoading) {
