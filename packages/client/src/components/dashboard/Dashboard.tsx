@@ -9,6 +9,7 @@ import { XPDisplay } from '../common/XPDisplay';
 import { XPHistoryPanel } from '../common/XPHistoryPanel';
 import { QotdWidget } from '../qotd';
 import { StudyPlanWidget } from './StudyPlanWidget';
+import { StudyActivitySection } from './StudyActivitySection';
 import { OfflineFeatureGuide, useOfflineFeatureGuide } from '../common/OfflineStates';
 import { OfflineExamRecoveryModal } from '../exam/OfflineExamRecoveryModal';
 import styles from './Dashboard.module.css';
@@ -349,6 +350,9 @@ export function Dashboard() {
         isLoading={xpHistoryLoading}
         error={!!xpHistoryError}
       />
+
+      {/* Study Activity Section */}
+      <StudyActivitySection />
 
       <div className={styles.mainGrid}>
         {/* Study Plan Widget */}

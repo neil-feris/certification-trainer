@@ -62,6 +62,7 @@ import type {
   LastFlashcardSessionResponse,
   ReadinessResponse,
   ReadinessSnapshot,
+  StudyTimeResponse,
   QotdResponse,
   QotdCompletionRequest,
   QotdCompletionResponse,
@@ -530,6 +531,10 @@ export const progressApi = {
     params.set('certificationId', String(certificationId));
     if (limit) params.set('limit', String(limit));
     return request<ReadinessSnapshot[]>(`/progress/readiness/history?${params}`);
+  },
+  getStudyTime: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<StudyTimeResponse>(`/progress/study-time${params}`);
   },
 };
 

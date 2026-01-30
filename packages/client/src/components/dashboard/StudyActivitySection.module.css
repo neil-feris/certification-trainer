@@ -1,0 +1,206 @@
+/* StudyActivitySection styles */
+
+.section {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  color: var(--text-primary);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.emptyState {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.emptyState p {
+  margin: 0;
+}
+
+/* Top row: Weekly card + Heatmap */
+.topRow {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .topRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Weekly Total Card */
+.weeklyCard {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.weeklyValue {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.weeklyNumber {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.weeklyUnit {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.weeklyLabel {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.weeklyDelta {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.weeklyDelta.increase {
+  color: var(--success);
+}
+
+.weeklyDelta.decrease {
+  color: var(--error);
+}
+
+.deltaArrow {
+  font-weight: 600;
+}
+
+.deltaLabel {
+  opacity: 0.8;
+}
+
+/* Activity Heatmap */
+.heatmapContainer {
+  overflow-x: auto;
+}
+
+.heatmapGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 400px;
+}
+
+.heatmapRow {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.dayLabel {
+  width: 32px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-align: right;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+.hourLabel {
+  width: 14px;
+  height: 14px;
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.heatmapCell {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  cursor: default;
+  transition: transform 0.1s;
+}
+
+.heatmapCell:hover {
+  transform: scale(1.2);
+}
+
+/* Intensity levels */
+.intensity0 {
+  background: var(--bg-tertiary);
+}
+
+.intensity1 {
+  background: color-mix(in srgb, var(--accent) 25%, var(--bg-tertiary));
+}
+
+.intensity2 {
+  background: color-mix(in srgb, var(--accent) 50%, var(--bg-tertiary));
+}
+
+.intensity3 {
+  background: color-mix(in srgb, var(--accent) 75%, var(--bg-tertiary));
+}
+
+.intensity4 {
+  background: var(--accent);
+}
+
+/* Chart section */
+.chartRow {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.chartTitle {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
+}
+
+.chartContainer {
+  width: 100%;
+}
+
+.chartEmpty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.chartEmpty p {
+  margin: 0;
+  font-size: 0.9rem;
+}
