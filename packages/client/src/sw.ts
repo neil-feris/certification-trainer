@@ -162,6 +162,67 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
 });
 
 // =============================================================================
+// PUSH NOTIFICATIONS
+// =============================================================================
+
+/**
+ * Handle incoming push notifications
+ */
+self.addEventListener('push', (event: PushEvent) => {
+  if (!event.data) {
+    console.log('[SW] Push event with no data');
+    return;
+  }
+
+  try {
+    const payload = event.data.json() as PushNotificationPayload;
+    const { title, body, icon, badge, tag, data } = payload;
+
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body,
+        icon: icon || '/icons/icon-192x192.png',
+        badge: badge || '/icons/badge-72x72.png',
+        tag,
+        data,
+        requireInteraction: false,
+      })
+    );
+  } catch (error) {
+    console.error('[SW] Error handling push event:', error);
+  }
+});
+
+/**
+ * Handle notification click - navigate to the specified URL
+ */
+self.addEventListener('notificationclick', (event: NotificationEvent) => {
+  event.notification.close();
+
+  const notificationData = event.notification.data as { url?: string } | undefined;
+  const url = notificationData?.url || '/dashboard';
+
+  event.waitUntil(
+    (async () => {
+      // Try to focus an existing window
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          await client.focus();
+          // Navigate within the app
+          client.postMessage({ type: 'NAVIGATE', url });
+          return;
+        }
+      }
+
+      // No existing window, open a new one
+      await self.clients.openWindow(url);
+    })()
+  );
+});
+
+// =============================================================================
 // LIFECYCLE EVENTS
 // =============================================================================
 
@@ -185,7 +246,17 @@ interface PeriodicSyncEvent extends ExtendableEvent {
   readonly tag: string;
 }
 
-// Declare the global sync event listener
+// Push notification payload structure
+interface PushNotificationPayload {
+  title: string;
+  body?: string;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  data?: { url?: string; [key: string]: unknown };
+}
+
+// Declare the global sync event listener (push/notificationclick are already in lib.webworker)
 declare global {
   interface ServiceWorkerGlobalScopeEventMap {
     sync: SyncEvent;

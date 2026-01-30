@@ -13,6 +13,7 @@ import { StudyActivitySection } from './StudyActivitySection';
 import { OfflineFeatureGuide, useOfflineFeatureGuide } from '../common/OfflineStates';
 import { OfflineExamRecoveryModal } from '../exam/OfflineExamRecoveryModal';
 import { SyncStatusWidget } from './SyncStatusWidget';
+import { StreakNotificationPrompt } from './StreakNotificationPrompt';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -327,10 +328,13 @@ export function Dashboard() {
               <span className="animate-pulse">...</span>
             </div>
           ) : (
-            <StreakDisplay
-              variant="full"
-              streak={streak || { currentStreak: 0, longestStreak: 0, lastActivityDate: null }}
-            />
+            <>
+              <StreakDisplay
+                variant="full"
+                streak={streak || { currentStreak: 0, longestStreak: 0, lastActivityDate: null }}
+              />
+              <StreakNotificationPrompt currentStreak={streak?.currentStreak || 0} />
+            </>
           )}
         </div>
         <div className={styles.statCard}>

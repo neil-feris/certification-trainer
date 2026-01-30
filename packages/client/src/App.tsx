@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthLoader, ErrorBoundary, RouteErrorBoundary, Toast } from './components/common';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -43,6 +44,22 @@ function RootRedirect() {
 function App() {
   // Listen for offline exam sync notifications
   useOfflineSyncNotifications();
+
+  // Handle navigation from push notification clicks
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NAVIGATE' && event.data?.url) {
+        navigate(event.data.url);
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleMessage);
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleMessage);
+    };
+  }, [navigate]);
 
   return (
     <ErrorBoundary>

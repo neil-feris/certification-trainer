@@ -1,0 +1,244 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 200, 83, 0.12);
+  color: var(--success);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.unsupported {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.loading {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 16px 0;
+}
+
+/* Preferences form */
+.preferencesForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.toggleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Toggle switch - matches Settings.module.css pattern */
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.toggleInput {
+  appearance: none;
+  width: 44px;
+  height: 24px;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border-subtle);
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.toggleInput::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: all var(--transition-fast);
+}
+
+.toggleInput:checked {
+  background: rgba(0, 212, 170, 0.2);
+  border-color: var(--accent-primary);
+}
+
+.toggleInput:checked::after {
+  left: 22px;
+  background: var(--accent-primary);
+}
+
+.toggleInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggleText {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 56px; /* Align with toggle text (44px toggle + 12px gap) */
+}
+
+/* Time picker */
+.timeGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.timeLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.timeInput {
+  width: fit-content;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font-mono);
+  transition: all var(--transition-fast);
+}
+
+.timeInput:hover {
+  border-color: var(--accent-primary);
+}
+
+.timeInput:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+}
+
+.timeInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Buttons */
+.enableBtn {
+  align-self: flex-start;
+  padding: 12px 24px;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.enableBtn:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+}
+
+.enableBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.disableBtn {
+  align-self: flex-start;
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.disableBtn:hover:not(:disabled) {
+  background: rgba(255, 82, 82, 0.1);
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.disableBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hint {
+    margin-left: 0;
+  }
+
+  .enableBtn,
+  .disableBtn {
+    width: 100%;
+    text-align: center;
+  }
+}

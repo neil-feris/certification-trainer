@@ -44,6 +44,8 @@ import { shareRoutes } from './routes/share.js';
 import { getShareData, generateShareHtml } from './services/shareHtml.js';
 import { readFileSync } from 'fs';
 import { certificateRoutes } from './routes/certificates.js';
+import { notificationRoutes } from './routes/notifications.js';
+import { startNotificationScheduler } from './jobs/notificationScheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -110,6 +112,7 @@ fastify.register(noteRoutes, { prefix: '/api/notes' });
 fastify.register(studyPlanRoutes, { prefix: '/api/study-plans' });
 fastify.register(shareRoutes, { prefix: '/api/share' });
 fastify.register(certificateRoutes, { prefix: '/api/certificates' });
+fastify.register(notificationRoutes, { prefix: '/api/notifications' });
 
 // Health check
 fastify.get('/api/health', async () => {
@@ -163,6 +166,9 @@ const start = async () => {
   try {
     // Run database migrations before starting
     runStartupMigrations();
+
+    // Start notification scheduler (production only)
+    startNotificationScheduler();
 
     const port = parseInt(process.env.PORT || '3001', 10);
     const host = process.env.HOST || '127.0.0.1';

@@ -16,6 +16,7 @@ import {
   type DifficultyOption,
 } from '@ace-prep/shared';
 import { OfflineSettings } from './OfflineSettings';
+import { NotificationSettings } from './NotificationSettings';
 import styles from './Settings.module.css';
 
 const DIFFICULTY_LABELS: Record<DifficultyOption, string> = {
@@ -437,6 +438,11 @@ export function Settings() {
       {/* Offline Mode */}
       <section className={`card ${styles.section}`}>
         <OfflineSettings />
+      </section>
+
+      {/* Push Notifications */}
+      <section className={`card ${styles.section}`}>
+        <NotificationSettings />
       </section>
 
       {/* Data Management */}
