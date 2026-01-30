@@ -160,6 +160,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
       request.query.certificationId,
       reply
     );
+    if (certificationId === null) return;
 
     // Calculate timestamps for date ranges (in seconds for SQLite)
     const now = new Date();
