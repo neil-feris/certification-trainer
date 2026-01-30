@@ -5,7 +5,7 @@
  * Uses custom toggle styling consistent with other Settings sections.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Sentry from '@sentry/react';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import styles from './NotificationSettings.module.css';
@@ -46,6 +46,10 @@ export function NotificationSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPrefs, setIsLoadingPrefs] = useState(false);
 
+  // Ref to track current preferences for rollback (avoids stale closure)
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
+
   // Load preferences from server when subscribed
   useEffect(() => {
     if (!isSubscribed) return;
@@ -77,37 +81,34 @@ export function NotificationSettings() {
   }, [isSubscribed]);
 
   // Save preferences with optimistic update and rollback
-  const savePreferences = useCallback(
-    async (updates: Partial<NotificationPreferences>) => {
-      const previousPrefs = preferences;
-      const newPrefs = { ...preferences, ...updates };
+  const savePreferences = useCallback(async (updates: Partial<NotificationPreferences>) => {
+    // Capture current state via ref to avoid stale closure on rapid toggles
+    const previousPrefs = preferencesRef.current;
 
-      // Optimistic update
-      setPreferences(newPrefs);
-      setIsSaving(true);
+    // Optimistic update
+    setPreferences((prev) => ({ ...prev, ...updates }));
+    setIsSaving(true);
 
-      try {
-        const response = await fetch('/api/notifications/preferences', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(updates),
-        });
+    try {
+      const response = await fetch('/api/notifications/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updates),
+      });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-      } catch (error) {
-        // Rollback on failure
-        setPreferences(previousPrefs);
-        Sentry.captureException(error);
-        console.error('[NotificationSettings] Failed to save preferences:', error);
-      } finally {
-        setIsSaving(false);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-    },
-    [preferences]
-  );
+    } catch (error) {
+      // Rollback to state captured at call time
+      setPreferences(previousPrefs);
+      Sentry.captureException(error);
+      console.error('[NotificationSettings] Failed to save preferences:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
 
   const handleSubscribe = async () => {
     const success = await subscribe();
