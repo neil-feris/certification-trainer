@@ -12,6 +12,7 @@ import { StudyPlanWidget } from './StudyPlanWidget';
 import { StudyActivitySection } from './StudyActivitySection';
 import { OfflineFeatureGuide, useOfflineFeatureGuide } from '../common/OfflineStates';
 import { OfflineExamRecoveryModal } from '../exam/OfflineExamRecoveryModal';
+import { SyncStatusWidget } from './SyncStatusWidget';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -244,6 +245,9 @@ export function Dashboard() {
           Start Practice Exam
         </button>
       </header>
+
+      {/* Sync Status - shows pending offline results */}
+      <SyncStatusWidget />
 
       {/* Quick Actions - mobile only */}
       <div className={styles.quickActions}>
