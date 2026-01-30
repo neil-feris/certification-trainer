@@ -2,7 +2,7 @@
 
 Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks/feature-backlog.md`
 
-**Last Updated**: 2026-01-29
+**Last Updated**: 2026-01-30
 **Status Legend**: `[ ]` Todo | `[~]` In Progress | `[x]` Done
 
 ---
@@ -314,13 +314,13 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 ## Phase 4: Analytics & Insights
 
 ### FEAT-014: Study Time Tracking
-- **Status**: `[~]`
+- **Status**: `[x]`
 - **Priority**: P2 (Medium Impact, Low Effort)
 - **Category**: Analytics
 
 **Description**: Track time spent studying. Show daily/weekly totals, study heatmap by time of day.
 
-**Partial Implementation**: `timeSpentSeconds` tracked on exam/drill responses. Missing: dashboard widget, aggregation, heatmap.
+**Implemented**: Dashboard widget with weekly total, activity heatmap by day/hour, progress over time chart. Deployed 2026-01-30.
 
 **Requirements**:
 - Track session duration (already have `timeSpentSeconds` on responses)
@@ -511,8 +511,8 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 
 | Status | Count | Features |
 |--------|-------|----------|
-| **Done** | 12 | FEAT-001-011, FEAT-020 |
-| **In Progress** | 2 | FEAT-012 (PWA), FEAT-014 (Time Tracking) |
+| **Done** | 13 | FEAT-001-011, FEAT-014, FEAT-020 |
+| **In Progress** | 1 | FEAT-012 (PWA) |
 | **Remaining** | 8 | FEAT-013, 015-019, 021-022 |
 
 | Phase | Features | Status |
@@ -520,7 +520,7 @@ Use with: `/ralph-init <feature-id>` or `/ralph-init the next feature from tasks
 | **1: Engagement** | FEAT-001 to FEAT-006 | ✅ Complete |
 | **2: Intelligence** | FEAT-007 to FEAT-011 | ✅ Complete |
 | **3: PWA/Offline** | FEAT-012 to FEAT-013 | 🔄 Partial (PWA in progress, Push not started) |
-| **4: Analytics** | FEAT-014 to FEAT-016 | 🔄 Partial (Time tracking partial, others not started) |
+| **4: Analytics** | FEAT-014 to FEAT-016 | 🔄 Partial (Time tracking done, Mastery Map & Benchmarking not started) |
 | **5: Social** | FEAT-017 to FEAT-019 | ❌ Not started |
 | **6: Technical** | FEAT-020 to FEAT-022 | 🔄 Partial (Sentry done, Import/Admin not started) |
 
