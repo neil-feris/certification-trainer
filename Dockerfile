@@ -1,5 +1,5 @@
 # Build stage
-FROM node:25-alpine AS builder
+FROM node:24.13.0-alpine3.22 AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ COPY tsconfig.json ./
 RUN npm run build
 
 # Production stage
-FROM node:25-alpine AS production
+FROM node:24.13.0-alpine3.22 AS production
 
 # Install build dependencies for better-sqlite3 native bindings
 # These are needed at runtime for npm rebuild
