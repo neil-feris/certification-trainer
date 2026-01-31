@@ -54,6 +54,34 @@ function safeParseGcpServices(raw: string | null): string[] {
   }
 }
 
+/** Simple in-memory cache for mastery-map results (60s TTL) */
+const masteryMapCache = new Map<string, { data: MasteryMapResponse; expiresAt: number }>();
+const MASTERY_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+function getMasteryMapFromCache(
+  userId: number,
+  certificationId: number
+): MasteryMapResponse | null {
+  const key = `${userId}:${certificationId}`;
+  const cached = masteryMapCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+  if (cached) {
+    masteryMapCache.delete(key); // Expired
+  }
+  return null;
+}
+
+function setMasteryMapCache(
+  userId: number,
+  certificationId: number,
+  data: MasteryMapResponse
+): void {
+  const key = `${userId}:${certificationId}`;
+  masteryMapCache.set(key, { data, expiresAt: Date.now() + MASTERY_CACHE_TTL_MS });
+}
+
 function getISOWeek(date: Date): { year: number; week: number } {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   // Set to nearest Thursday: current date + 4 - current day number (make Sunday=7)
@@ -957,6 +985,12 @@ export async function progressRoutes(fastify: FastifyInstance) {
     }
     const { certificationId } = queryResult.data;
 
+    // Check cache first
+    const cached = getMasteryMapFromCache(userId, certificationId);
+    if (cached) {
+      return cached;
+    }
+
     // Get all exam responses with question details
     const conditions = [
       eq(examResponses.userId, userId),
@@ -1137,6 +1171,9 @@ export async function progressRoutes(fastify: FastifyInstance) {
         overallAccuracy: totalAttempted > 0 ? (totalCorrect / totalAttempted) * 100 : null,
       },
     };
+
+    // Cache the result
+    setMasteryMapCache(userId, certificationId, response);
 
     return response;
   });
