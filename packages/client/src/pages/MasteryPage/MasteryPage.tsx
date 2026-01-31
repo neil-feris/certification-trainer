@@ -102,9 +102,18 @@ export function MasteryPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['mastery-map', selectedCertificationId],
-    queryFn: () => progressApi.getMasteryMap(selectedCertificationId ?? undefined),
+    queryFn: () => progressApi.getMasteryMap(selectedCertificationId!),
     staleTime: 5 * 60 * 1000,
+    enabled: selectedCertificationId !== null,
   });
+
+  if (!selectedCertificationId) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.loading}>Select a certification to view mastery...</div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

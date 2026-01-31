@@ -628,9 +628,8 @@ export const progressApi = {
     const params = certificationId ? `?certificationId=${certificationId}` : '';
     return request<StudyTimeResponse>(`/progress/study-time${params}`);
   },
-  getMasteryMap: (certificationId?: number) => {
-    const params = certificationId ? `?certificationId=${certificationId}` : '';
-    return request<MasteryMapResponse>(`/progress/mastery-map${params}`);
+  getMasteryMap: (certificationId: number) => {
+    return request<MasteryMapResponse>(`/progress/mastery-map?certificationId=${certificationId}`);
   },
 };
 

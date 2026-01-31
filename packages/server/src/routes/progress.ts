@@ -40,7 +40,7 @@ import { z } from 'zod';
  * ISO weeks start on Monday, and week 1 is the week containing the first Thursday.
  */
 const masteryMapQuerySchema = z.object({
-  certificationId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  certificationId: z.string().regex(/^\d+$/).transform(Number),
 });
 
 function getISOWeek(date: Date): { year: number; week: number } {
@@ -936,21 +936,21 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
   // GET /progress/mastery-map - GCP service mastery grid
   fastify.get<{
-    Querystring: { certificationId?: string };
+    Querystring: { certificationId: string };
   }>('/mastery-map', async (request, reply) => {
     const userId = parseInt(request.user!.id, 10);
 
     const queryResult = masteryMapQuerySchema.safeParse(request.query);
     if (!queryResult.success) {
-      return reply.status(400).send({ error: 'Invalid query parameters' });
+      return reply.status(400).send({ error: 'certificationId is required' });
     }
     const { certificationId } = queryResult.data;
 
     // Get all exam responses with question details
-    const conditions = [eq(examResponses.userId, userId)];
-    if (certificationId) {
-      conditions.push(eq(exams.certificationId, certificationId));
-    }
+    const conditions = [
+      eq(examResponses.userId, userId),
+      eq(exams.certificationId, certificationId),
+    ];
 
     const responses = await db
       .select({
@@ -966,21 +966,14 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     // Get total questions per service (for coverage)
     // Questions don't have certificationId directly, must join through domains
-    const allQuestions = certificationId
-      ? await db
-          .select({
-            id: questions.id,
-            gcpServices: questions.gcpServices,
-          })
-          .from(questions)
-          .innerJoin(domains, eq(domains.id, questions.domainId))
-          .where(eq(domains.certificationId, certificationId))
-      : await db
-          .select({
-            id: questions.id,
-            gcpServices: questions.gcpServices,
-          })
-          .from(questions);
+    const allQuestions = await db
+      .select({
+        id: questions.id,
+        gcpServices: questions.gcpServices,
+      })
+      .from(questions)
+      .innerJoin(domains, eq(domains.id, questions.domainId))
+      .where(eq(domains.certificationId, certificationId));
 
     // Build service stats map
     const serviceStats = new Map<
