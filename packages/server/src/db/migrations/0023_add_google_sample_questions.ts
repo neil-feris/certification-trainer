@@ -24,14 +24,14 @@ const db = new Database(dbPath);
 
 console.log('Running migration: Add Official Google ACE Sample Questions...');
 
-// Check if google sample questions already exist
-const existingGoogleSample = db
-  .prepare("SELECT COUNT(*) as count FROM questions WHERE source = 'google-sample'")
+// Check if workbook questions already exist
+const existingWorkbook = db
+  .prepare("SELECT COUNT(*) as count FROM questions WHERE source = 'workbook'")
   .get() as { count: number };
 
-if (existingGoogleSample.count > 0) {
+if (existingWorkbook.count > 0) {
   console.log(
-    `Google sample questions already exist (${existingGoogleSample.count} found). Skipping migration.`
+    `Workbook questions already exist (${existingWorkbook.count} found). Skipping migration.`
   );
   db.close();
   process.exit(0);
@@ -504,7 +504,7 @@ try {
       difficulty: q.difficulty,
       gcpServices: JSON.stringify(q.gcpServices),
       isGenerated: 0,
-      source: 'google-sample',
+      source: 'workbook',
       createdAt: now,
     });
     insertedCount++;

@@ -2,9 +2,12 @@ import { FastifyInstance } from 'fastify';
 import {
   getWorkbookProgressForUser,
   submitWorkbookAnswer,
+  submitWorkbookAnswersBatch,
   resetWorkbookProgress,
   getAssessmentQuestions,
   getNextGuidedQuestion,
+  getWorkbookBenchmark,
+  getResourcesByServices,
 } from '../services/workbookService.js';
 import {
   submitWorkbookAnswerSchema,
@@ -17,7 +20,15 @@ import { db } from '../db/index.js';
 import { workbookAssessments } from '../db/schema.js';
 import { updateStreak } from '../services/streakService.js';
 import { checkAndUnlock, AchievementContext } from '../services/achievementService.js';
+import { invalidateAllReadinessCacheForUser } from '../services/readinessService.js';
 import type { StreakUpdateResponse, AchievementUnlockResponse } from '@ace-prep/shared';
+
+// Track active assessments for time validation (single-process, in-memory)
+// Key: `${userId}-${assessmentType}`, Value: start time and limit
+const activeAssessments = new Map<string, { startedAt: number; timeLimit: number }>();
+
+// Grace period: allow 10% over time limit before flagging as timed out
+const TIME_GRACE_FACTOR = 1.1;
 
 export async function workbookRoutes(fastify: FastifyInstance) {
   // All routes require authentication
@@ -27,6 +38,32 @@ export async function workbookRoutes(fastify: FastifyInstance) {
   fastify.get('/progress', async (request) => {
     const userId = parseInt(request.user!.id, 10);
     return getWorkbookProgressForUser(userId);
+  });
+
+  // Get benchmark comparison data
+  fastify.get('/benchmark', async (request) => {
+    const userId = parseInt(request.user!.id, 10);
+    return getWorkbookBenchmark(userId);
+  });
+
+  // Get learning resources for GCP services
+  fastify.get<{
+    Querystring: { services: string };
+  }>('/resources', async (request, reply) => {
+    const servicesParam = request.query.services;
+    if (!servicesParam) {
+      return reply.status(400).send({ error: 'services query parameter required' });
+    }
+
+    const services = servicesParam
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (services.length === 0) {
+      return reply.status(400).send({ error: 'At least one service required' });
+    }
+
+    return getResourcesByServices(services);
   });
 
   // Get next question for guided study
@@ -49,6 +86,13 @@ export async function workbookRoutes(fastify: FastifyInstance) {
 
     try {
       const result = await submitWorkbookAnswer(userId, questionId, selectedAnswers);
+
+      // Invalidate readiness cache since workbook progress affects readiness score
+      try {
+        invalidateAllReadinessCacheForUser(userId);
+      } catch (cacheError) {
+        fastify.log.error({ error: cacheError }, 'Failed to invalidate readiness cache');
+      }
 
       // Update streak on correct answer
       let streakUpdate: StreakUpdateResponse | undefined;
@@ -85,6 +129,14 @@ export async function workbookRoutes(fastify: FastifyInstance) {
   fastify.post('/reset', async (request) => {
     const userId = parseInt(request.user!.id, 10);
     await resetWorkbookProgress(userId);
+
+    // Invalidate readiness cache since workbook progress affects readiness score
+    try {
+      invalidateAllReadinessCacheForUser(userId);
+    } catch (cacheError) {
+      fastify.log.error({ error: cacheError }, 'Failed to invalidate readiness cache');
+    }
+
     return { success: true };
   });
 
@@ -107,6 +159,14 @@ export async function workbookRoutes(fastify: FastifyInstance) {
     const weightNonMastered = type === 'quick';
 
     const questions = await getAssessmentQuestions(userId, questionCount, weightNonMastered);
+    const timeLimit = type === 'full' ? 60 * 60 : questionCount * 90; // 60 min or 90s/question
+
+    // Track assessment start for time validation
+    const assessmentKey = `${userId}-${type}`;
+    activeAssessments.set(assessmentKey, {
+      startedAt: Date.now(),
+      timeLimit,
+    });
 
     // Strip correctAnswers for assessment mode (reveal after submission)
     return {
@@ -122,7 +182,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
         topic: q.topic,
         orderIndex: q.orderIndex,
       })),
-      timeLimit: type === 'full' ? 60 * 60 : questionCount * 90, // 60 min or 90s/question
+      timeLimit,
     };
   });
 
@@ -146,31 +206,42 @@ export async function workbookRoutes(fastify: FastifyInstance) {
     const { responses, totalTimeSeconds, assessmentType } = parseResult.data;
     const userId = parseInt(request.user!.id, 10);
 
-    // Grade each response
-    let correctCount = 0;
-    const results: Array<{
-      questionId: number;
-      isCorrect: boolean;
-      correctAnswers: number[];
-      explanation: string;
-    }> = [];
+    // Validate time against server-tracked start time
+    const assessmentKey = `${userId}-${assessmentType}`;
+    const activeAssessment = activeAssessments.get(assessmentKey);
+    let timedOut = false;
 
-    for (const response of responses) {
-      const result = await submitWorkbookAnswer(
-        userId,
-        response.questionId,
-        response.selectedAnswers
-      );
-      results.push({
-        questionId: response.questionId,
-        isCorrect: result.isCorrect,
-        correctAnswers: result.correctAnswers,
-        explanation: result.explanation,
-      });
-      if (result.isCorrect) correctCount++;
+    if (activeAssessment) {
+      const actualElapsedSeconds = (Date.now() - activeAssessment.startedAt) / 1000;
+      const maxAllowedSeconds = activeAssessment.timeLimit * TIME_GRACE_FACTOR;
+      timedOut = actualElapsedSeconds > maxAllowedSeconds;
+
+      // Clean up tracked assessment
+      activeAssessments.delete(assessmentKey);
     }
 
+    // Grade all responses in a single transaction (avoids N sequential DB operations)
+    const batchResults = submitWorkbookAnswersBatch(
+      userId,
+      responses.map((r) => ({ questionId: r.questionId, selectedAnswers: r.selectedAnswers }))
+    );
+
+    const results = batchResults.map((r) => ({
+      questionId: r.questionId,
+      isCorrect: r.isCorrect,
+      correctAnswers: r.correctAnswers,
+      explanation: r.explanation,
+    }));
+
+    const correctCount = batchResults.filter((r) => r.isCorrect).length;
     const score = Math.round((correctCount / responses.length) * 100);
+
+    // Invalidate readiness cache since workbook progress affects readiness score
+    try {
+      invalidateAllReadinessCacheForUser(userId);
+    } catch (cacheError) {
+      fastify.log.error({ error: cacheError }, 'Failed to invalidate readiness cache');
+    }
 
     // Record assessment
     const [assessment] = await db
@@ -211,6 +282,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
       correctCount,
       totalCount: responses.length,
       timeSpentSeconds: totalTimeSeconds,
+      timedOut,
       results,
       streakUpdate,
       achievementsUnlocked,

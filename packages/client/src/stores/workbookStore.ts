@@ -5,9 +5,12 @@ import { workbookApi } from '../api/client';
 import { showStreakMilestoneToast } from '../utils/streakNotifications';
 import { showAchievementUnlockToasts } from '../utils/achievementNotifications';
 import { queryClient } from '../lib/queryClient';
-import type { WorkbookQuestionWithProgress, WorkbookMasteryLevel } from '@ace-prep/shared';
+import type { WorkbookMasteryLevel, WorkbookQuestion } from '@ace-prep/shared';
 
 type WorkbookMode = 'guided' | 'quick' | 'full';
+
+/** Assessment questions have answers/explanation withheld until reveal */
+type WorkbookAssessmentQuestion = Omit<WorkbookQuestion, 'correctAnswers' | 'explanation'>;
 
 interface WorkbookResponse {
   questionId: number;
@@ -25,7 +28,7 @@ interface WorkbookState {
   isRevealed: boolean;
 
   // Assessment state
-  assessmentQuestions: WorkbookQuestionWithProgress[];
+  assessmentQuestions: WorkbookAssessmentQuestion[];
   assessmentResponses: Map<number, WorkbookResponse>;
   assessmentStartTime: number | null;
   questionStartTime: number | null;
@@ -48,6 +51,7 @@ interface WorkbookState {
   }>;
   nextQuestion: () => void;
   previousQuestion: () => void;
+  goToQuestion: (index: number) => void;
   completeAssessment: () => Promise<{
     score: number;
     correctCount: number;
@@ -56,7 +60,7 @@ interface WorkbookState {
   resetStore: () => void;
 
   // Getters
-  getCurrentQuestion: () => WorkbookQuestionWithProgress | null;
+  getCurrentQuestion: () => WorkbookAssessmentQuestion | null;
   getResponse: (questionId: number) => WorkbookResponse | undefined;
   getTimeRemaining: () => number | null;
 }
@@ -65,7 +69,7 @@ const initialState = {
   mode: 'guided' as WorkbookMode,
   currentQuestionIndex: 0,
   isRevealed: false,
-  assessmentQuestions: [] as WorkbookQuestionWithProgress[],
+  assessmentQuestions: [] as WorkbookAssessmentQuestion[],
   assessmentResponses: new Map<number, WorkbookResponse>(),
   assessmentStartTime: null as number | null,
   questionStartTime: null as number | null,
@@ -109,7 +113,7 @@ export const useWorkbookStore = create<WorkbookState>()(
 
           set({
             mode: type,
-            assessmentQuestions: result.questions as WorkbookQuestionWithProgress[],
+            assessmentQuestions: result.questions,
             assessmentResponses: responses,
             assessmentStartTime: Date.now(),
             questionStartTime: Date.now(),
@@ -211,6 +215,18 @@ export const useWorkbookStore = create<WorkbookState>()(
         }
       },
 
+      goToQuestion: (index) => {
+        const { assessmentQuestions, mode } = get();
+        const maxIndex = assessmentQuestions.length - 1;
+        const clampedIndex = Math.max(0, Math.min(index, maxIndex));
+
+        set({
+          currentQuestionIndex: clampedIndex,
+          isRevealed: mode !== 'guided',
+          questionStartTime: Date.now(),
+        });
+      },
+
       completeAssessment: async () => {
         const { assessmentResponses, assessmentStartTime, mode } = get();
 
@@ -274,10 +290,8 @@ export const useWorkbookStore = create<WorkbookState>()(
       name: 'ace-workbook-store',
       partialize: (state) => ({
         mode: state.mode,
-        currentQuestionIndex: state.currentQuestionIndex,
-        assessmentStartTime: state.assessmentStartTime,
-        timeLimit: state.timeLimit,
-        // Don't persist questions or responses - fetch fresh
+        // Only persist question index for guided mode; assessments start fresh
+        currentQuestionIndex: state.mode === 'guided' ? state.currentQuestionIndex : 0,
       }),
     }
   )
