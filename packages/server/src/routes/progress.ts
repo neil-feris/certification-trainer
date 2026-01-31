@@ -25,11 +25,63 @@ import { authenticate } from '../middleware/auth.js';
 import { getStreak } from '../services/streakService.js';
 import { getXP } from '../services/xpService.js';
 import { calculateReadinessScore } from '../services/readinessService.js';
+import {
+  GCP_SERVICE_CATEGORIES,
+  type MasteryMapResponse,
+  type ServiceMastery,
+  type MasteryCategory,
+  toServiceId,
+  getMasteryLevel,
+} from '@ace-prep/shared';
+import { z } from 'zod';
 
 /**
  * Calculate ISO 8601 week number.
  * ISO weeks start on Monday, and week 1 is the week containing the first Thursday.
  */
+const masteryMapQuerySchema = z.object({
+  certificationId: z.string().regex(/^\d+$/).transform(Number),
+});
+
+/** Safely parse gcpServices JSON field, returning empty array on error */
+function safeParseGcpServices(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Simple in-memory cache for mastery-map results (60s TTL) */
+const masteryMapCache = new Map<string, { data: MasteryMapResponse; expiresAt: number }>();
+const MASTERY_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+function getMasteryMapFromCache(
+  userId: number,
+  certificationId: number
+): MasteryMapResponse | null {
+  const key = `${userId}:${certificationId}`;
+  const cached = masteryMapCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+  if (cached) {
+    masteryMapCache.delete(key); // Expired
+  }
+  return null;
+}
+
+function setMasteryMapCache(
+  userId: number,
+  certificationId: number,
+  data: MasteryMapResponse
+): void {
+  const key = `${userId}:${certificationId}`;
+  masteryMapCache.set(key, { data, expiresAt: Date.now() + MASTERY_CACHE_TTL_MS });
+}
+
 function getISOWeek(date: Date): { year: number; week: number } {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   // Set to nearest Thursday: current date + 4 - current day number (make Sunday=7)
@@ -919,5 +971,210 @@ export async function progressRoutes(fastify: FastifyInstance) {
     }
     // TODO: Implement import logic with validation
     return reply.status(501).send({ error: 'Import not yet implemented' });
+  });
+
+  // GET /progress/mastery-map - GCP service mastery grid
+  fastify.get<{
+    Querystring: { certificationId: string };
+  }>('/mastery-map', async (request, reply) => {
+    const userId = parseInt(request.user!.id, 10);
+
+    const queryResult = masteryMapQuerySchema.safeParse(request.query);
+    if (!queryResult.success) {
+      return reply.status(400).send({ error: 'certificationId is required' });
+    }
+    const { certificationId } = queryResult.data;
+
+    // Check cache first
+    const cached = getMasteryMapFromCache(userId, certificationId);
+    if (cached) {
+      return cached;
+    }
+
+    // Get all exam responses with question details
+    const conditions = [
+      eq(examResponses.userId, userId),
+      eq(exams.certificationId, certificationId),
+    ];
+
+    const responses = await db
+      .select({
+        questionId: examResponses.questionId,
+        isCorrect: examResponses.isCorrect,
+        gcpServices: questions.gcpServices,
+        completedAt: exams.completedAt,
+      })
+      .from(examResponses)
+      .innerJoin(exams, eq(exams.id, examResponses.examId))
+      .innerJoin(questions, eq(questions.id, examResponses.questionId))
+      .where(and(...conditions));
+
+    // Get total questions per service (for coverage)
+    // Questions don't have certificationId directly, must join through domains
+    const allQuestions = await db
+      .select({
+        id: questions.id,
+        gcpServices: questions.gcpServices,
+      })
+      .from(questions)
+      .innerJoin(domains, eq(domains.id, questions.domainId))
+      .where(eq(domains.certificationId, certificationId));
+
+    // Build service stats map
+    const serviceStats = new Map<
+      string,
+      {
+        attempted: number;
+        correct: number;
+        total: number;
+        lastAttemptAt: string | null;
+      }
+    >();
+
+    // Initialize from canonical list
+    for (const category of GCP_SERVICE_CATEGORIES) {
+      for (const serviceName of category.services) {
+        const id = toServiceId(serviceName);
+        serviceStats.set(id, {
+          attempted: 0,
+          correct: 0,
+          total: 0,
+          lastAttemptAt: null,
+        });
+      }
+    }
+
+    // Count total questions per service
+    for (const q of allQuestions) {
+      const services = safeParseGcpServices(q.gcpServices as string | null);
+      for (const serviceName of services) {
+        const id = toServiceId(serviceName);
+        const stats = serviceStats.get(id) || {
+          attempted: 0,
+          correct: 0,
+          total: 0,
+          lastAttemptAt: null,
+        };
+        stats.total++;
+        serviceStats.set(id, stats);
+      }
+    }
+
+    // Aggregate user responses per service
+    for (const resp of responses) {
+      const services = safeParseGcpServices(resp.gcpServices as string | null);
+      for (const serviceName of services) {
+        const id = toServiceId(serviceName);
+        const stats = serviceStats.get(id) || {
+          attempted: 0,
+          correct: 0,
+          total: 0,
+          lastAttemptAt: null,
+        };
+        stats.attempted++;
+        if (resp.isCorrect) {
+          stats.correct++;
+        }
+        const respDate = resp.completedAt?.toISOString() || null;
+        if (respDate && (!stats.lastAttemptAt || respDate > stats.lastAttemptAt)) {
+          stats.lastAttemptAt = respDate;
+        }
+        serviceStats.set(id, stats);
+      }
+    }
+
+    // Build response with categories
+    const categories: MasteryCategory[] = [];
+    let servicesAttempted = 0;
+    let servicesTotal = 0;
+    let totalCorrect = 0;
+    let totalAttempted = 0;
+
+    for (const cat of GCP_SERVICE_CATEGORIES) {
+      const categoryServices: ServiceMastery[] = [];
+
+      for (const serviceName of cat.services) {
+        const id = toServiceId(serviceName);
+        const stats = serviceStats.get(id)!;
+        const accuracy = stats.attempted > 0 ? (stats.correct / stats.attempted) * 100 : null;
+
+        categoryServices.push({
+          id,
+          name: serviceName,
+          category: cat.name,
+          categoryId: cat.id,
+          questionsAttempted: stats.attempted,
+          totalQuestions: stats.total,
+          correctCount: stats.correct,
+          accuracy,
+          masteryLevel: getMasteryLevel(accuracy),
+          lastAttemptAt: stats.lastAttemptAt,
+        });
+
+        servicesTotal++;
+        if (stats.attempted > 0) {
+          servicesAttempted++;
+          totalCorrect += stats.correct;
+          totalAttempted += stats.attempted;
+        }
+      }
+
+      categories.push({
+        id: cat.id,
+        name: cat.name,
+        services: categoryServices,
+      });
+    }
+
+    // Add "Other" category for services not in canonical list
+    const otherServices: ServiceMastery[] = [];
+    for (const [id, stats] of serviceStats) {
+      const isCanonical = GCP_SERVICE_CATEGORIES.some((cat) =>
+        cat.services.some((s) => toServiceId(s) === id)
+      );
+      if (!isCanonical && stats.total > 0) {
+        const accuracy = stats.attempted > 0 ? (stats.correct / stats.attempted) * 100 : null;
+        otherServices.push({
+          id,
+          name: id.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+          category: 'Other',
+          categoryId: 'operations',
+          questionsAttempted: stats.attempted,
+          totalQuestions: stats.total,
+          correctCount: stats.correct,
+          accuracy,
+          masteryLevel: getMasteryLevel(accuracy),
+          lastAttemptAt: stats.lastAttemptAt,
+        });
+        servicesTotal++;
+        if (stats.attempted > 0) {
+          servicesAttempted++;
+          totalCorrect += stats.correct;
+          totalAttempted += stats.attempted;
+        }
+      }
+    }
+
+    if (otherServices.length > 0) {
+      categories.push({
+        id: 'operations',
+        name: 'Other',
+        services: otherServices,
+      });
+    }
+
+    const response: MasteryMapResponse = {
+      categories,
+      totals: {
+        servicesAttempted,
+        servicesTotal,
+        overallAccuracy: totalAttempted > 0 ? (totalCorrect / totalAttempted) * 100 : null,
+      },
+    };
+
+    // Cache the result
+    setMasteryMapCache(userId, certificationId, response);
+
+    return response;
   });
 }

@@ -77,6 +77,7 @@ import type {
   SubmitFeedbackResponse,
   DeleteFeedbackResponse,
   SubmitReportResponse,
+  MasteryMapResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -626,6 +627,9 @@ export const progressApi = {
   getStudyTime: (certificationId?: number) => {
     const params = certificationId ? `?certificationId=${certificationId}` : '';
     return request<StudyTimeResponse>(`/progress/study-time${params}`);
+  },
+  getMasteryMap: (certificationId: number) => {
+    return request<MasteryMapResponse>(`/progress/mastery-map?certificationId=${certificationId}`);
   },
 };
 

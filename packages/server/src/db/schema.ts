@@ -152,6 +152,7 @@ export const exams = sqliteTable(
   (table) => [
     index('exams_cert_idx').on(table.certificationId),
     index('exams_user_idx').on(table.userId),
+    index('exams_user_cert_idx').on(table.userId, table.certificationId),
     index('exams_offline_id_idx').on(table.offlineExamId),
     index('exams_content_hash_idx').on(table.contentHash),
     index('exams_user_completed_idx').on(table.userId, table.completedAt),

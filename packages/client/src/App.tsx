@@ -21,6 +21,7 @@ import { AchievementsPage } from './components/achievements/AchievementsPage';
 import { BookmarksPage } from './components/bookmarks/BookmarksPage';
 import { NotesPage } from './components/notes/NotesPage';
 import { LoginPage, AuthCallbackPage, ShareExamPage, VerifyCertificatePage } from './pages';
+import { MasteryPage } from './pages/MasteryPage';
 import { useAuthStore } from './stores/authStore';
 import { useOfflineSyncNotifications } from './hooks/useOfflineSyncNotifications';
 import { useAuthVerification } from './hooks/useAuthVerification';
@@ -276,6 +277,18 @@ function App() {
               <AppShell>
                 <RouteErrorBoundary>
                   <ReadinessPage />
+                </RouteErrorBoundary>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mastery"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RouteErrorBoundary>
+                  <MasteryPage />
                 </RouteErrorBoundary>
               </AppShell>
             </ProtectedRoute>
