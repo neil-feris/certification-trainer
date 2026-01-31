@@ -15,7 +15,9 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:seed-case-studies": "tsx src/db/seedCaseStudies.ts",
-    "db:add-pca": "tsx src/db/migrations/0002_add_pca_certification.ts"
+    "db:add-pca": "tsx src/db/migrations/0002_add_pca_certification.ts",
+    "db:add-workbook": "tsx src/db/migrations/0021_add_workbook_questions.ts",
+    "db:add-workbook-progress": "tsx src/db/migrations/0022_add_workbook_progress.ts"
   },
   "dependencies": {
     "@ace-prep/shared": "*",
