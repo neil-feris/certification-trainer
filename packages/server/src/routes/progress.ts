@@ -43,6 +43,17 @@ const masteryMapQuerySchema = z.object({
   certificationId: z.string().regex(/^\d+$/).transform(Number),
 });
 
+/** Safely parse gcpServices JSON field, returning empty array on error */
+function safeParseGcpServices(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function getISOWeek(date: Date): { year: number; week: number } {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   // Set to nearest Thursday: current date + 4 - current day number (make Sunday=7)
@@ -1001,7 +1012,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     // Count total questions per service
     for (const q of allQuestions) {
-      const services = q.gcpServices ? (JSON.parse(q.gcpServices as string) as string[]) : [];
+      const services = safeParseGcpServices(q.gcpServices as string | null);
       for (const serviceName of services) {
         const id = toServiceId(serviceName);
         const stats = serviceStats.get(id) || {
@@ -1017,7 +1028,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     // Aggregate user responses per service
     for (const resp of responses) {
-      const services = resp.gcpServices ? (JSON.parse(resp.gcpServices as string) as string[]) : [];
+      const services = safeParseGcpServices(resp.gcpServices as string | null);
       for (const serviceName of services) {
         const id = toServiceId(serviceName);
         const stats = serviceStats.get(id) || {
