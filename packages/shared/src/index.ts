@@ -1544,3 +1544,95 @@ export {
   toServiceId,
   getMasteryLevel,
 } from './gcpServices.js';
+
+// ============ WORKBOOK ============
+
+export type WorkbookMasteryLevel = 'unattempted' | 'needs_work' | 'learned' | 'mastered';
+
+export interface WorkbookQuestion {
+  id: number;
+  questionText: string;
+  questionType: 'single' | 'multiple';
+  options: string[];
+  correctAnswers?: number[]; // Only included after answer submission in guided mode
+  explanation?: string; // Only included after answer submission
+  difficulty: string;
+  gcpServices: string[];
+  domain: { id: number; code: string; name: string };
+  topic: { id: number; code: string; name: string };
+  orderIndex: number;
+}
+
+export interface WorkbookProgress {
+  masteryLevel: WorkbookMasteryLevel;
+  attempts: number;
+  firstAttemptCorrect: boolean | null;
+  lastAttemptCorrect: boolean | null;
+  lastAttemptAt: Date | null;
+}
+
+export interface WorkbookQuestionWithProgress extends WorkbookQuestion {
+  progress: WorkbookProgress;
+}
+
+export interface WorkbookProgressSummary {
+  total: number;
+  mastered: number;
+  learned: number;
+  needsWork: number;
+  unattempted: number;
+  percentComplete: number;
+}
+
+export interface WorkbookProgressResponse {
+  questions: WorkbookQuestionWithProgress[];
+  summary: WorkbookProgressSummary;
+}
+
+export interface WorkbookAnswerResponse {
+  isCorrect: boolean;
+  correctAnswers: number[];
+  explanation: string;
+  masteryLevel: WorkbookMasteryLevel;
+  isFirstAttempt: boolean;
+  streakUpdate?: StreakUpdateResponse;
+  achievementsUnlocked?: AchievementUnlockResponse[];
+}
+
+export interface WorkbookAssessmentResponse {
+  assessmentType: 'quick' | 'full';
+  questions: Omit<WorkbookQuestion, 'correctAnswers' | 'explanation'>[];
+  timeLimit: number; // seconds
+}
+
+export interface WorkbookAssessmentCompleteRequest {
+  responses: Array<{
+    questionId: number;
+    selectedAnswers: number[];
+    timeSpentSeconds?: number;
+  }>;
+  totalTimeSeconds: number;
+  assessmentType: 'quick' | 'full';
+}
+
+export interface WorkbookAssessmentCompleteResponse {
+  assessmentId: number;
+  score: number;
+  correctCount: number;
+  totalCount: number;
+  timeSpentSeconds: number;
+  results: Array<{
+    questionId: number;
+    isCorrect: boolean;
+    correctAnswers: number[];
+    explanation: string;
+  }>;
+  streakUpdate?: StreakUpdateResponse;
+  achievementsUnlocked?: AchievementUnlockResponse[];
+}
+
+export interface WorkbookGuidedNextResponse {
+  question: WorkbookQuestionWithProgress | null;
+  currentIndex: number;
+  totalQuestions: number;
+}
