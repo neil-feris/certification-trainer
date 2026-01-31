@@ -1,11 +1,18 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { progressApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
 import type { ServiceMastery, MasteryCategory } from '@ace-prep/shared';
 import styles from './MasteryPage.module.css';
 
-function ServiceCard({
+const MASTERY_COLORS: Record<string, string> = {
+  none: 'var(--bg-tertiary)',
+  low: 'var(--error)',
+  medium: 'var(--warning)',
+  high: 'var(--success)',
+};
+
+const ServiceCard = memo(function ServiceCard({
   service,
   isExpanded,
   onToggle,
@@ -14,21 +21,15 @@ function ServiceCard({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const masteryColors: Record<string, string> = {
-    none: 'var(--bg-tertiary)',
-    low: 'var(--error)',
-    medium: 'var(--warning)',
-    high: 'var(--success)',
-  };
-
   return (
     <div className={styles.cardWrapper}>
       <button
         className={`${styles.card} ${styles[`mastery-${service.masteryLevel}`]}`}
         onClick={onToggle}
+        aria-expanded={isExpanded}
         style={
           {
-            '--mastery-color': masteryColors[service.masteryLevel],
+            '--mastery-color': MASTERY_COLORS[service.masteryLevel],
           } as React.CSSProperties
         }
       >
@@ -69,11 +70,19 @@ function ServiceCard({
       )}
     </div>
   );
-}
+});
 
 function CategorySection({ category }: { category: MasteryCategory }) {
   const [expandedService, setExpandedService] = useState<string | null>(null);
-  const attemptedCount = category.services.filter((s) => s.questionsAttempted > 0).length;
+
+  const attemptedCount = useMemo(
+    () => category.services.filter((s) => s.questionsAttempted > 0).length,
+    [category.services]
+  );
+
+  const handleToggle = useCallback((serviceId: string) => {
+    setExpandedService((prev) => (prev === serviceId ? null : serviceId));
+  }, []);
 
   return (
     <section className={styles.category}>
@@ -89,7 +98,7 @@ function CategorySection({ category }: { category: MasteryCategory }) {
             key={service.id}
             service={service}
             isExpanded={expandedService === service.id}
-            onToggle={() => setExpandedService(expandedService === service.id ? null : service.id)}
+            onToggle={() => handleToggle(service.id)}
           />
         ))}
       </div>
