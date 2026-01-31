@@ -318,6 +318,30 @@ export const sessionIdParamSchema = z.object({
   sessionId: z.string().regex(/^\d+$/, 'Session ID must be a positive integer').transform(Number),
 });
 
+// ============ WORKBOOK ============
+
+export const submitWorkbookAnswerSchema = z.object({
+  questionId: z.number().int().positive(),
+  selectedAnswers: z.array(z.number().int().min(0)).min(1),
+});
+
+export const workbookAssessmentQuerySchema = z.object({
+  count: z.string().transform(Number).pipe(z.number().int().min(5).max(41)).optional().default(15),
+  type: z.enum(['quick', 'full']).optional().default('quick'),
+});
+
+export const completeWorkbookAssessmentSchema = z.object({
+  responses: z.array(
+    z.object({
+      questionId: z.number().int().positive(),
+      selectedAnswers: z.array(z.number().int().min(0)).min(1),
+      timeSpentSeconds: z.number().int().min(0).optional(),
+    })
+  ),
+  totalTimeSeconds: z.number().int().min(0),
+  assessmentType: z.enum(['quick', 'full']),
+});
+
 // ============ Helper for validation errors ============
 
 export function formatZodError(error: z.ZodError): { error: string; details: z.ZodIssue[] } {
