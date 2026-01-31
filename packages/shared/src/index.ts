@@ -1531,3 +1531,16 @@ export interface UserFeedbackResponse {
     comment: string | null;
   } | null;
 }
+
+// ============ GCP MASTERY MAP TYPES ============
+
+export {
+  GCP_SERVICE_CATEGORIES,
+  type GcpCategoryId,
+  type MasteryLevel,
+  type ServiceMastery,
+  type MasteryCategory,
+  type MasteryMapResponse,
+  toServiceId,
+  getMasteryLevel,
+} from './gcpServices.js';
