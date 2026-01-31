@@ -78,6 +78,12 @@ import type {
   DeleteFeedbackResponse,
   SubmitReportResponse,
   MasteryMapResponse,
+  WorkbookProgressResponse,
+  WorkbookAnswerResponse,
+  WorkbookAssessmentResponse,
+  WorkbookAssessmentCompleteRequest,
+  WorkbookAssessmentCompleteResponse,
+  WorkbookGuidedNextResponse,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -959,4 +965,31 @@ export const feedbackApi = {
     });
     return response;
   },
+};
+
+// Workbook
+export const workbookApi = {
+  getProgress: () => request<WorkbookProgressResponse>('/workbook/progress'),
+
+  getGuidedNext: () => request<WorkbookGuidedNextResponse>('/workbook/guided/next'),
+
+  submitAnswer: (questionId: number, selectedAnswers: number[]) =>
+    request<WorkbookAnswerResponse>('/workbook/answer', {
+      method: 'POST',
+      body: JSON.stringify({ questionId, selectedAnswers }),
+    }),
+
+  resetProgress: () =>
+    request<{ success: boolean }>('/workbook/reset', {
+      method: 'POST',
+    }),
+
+  getAssessment: (count: number = 15, type: 'quick' | 'full' = 'quick') =>
+    request<WorkbookAssessmentResponse>(`/workbook/assessment?count=${count}&type=${type}`),
+
+  completeAssessment: (data: WorkbookAssessmentCompleteRequest) =>
+    request<WorkbookAssessmentCompleteResponse>('/workbook/assessment/complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
