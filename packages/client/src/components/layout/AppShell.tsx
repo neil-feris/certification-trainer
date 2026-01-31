@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/questions', label: 'Question Bank', icon: '☰' },
   { path: '/progress', label: 'Progress', icon: '◔' },
   { path: '/readiness', label: 'Readiness', icon: '◐' },
+  { path: '/mastery', label: 'Mastery Map', icon: '🗺' },
   { path: '/achievements', label: 'Achievements', icon: '🏆' },
   { path: '/review', label: 'Review', icon: '↻' },
   { path: '/bookmarks', label: 'Bookmarks', icon: '◆' },
