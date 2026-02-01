@@ -117,6 +117,7 @@ export const questions = sqliteTable(
     difficulty: text('difficulty').notNull(), // 'easy' | 'medium' | 'hard'
     gcpServices: text('gcp_services'), // JSON array
     isGenerated: integer('is_generated', { mode: 'boolean' }).default(true),
+    source: text('source').$type<'generated' | 'seed' | 'workbook'>().default('generated'),
     thumbsUpCount: integer('thumbs_up_count').notNull().default(0),
     thumbsDownCount: integer('thumbs_down_count').notNull().default(0),
     reportCount: integer('report_count').notNull().default(0),
@@ -769,6 +770,55 @@ export const flashcardSessionRatings = sqliteTable(
   ]
 );
 
+// ============ WORKBOOK PROGRESS ============
+export const workbookProgress = sqliteTable(
+  'workbook_progress',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'cascade' }),
+    firstAttemptCorrect: integer('first_attempt_correct', { mode: 'boolean' }),
+    attempts: integer('attempts').notNull().default(0),
+    lastAttemptCorrect: integer('last_attempt_correct', { mode: 'boolean' }),
+    masteryLevel: text('mastery_level')
+      .$type<'unattempted' | 'needs_work' | 'learned' | 'mastered'>()
+      .notNull()
+      .default('unattempted'),
+    firstAttemptAt: integer('first_attempt_at', { mode: 'timestamp' }),
+    lastAttemptAt: integer('last_attempt_at', { mode: 'timestamp' }),
+  },
+  (table) => [
+    uniqueIndex('workbook_progress_user_question_idx').on(table.userId, table.questionId),
+    index('workbook_progress_user_idx').on(table.userId),
+    index('workbook_progress_mastery_idx').on(table.userId, table.masteryLevel),
+  ]
+);
+
+// Workbook assessment attempts (for full exam mode)
+export const workbookAssessments = sqliteTable(
+  'workbook_assessments',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    assessmentType: text('assessment_type').$type<'quick' | 'full'>().notNull(),
+    questionCount: integer('question_count').notNull(),
+    correctCount: integer('correct_count').notNull(),
+    score: real('score').notNull(),
+    timeSpentSeconds: integer('time_spent_seconds'),
+    completedAt: integer('completed_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    index('workbook_assessments_user_idx').on(table.userId),
+    index('workbook_assessments_type_idx').on(table.userId, table.assessmentType),
+  ]
+);
+
 // ============ EXAM SHARING ============
 export const examShares = sqliteTable(
   'exam_shares',
@@ -859,3 +909,7 @@ export type PushSubscriptionRecord = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
 export type NotificationPreferencesRecord = typeof notificationPreferences.$inferSelect;
 export type NewNotificationPreferences = typeof notificationPreferences.$inferInsert;
+export type WorkbookProgressRecord = typeof workbookProgress.$inferSelect;
+export type NewWorkbookProgress = typeof workbookProgress.$inferInsert;
+export type WorkbookAssessmentRecord = typeof workbookAssessments.$inferSelect;
+export type NewWorkbookAssessment = typeof workbookAssessments.$inferInsert;
