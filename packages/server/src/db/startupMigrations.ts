@@ -549,6 +549,230 @@ const migrations: Migration[] = [
       console.log('  [migration] Created exam_shares table');
     },
   },
+  {
+    version: 9,
+    name: 'add_source_column_to_questions',
+    up: (db) => {
+      // Add 'source' column to questions table (for workbook questions)
+      const columns = db.prepare("PRAGMA table_info('questions')").all() as Array<{
+        name: string;
+      }>;
+      const hasSource = columns.some((col) => col.name === 'source');
+
+      if (!hasSource) {
+        db.exec(`ALTER TABLE questions ADD COLUMN source TEXT DEFAULT 'generated'`);
+        console.log('  [migration] Added source column to questions');
+      }
+    },
+  },
+  {
+    version: 10,
+    name: 'add_workbook_progress_tables',
+    up: (db) => {
+      // Create workbook_progress table
+      const progressExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='workbook_progress'")
+        .get();
+
+      if (!progressExists) {
+        db.exec(`
+          CREATE TABLE workbook_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+            first_attempt_correct INTEGER,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_attempt_correct INTEGER,
+            mastery_level TEXT NOT NULL DEFAULT 'unattempted',
+            first_attempt_at INTEGER,
+            last_attempt_at INTEGER
+          );
+
+          CREATE UNIQUE INDEX workbook_progress_user_question_idx ON workbook_progress(user_id, question_id);
+          CREATE INDEX workbook_progress_user_idx ON workbook_progress(user_id);
+          CREATE INDEX workbook_progress_mastery_idx ON workbook_progress(user_id, mastery_level);
+        `);
+        console.log('  [migration] Created workbook_progress table');
+      }
+
+      // Create workbook_assessments table
+      const assessmentsExists = db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='workbook_assessments'"
+        )
+        .get();
+
+      if (!assessmentsExists) {
+        db.exec(`
+          CREATE TABLE workbook_assessments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            assessment_type TEXT NOT NULL,
+            question_count INTEGER NOT NULL,
+            correct_count INTEGER NOT NULL,
+            score REAL NOT NULL,
+            time_spent_seconds INTEGER,
+            completed_at INTEGER NOT NULL
+          );
+
+          CREATE INDEX workbook_assessments_user_idx ON workbook_assessments(user_id);
+          CREATE INDEX workbook_assessments_type_idx ON workbook_assessments(user_id, assessment_type);
+        `);
+        console.log('  [migration] Created workbook_assessments table');
+      }
+    },
+  },
+  {
+    version: 11,
+    name: 'add_workbook_resources_table',
+    up: (db) => {
+      const tableExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='workbook_resources'")
+        .get();
+
+      if (!tableExists) {
+        db.exec(`
+          CREATE TABLE workbook_resources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            gcp_service TEXT NOT NULL UNIQUE,
+            courses TEXT,
+            skill_badges TEXT,
+            documentation_links TEXT
+          );
+        `);
+        console.log('  [migration] Created workbook_resources table');
+      }
+    },
+  },
+  {
+    version: 12,
+    name: 'seed_workbook_resources',
+    up: (db) => {
+      // Check if data already exists
+      const existingData = db.prepare('SELECT COUNT(*) as count FROM workbook_resources').get() as {
+        count: number;
+      };
+
+      if (existingData.count > 0) {
+        console.log('  [migration] Workbook resources already seeded, skipping');
+        return;
+      }
+
+      // GCP Service to Learning Resources mapping (subset of key services)
+      const resources = [
+        {
+          gcpService: 'Compute Engine',
+          courses: JSON.stringify([
+            { name: 'Google Cloud Fundamentals: Core Infrastructure', module: 'Module 4' },
+            { name: 'Architecting with Google Compute Engine', module: 'Module 2' },
+          ]),
+          skillBadges: JSON.stringify([
+            'Create and Manage Cloud Resources',
+            'Set Up and Configure a Cloud Environment in Google Cloud',
+          ]),
+          documentationLinks: JSON.stringify([
+            { title: 'Compute Engine Documentation', url: 'https://cloud.google.com/compute/docs' },
+            { title: 'VM Instances', url: 'https://cloud.google.com/compute/docs/instances' },
+          ]),
+        },
+        {
+          gcpService: 'IAM',
+          courses: JSON.stringify([
+            { name: 'Google Cloud Fundamentals: Core Infrastructure', module: 'Module 3' },
+          ]),
+          skillBadges: JSON.stringify([
+            'Set Up and Configure a Cloud Environment in Google Cloud',
+            'Implement Cloud Security Fundamentals on Google Cloud',
+          ]),
+          documentationLinks: JSON.stringify([
+            { title: 'IAM Overview', url: 'https://cloud.google.com/iam/docs/overview' },
+            {
+              title: 'Understanding Roles',
+              url: 'https://cloud.google.com/iam/docs/understanding-roles',
+            },
+          ]),
+        },
+        {
+          gcpService: 'Cloud Storage',
+          courses: JSON.stringify([
+            { name: 'Google Cloud Fundamentals: Core Infrastructure', module: 'Module 5' },
+          ]),
+          skillBadges: JSON.stringify(['Create and Manage Cloud Resources']),
+          documentationLinks: JSON.stringify([
+            { title: 'Cloud Storage Documentation', url: 'https://cloud.google.com/storage/docs' },
+            {
+              title: 'Storage Classes',
+              url: 'https://cloud.google.com/storage/docs/storage-classes',
+            },
+          ]),
+        },
+        {
+          gcpService: 'Cloud Run',
+          courses: JSON.stringify([
+            { name: 'Developing Applications with Cloud Run on Google Cloud', module: 'Module 1' },
+          ]),
+          skillBadges: JSON.stringify(['Build a Serverless App with Cloud Run']),
+          documentationLinks: JSON.stringify([
+            { title: 'Cloud Run Documentation', url: 'https://cloud.google.com/run/docs' },
+          ]),
+        },
+        {
+          gcpService: 'GKE',
+          courses: JSON.stringify([
+            { name: 'Architecting with Google Kubernetes Engine', module: 'Module 2' },
+          ]),
+          skillBadges: JSON.stringify(['Deploy to Kubernetes in Google Cloud']),
+          documentationLinks: JSON.stringify([
+            { title: 'GKE Documentation', url: 'https://cloud.google.com/kubernetes-engine/docs' },
+          ]),
+        },
+        {
+          gcpService: 'BigQuery',
+          courses: JSON.stringify([
+            { name: 'Google Cloud Big Data and Machine Learning Fundamentals', module: 'Module 3' },
+          ]),
+          skillBadges: JSON.stringify(['Insights from Data with BigQuery']),
+          documentationLinks: JSON.stringify([
+            { title: 'BigQuery Documentation', url: 'https://cloud.google.com/bigquery/docs' },
+          ]),
+        },
+        {
+          gcpService: 'VPC',
+          courses: JSON.stringify([
+            { name: 'Architecting with Google Compute Engine', module: 'Module 3' },
+          ]),
+          skillBadges: JSON.stringify(['Build and Secure Networks in Google Cloud']),
+          documentationLinks: JSON.stringify([
+            { title: 'VPC Documentation', url: 'https://cloud.google.com/vpc/docs' },
+          ]),
+        },
+        {
+          gcpService: 'Cloud Monitoring',
+          courses: JSON.stringify([
+            { name: 'Architecting with Google Compute Engine', module: 'Module 6' },
+          ]),
+          skillBadges: JSON.stringify(['Monitor and Log with Google Cloud Observability']),
+          documentationLinks: JSON.stringify([
+            {
+              title: 'Cloud Monitoring Documentation',
+              url: 'https://cloud.google.com/monitoring/docs',
+            },
+          ]),
+        },
+      ];
+
+      const insertStmt = db.prepare(`
+        INSERT INTO workbook_resources (gcp_service, courses, skill_badges, documentation_links)
+        VALUES (?, ?, ?, ?)
+      `);
+
+      for (const r of resources) {
+        insertStmt.run(r.gcpService, r.courses, r.skillBadges, r.documentationLinks);
+      }
+
+      console.log(`  [migration] Seeded ${resources.length} workbook resources`);
+    },
+  },
 ];
 
 /**
