@@ -819,6 +819,15 @@ export const workbookAssessments = sqliteTable(
   ]
 );
 
+// ============ WORKBOOK RESOURCES ============
+export const workbookResources = sqliteTable('workbook_resources', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gcpService: text('gcp_service').notNull().unique(), // e.g., "Compute Engine", "IAM"
+  courses: text('courses'), // JSON: [{name: string, module?: string}]
+  skillBadges: text('skill_badges'), // JSON: string[]
+  documentationLinks: text('documentation_links'), // JSON: [{title: string, url: string}]
+});
+
 // ============ EXAM SHARING ============
 export const examShares = sqliteTable(
   'exam_shares',
@@ -913,3 +922,5 @@ export type WorkbookProgressRecord = typeof workbookProgress.$inferSelect;
 export type NewWorkbookProgress = typeof workbookProgress.$inferInsert;
 export type WorkbookAssessmentRecord = typeof workbookAssessments.$inferSelect;
 export type NewWorkbookAssessment = typeof workbookAssessments.$inferInsert;
+export type WorkbookResourceRecord = typeof workbookResources.$inferSelect;
+export type NewWorkbookResource = typeof workbookResources.$inferInsert;

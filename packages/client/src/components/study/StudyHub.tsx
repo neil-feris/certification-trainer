@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useStudyStore } from '../../stores/studyStore';
 import { useDrillStore } from '../../stores/drillStore';
@@ -13,17 +13,34 @@ import { TopicPractice } from './practice/TopicPractice';
 import { SummaryBrowser } from './summaries/SummaryBrowser';
 import { DrillHub } from './drills/DrillHub';
 import { FlashcardHub } from './flashcards/FlashcardHub';
+import { WorkbookHub } from './workbook';
 import { SessionRecoveryModal } from './SessionRecoveryModal';
 import styles from './StudyHub.module.css';
 
-type Tab = 'path' | 'domains' | 'practice' | 'drills' | 'flashcards' | 'summaries';
+type Tab = 'path' | 'domains' | 'practice' | 'drills' | 'workbook' | 'flashcards' | 'summaries';
 
 export function StudyHub() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const domainIdParam = searchParams.get('domainId');
   const [activeTab, setActiveTab] = useState<Tab>(domainIdParam ? 'domains' : 'path');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const hasCachedRef = useRef(false);
+
+  // Handle navigation state for tab switching (e.g., from dashboard WorkbookWidget)
+  useEffect(() => {
+    const state = location.state as { tab?: Tab } | null;
+    if (
+      state?.tab &&
+      ['path', 'domains', 'practice', 'drills', 'workbook', 'flashcards', 'summaries'].includes(
+        state.tab
+      )
+    ) {
+      setActiveTab(state.tab);
+      // Clear the state to prevent re-triggering on subsequent renders
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // Clear domainId param after reading it (prevents re-triggering on tab switch)
   useEffect(() => {
@@ -161,6 +178,12 @@ export function StudyHub() {
             Drills
           </button>
           <button
+            className={`${styles.tab} ${activeTab === 'workbook' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('workbook')}
+          >
+            Workbook
+          </button>
+          <button
             className={`${styles.tab} ${activeTab === 'flashcards' ? styles.tabActive : ''}`}
             onClick={() => setActiveTab('flashcards')}
           >
@@ -184,6 +207,7 @@ export function StudyHub() {
           />
         )}
         {activeTab === 'drills' && <DrillHub />}
+        {activeTab === 'workbook' && <WorkbookHub />}
         {activeTab === 'flashcards' && <FlashcardHub />}
         {activeTab === 'summaries' && <SummaryBrowser />}
       </div>

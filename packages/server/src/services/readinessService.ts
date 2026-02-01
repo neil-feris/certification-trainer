@@ -6,17 +6,22 @@
  * - Accuracy (50%): weighted average of domain accuracies (by domain.weight)
  * - Recency (20%): exponential decay e^(-days/30) on last attempt per domain
  * - Volume (10%): ratio of total attempts vs threshold (capped at 1.0)
+ *
+ * Plus workbook mastery bonus (up to 10 points):
+ * - Official Google questions mastery adds confidence to readiness
+ * - Bonus = (mastered + learned) / total * 10
  */
 
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import * as schemaTypes from '../db/schema.js';
-import { domains, performanceStats } from '../db/schema.js';
+import { domains, performanceStats, questions, workbookProgress } from '../db/schema.js';
 import type {
   ReadinessScore,
   DomainReadiness,
   ReadinessRecommendation,
   ConfidenceLevel,
+  WorkbookMasteryInfo,
 } from '@ace-prep/shared';
 
 type DB = BetterSQLite3Database<typeof schemaTypes>;
@@ -88,6 +93,58 @@ const VOLUME_WEIGHT = 0.1;
 const COVERAGE_THRESHOLD = 10; // attempts per domain to count as "covered"
 const VOLUME_THRESHOLD = 100; // total attempts for max volume score
 const RECENCY_HALF_LIFE_DAYS = 30; // decay constant for recency
+const WORKBOOK_MAX_BONUS = 10; // Maximum bonus points from workbook mastery
+
+/**
+ * Calculate workbook mastery bonus for a user.
+ * Workbook questions are official Google questions - mastery indicates real exam readiness.
+ */
+async function calculateWorkbookMastery(
+  userId: number,
+  db: DB
+): Promise<WorkbookMasteryInfo | null> {
+  // Get all workbook question IDs
+  const workbookQuestions = await db
+    .select({ id: questions.id })
+    .from(questions)
+    .where(eq(questions.source, 'workbook'))
+    .all();
+
+  if (workbookQuestions.length === 0) {
+    return null; // No workbook questions in database
+  }
+
+  const questionIds = workbookQuestions.map((q) => q.id);
+
+  // Get user's progress on workbook questions
+  const progressRecords = await db
+    .select({
+      masteryLevel: workbookProgress.masteryLevel,
+    })
+    .from(workbookProgress)
+    .where(
+      and(eq(workbookProgress.userId, userId), inArray(workbookProgress.questionId, questionIds))
+    )
+    .all();
+
+  const total = workbookQuestions.length;
+  const mastered = progressRecords.filter((p) => p.masteryLevel === 'mastered').length;
+  const learned = progressRecords.filter((p) => p.masteryLevel === 'learned').length;
+
+  // Percent of questions mastered or learned
+  const percentMastered = Math.round(((mastered + learned) / total) * 100);
+
+  // Bonus: proportional to mastery, max 10 points
+  const bonusApplied = Math.round(((mastered + learned) / total) * WORKBOOK_MAX_BONUS * 100) / 100;
+
+  return {
+    total,
+    mastered,
+    learned,
+    percentMastered,
+    bonusApplied,
+  };
+}
 
 /**
  * Calculate the readiness score for a user on a specific certification.
@@ -225,21 +282,29 @@ export async function calculateReadinessScore(
 
   // Overall score: weighted average by domain weight
   const totalWeight = domainReadiness.reduce((sum, d) => sum + d.domainWeight, 0);
-  const overall =
+  const baseOverall =
     totalWeight > 0
       ? domainReadiness.reduce((sum, d) => sum + d.score * d.domainWeight, 0) / totalWeight
       : 0;
 
-  // Confidence level
+  // Calculate workbook mastery bonus
+  const workbookMastery = await calculateWorkbookMastery(userId, db);
+
+  // Apply workbook bonus (capped at 100 total)
+  const workbookBonus = workbookMastery?.bonusApplied ?? 0;
+  const overall = Math.min(baseOverall + workbookBonus, 100);
+
+  // Confidence level - workbook mastery increases confidence
   const domainsAttempted = domainReadiness.filter((d) => d.totalAttempts > 0).length;
   const domainsWithSufficientData = domainReadiness.filter(
     (d) => d.totalAttempts >= COVERAGE_THRESHOLD
   ).length;
+  const hasWorkbookProgress = workbookMastery && workbookMastery.percentMastered > 0;
 
   let confidence: ConfidenceLevel;
-  if (domainsAttempted < 5) {
+  if (domainsAttempted < 5 && !hasWorkbookProgress) {
     confidence = 'low';
-  } else if (domainsWithSufficientData < domainReadiness.length) {
+  } else if (domainsWithSufficientData < domainReadiness.length && !hasWorkbookProgress) {
     confidence = 'medium';
   } else {
     confidence = 'high';
@@ -250,10 +315,11 @@ export async function calculateReadinessScore(
     confidence,
     domains: domainReadiness,
     calculatedAt: now.toISOString(),
+    workbookMastery: workbookMastery ?? undefined,
   };
 
   // Generate recommendations sorted by lowest domain score
-  const recommendations = generateRecommendations(domainReadiness);
+  const recommendations = generateRecommendations(domainReadiness, workbookMastery);
 
   const result: ReadinessResult = { score, recommendations };
 
@@ -264,11 +330,35 @@ export async function calculateReadinessScore(
 }
 
 /**
- * Generate actionable recommendations based on domain readiness.
+ * Generate actionable recommendations based on domain readiness and workbook mastery.
  * Sorted by priority (lowest score first).
  */
-function generateRecommendations(domains: DomainReadiness[]): ReadinessRecommendation[] {
-  return domains
+function generateRecommendations(
+  domains: DomainReadiness[],
+  workbookMastery: WorkbookMasteryInfo | null
+): ReadinessRecommendation[] {
+  const recommendations: ReadinessRecommendation[] = [];
+
+  // Add workbook recommendation if user hasn't mastered most questions
+  if (workbookMastery && workbookMastery.percentMastered < 70) {
+    let action: string;
+    if (workbookMastery.mastered + workbookMastery.learned === 0) {
+      action = `Start the official Google Workbook questions - ${workbookMastery.total} diagnostic questions from the exam prep guide`;
+    } else {
+      action = `Continue the Workbook - ${workbookMastery.mastered + workbookMastery.learned}/${workbookMastery.total} questions mastered (${workbookMastery.percentMastered}%)`;
+    }
+
+    recommendations.push({
+      domainId: 0, // Special ID for workbook
+      domainName: 'Official Workbook',
+      action,
+      priority: 1,
+      currentScore: workbookMastery.percentMastered,
+    });
+  }
+
+  // Add domain recommendations
+  const domainRecs = domains
     .filter((d) => d.score < 70) // Only recommend domains below passing threshold
     .sort((a, b) => a.score - b.score)
     .map((domain, index) => {
@@ -289,8 +379,10 @@ function generateRecommendations(domains: DomainReadiness[]): ReadinessRecommend
         domainId: domain.domainId,
         domainName: domain.domainName,
         action,
-        priority: index + 1,
+        priority: recommendations.length + index + 1,
         currentScore: domain.score,
       };
     });
+
+  return [...recommendations, ...domainRecs];
 }

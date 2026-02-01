@@ -14,6 +14,7 @@ import { OfflineFeatureGuide, useOfflineFeatureGuide } from '../common/OfflineSt
 import { OfflineExamRecoveryModal } from '../exam/OfflineExamRecoveryModal';
 import { SyncStatusWidget } from './SyncStatusWidget';
 import { StreakNotificationPrompt } from './StreakNotificationPrompt';
+import { WorkbookWidget } from './WorkbookWidget';
 import styles from './Dashboard.module.css';
 
 // Dashboard data types
@@ -349,6 +350,9 @@ export function Dashboard() {
           ) : xp ? (
             <XPDisplay variant="full" xp={xp} />
           ) : null}
+        </div>
+        <div className={styles.statCard}>
+          <WorkbookWidget />
         </div>
       </div>
 

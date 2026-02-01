@@ -84,6 +84,8 @@ import type {
   WorkbookAssessmentCompleteRequest,
   WorkbookAssessmentCompleteResponse,
   WorkbookGuidedNextResponse,
+  WorkbookBenchmark,
+  WorkbookResource,
 } from '@ace-prep/shared';
 import { useAuthStore } from '../stores/authStore';
 import { showToast } from '../components/common';
@@ -971,6 +973,8 @@ export const feedbackApi = {
 export const workbookApi = {
   getProgress: () => request<WorkbookProgressResponse>('/workbook/progress'),
 
+  getBenchmark: () => request<WorkbookBenchmark>('/workbook/benchmark'),
+
   getGuidedNext: () => request<WorkbookGuidedNextResponse>('/workbook/guided/next'),
 
   submitAnswer: (questionId: number, selectedAnswers: number[]) =>
@@ -992,4 +996,9 @@ export const workbookApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  getResources: (gcpServices: string[]) =>
+    request<WorkbookResource[]>(
+      `/workbook/resources?services=${encodeURIComponent(gcpServices.join(','))}`
+    ),
 };

@@ -1182,11 +1182,20 @@ export interface DomainReadiness {
   lastAttemptAt: string | null;
 }
 
+export interface WorkbookMasteryInfo {
+  total: number;
+  mastered: number;
+  learned: number;
+  percentMastered: number; // (mastered + learned) / total * 100
+  bonusApplied: number; // Bonus points added to overall score (0-10)
+}
+
 export interface ReadinessScore {
   overall: number;
   confidence: ConfidenceLevel;
   domains: DomainReadiness[];
   calculatedAt: string;
+  workbookMastery?: WorkbookMasteryInfo;
 }
 
 export interface ReadinessRecommendation {
@@ -1635,4 +1644,45 @@ export interface WorkbookGuidedNextResponse {
   question: WorkbookQuestionWithProgress | null;
   currentIndex: number;
   totalQuestions: number;
+}
+
+export type WorkbookBenchmarkTier =
+  | 'top_10'
+  | 'top_25'
+  | 'above_average'
+  | 'average'
+  | 'below_average';
+
+export interface WorkbookBenchmark {
+  userStats: {
+    total: number;
+    mastered: number;
+    learned: number;
+    firstAttemptAccuracy: number; // percentage 0-100
+  };
+  benchmarks: {
+    averageFirstAttemptAccuracy: number;
+    medianFirstAttemptAccuracy: number;
+    topQuartileThreshold: number;
+  };
+  tier: WorkbookBenchmarkTier;
+  percentile: number;
+}
+
+// Workbook learning resources
+export interface WorkbookResourceCourse {
+  name: string;
+  module?: string;
+}
+
+export interface WorkbookResourceLink {
+  title: string;
+  url: string;
+}
+
+export interface WorkbookResource {
+  gcpService: string;
+  courses: WorkbookResourceCourse[];
+  skillBadges: string[];
+  documentationLinks: WorkbookResourceLink[];
 }

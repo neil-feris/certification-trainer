@@ -17,7 +17,8 @@
     "db:seed-case-studies": "tsx src/db/seedCaseStudies.ts",
     "db:add-pca": "tsx src/db/migrations/0002_add_pca_certification.ts",
     "db:add-workbook": "tsx src/db/migrations/0021_add_workbook_questions.ts",
-    "db:add-workbook-progress": "tsx src/db/migrations/0022_add_workbook_progress.ts"
+    "db:add-workbook-progress": "tsx src/db/migrations/0022_add_workbook_progress.ts",
+    "db:add-workbook-resources": "tsx src/db/migrations/0024_add_workbook_resources.ts"
   },
   "dependencies": {
     "@ace-prep/shared": "*",

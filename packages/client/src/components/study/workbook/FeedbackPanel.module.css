@@ -1,0 +1,208 @@
+.container {
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-top: var(--space-4);
+}
+
+.correct {
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+}
+
+.incorrect {
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: var(--text-xl);
+  font-weight: bold;
+}
+
+.correct .icon {
+  background: var(--color-success);
+  color: white;
+}
+
+.incorrect .icon {
+  background: var(--color-error);
+  color: white;
+}
+
+.result {
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.mastery {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-primary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+}
+
+.answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.answerBlock {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.answerLabel {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  min-width: 120px;
+}
+
+.correctText {
+  color: var(--color-success-dark);
+  font-weight: 500;
+}
+
+.section {
+  margin-bottom: var(--space-4);
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-2);
+}
+
+.explanation {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tag {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.placeholder {
+  font-style: italic;
+  color: var(--color-text-tertiary);
+}
+
+/* Resources Grid */
+.resourcesGrid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.resourceCategory {
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.resourceCategoryTitle {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-2);
+}
+
+.resourceList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.resourceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  transition: color 0.2s;
+}
+
+.resourceLink:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+.resourceLink svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.courseItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.courseName {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.courseModule {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  padding: var(--space-0-5) var(--space-2);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  width: fit-content;
+}
+
+.badgesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.badge {
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}

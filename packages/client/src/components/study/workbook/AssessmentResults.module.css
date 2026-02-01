@@ -1,0 +1,608 @@
+/* ============================================
+   Assessment Results - Summary after completion
+   ============================================ */
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100%;
+  padding: 32px 24px 64px;
+  position: relative;
+  overflow: hidden;
+  animation: fadeIn 0.4s ease;
+}
+
+/* Celebration effect for high scores - subtle animated glow */
+.celebration {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(0, 200, 83, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 40% at 20% 20%, rgba(0, 212, 170, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 40% at 80% 30%, rgba(0, 153, 204, 0.05) 0%, transparent 50%);
+  animation: celebrationPulse 3s ease-in-out infinite;
+}
+
+@keyframes celebrationPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+}
+
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 40px;
+  max-width: 720px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* ============ Score Section ============ */
+.scoreSection {
+  text-align: center;
+  margin-bottom: 40px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.scoreCircle {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  border: 5px solid;
+  position: relative;
+  animation: scoreReveal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform: scale(0.8);
+  opacity: 0;
+}
+
+@keyframes scoreReveal {
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.scoreCircle.excellent {
+  border-color: var(--success);
+  background: rgba(0, 200, 83, 0.08);
+  box-shadow:
+    0 0 0 8px rgba(0, 200, 83, 0.06),
+    0 0 40px rgba(0, 200, 83, 0.15);
+}
+
+.scoreCircle.good {
+  border-color: var(--warning);
+  background: rgba(255, 171, 0, 0.08);
+  box-shadow:
+    0 0 0 8px rgba(255, 171, 0, 0.06),
+    0 0 40px rgba(255, 171, 0, 0.1);
+}
+
+.scoreCircle.needsWork {
+  border-color: var(--error);
+  background: rgba(255, 82, 82, 0.08);
+  box-shadow: 0 0 0 8px rgba(255, 82, 82, 0.06);
+}
+
+.scoreValue {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.checkmark {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 40px;
+  height: 40px;
+  background: var(--success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 200, 83, 0.3);
+  animation: checkmarkPop 0.4s 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform: scale(0);
+}
+
+@keyframes checkmarkPop {
+  to {
+    transform: scale(1);
+  }
+}
+
+.scoreSubtitle {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.timeDisplay {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  font-family: var(--font-mono);
+}
+
+.assessmentBadge {
+  display: inline-block;
+  padding: 6px 16px;
+  background: var(--bg-tertiary);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ============ Domain Section ============ */
+.domainSection {
+  margin-bottom: 32px;
+  animation: slideUp 0.5s 0.2s ease forwards;
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+@keyframes slideUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.domainTable {
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.domainHeader {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.domainRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background var(--transition-fast);
+}
+
+.domainRow:last-child {
+  border-bottom: none;
+}
+
+.domainRow:hover {
+  background: var(--bg-elevated);
+}
+
+.domainInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.domainCode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 28px;
+  background: rgba(0, 212, 170, 0.1);
+  color: var(--accent-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.domainName {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.domainScore {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.domainFraction {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.domainPercent {
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  min-width: 48px;
+  text-align: right;
+}
+
+.domainPercent.excellent {
+  color: var(--success);
+}
+
+.domainPercent.good {
+  color: var(--warning);
+}
+
+.domainPercent.needsWork {
+  color: var(--error);
+}
+
+/* ============ Incorrect Questions Section ============ */
+.incorrectSection {
+  margin-bottom: 32px;
+  animation: slideUp 0.5s 0.3s ease forwards;
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.incorrectHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.toggleButton {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.toggleButton:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+.incorrectList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.incorrectItem {
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  border-left: 3px solid var(--error);
+  transition: background var(--transition-fast);
+}
+
+.incorrectItem:hover {
+  background: var(--bg-elevated);
+}
+
+.incorrectItemHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.questionNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 24px;
+  background: rgba(255, 82, 82, 0.15);
+  color: var(--error);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  border-radius: 4px;
+}
+
+.questionDomain {
+  display: inline-block;
+  padding: 4px 8px;
+  background: var(--bg-elevated);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+.questionText {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.answerComparison {
+  margin-bottom: 10px;
+}
+
+.correctAnswer {
+  display: flex;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.answerLabel {
+  color: var(--success);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.answerText {
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.explanationPreview {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.explanationLabel {
+  color: var(--accent-secondary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.explanationText {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.moreIndicator {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 12px;
+  font-style: italic;
+}
+
+/* ============ Action Buttons ============ */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slideUp 0.5s 0.4s ease forwards;
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.primaryButton,
+.secondaryButton,
+.ghostButton {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-sans);
+}
+
+.primaryButton {
+  background: var(--accent-gradient);
+  color: var(--bg-primary);
+  border: none;
+}
+
+.primaryButton:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 212, 170, 0.25);
+}
+
+.secondaryButton {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.secondaryButton:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent-primary);
+}
+
+.ghostButton {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+}
+
+.ghostButton:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+/* ============ Animations ============ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============ Responsive Design ============ */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px 16px 48px;
+  }
+
+  .card {
+    padding: 24px 20px;
+  }
+
+  .scoreCircle {
+    width: 150px;
+    height: 150px;
+  }
+
+  .scoreValue {
+    font-size: 2.75rem;
+  }
+
+  .checkmark {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+    top: -4px;
+    right: -4px;
+  }
+
+  .domainInfo {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .domainCode {
+    min-width: 40px;
+    height: 24px;
+    font-size: 0.65rem;
+  }
+
+  .domainName {
+    font-size: 0.8rem;
+  }
+
+  .domainScore {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .domainFraction {
+    font-size: 0.8rem;
+  }
+
+  .domainPercent {
+    font-size: 0.85rem;
+  }
+
+  .incorrectHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .toggleButton {
+    align-self: flex-end;
+  }
+
+  .actions {
+    gap: 10px;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .ghostButton {
+    padding: 12px 20px;
+    font-size: 0.9rem;
+  }
+}
+
+/* ============ Tablet optimization ============ */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .card {
+    padding: 32px;
+  }
+}
+
+/* ============ Print styles ============ */
+@media print {
+  .container {
+    padding: 0;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+
+  .celebration,
+  .checkmark,
+  .actions {
+    display: none;
+  }
+
+  .scoreCircle {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .domainSection,
+  .incorrectSection {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

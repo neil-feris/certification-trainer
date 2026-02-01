@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { studyApi } from '../../../api/client';
+import { useNavigate } from 'react-router-dom';
+import { studyApi, workbookApi } from '../../../api/client';
 import { useCertificationStore } from '../../../stores/certificationStore';
 import { DomainCard } from './DomainCard';
+import { OfficialQuestionsCard } from './OfficialQuestionsCard';
 import styles from './Domains.module.css';
 
 interface DomainListProps {
@@ -10,6 +12,7 @@ interface DomainListProps {
 }
 
 export function DomainList({ onStartPractice, highlightDomainId }: DomainListProps) {
+  const navigate = useNavigate();
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const selectedCert = useCertificationStore((s) =>
     s.certifications.find((c) => c.id === s.selectedCertificationId)
@@ -20,6 +23,16 @@ export function DomainList({ onStartPractice, highlightDomainId }: DomainListPro
     queryFn: () => studyApi.getDomains(selectedCertificationId ?? undefined),
     enabled: selectedCertificationId !== null,
   });
+
+  const { data: workbookProgress } = useQuery({
+    queryKey: ['workbookProgress'],
+    queryFn: () => workbookApi.getProgress(),
+    staleTime: 60000,
+  });
+
+  const handleGoToWorkbook = () => {
+    navigate('/study', { state: { tab: 'workbook' } });
+  };
 
   if (isLoading) {
     return <div className={styles.loading}>Loading domains...</div>;
@@ -34,6 +47,12 @@ export function DomainList({ onStartPractice, highlightDomainId }: DomainListPro
           your review queue.
         </p>
       </div>
+
+      {/* Official Questions Card */}
+      <OfficialQuestionsCard
+        summary={workbookProgress?.summary}
+        onGoToWorkbook={handleGoToWorkbook}
+      />
 
       <div className={styles.domainList}>
         {domains.map((domain: any) => (
