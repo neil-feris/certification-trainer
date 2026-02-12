@@ -27,6 +27,8 @@ import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
+import { selectQuestions } from '../services/adaptiveSelector.js';
+import { recordEncounters } from '../services/encounterService.js';
 import {
   checkAndUnlock,
   checkDomainExpert,
@@ -135,7 +137,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     }
     const targetCount = questionCount as ExamSize;
 
-    // Build base query - filter by certification's domains and optionally focus domains
+    // Build base query to check available questions
     const whereCondition =
       focusDomains && focusDomains.length > 0
         ? and(eq(domains.certificationId, certId), inArray(questions.domainId, focusDomains))
@@ -161,11 +163,22 @@ export async function examRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Use SQLite RANDOM() for efficient random selection - avoids loading all questions into memory
-    const selectedQuestions = await baseQuery.orderBy(sql`RANDOM()`).limit(targetCount);
+    // Use adaptive question selection instead of ORDER BY RANDOM()
+    const userId = parseInt(request.user!.id, 10);
+    const selectedQuestionIds = await selectQuestions({
+      userId,
+      certificationId: certId,
+      count: targetCount,
+      domainIds: focusDomains && focusDomains.length > 0 ? focusDomains : undefined,
+    });
+
+    // Fetch full question records for the selected IDs
+    const selectedQuestions = await db
+      .select()
+      .from(questions)
+      .where(inArray(questions.id, selectedQuestionIds));
 
     // Create exam
-    const userId = parseInt(request.user!.id, 10);
     const [newExam] = await db
       .insert(exams)
       .values({
@@ -182,12 +195,15 @@ export async function examRoutes(fastify: FastifyInstance) {
       selectedQuestions.map((q, i) => ({
         userId,
         examId: newExam.id,
-        questionId: q.question.id,
+        questionId: q.id,
         selectedAnswers: JSON.stringify([]),
         orderIndex: i,
         flagged: false,
       }))
     );
+
+    // Record question encounters for cooldown tracking
+    recordEncounters(userId, selectedQuestionIds);
 
     return { examId: newExam.id, totalQuestions: selectedQuestions.length };
   });
