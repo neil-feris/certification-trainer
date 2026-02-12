@@ -1686,3 +1686,71 @@ export interface WorkbookResource {
   skillBadges: string[];
   documentationLinks: WorkbookResourceLink[];
 }
+
+// ============ ADAPTIVE LEARNING ENGINE TYPES ============
+
+/** Weights and thresholds controlling adaptive question selection */
+export interface AdaptiveSelectionConfig {
+  /** Weight multiplier for questions in domains with <70% accuracy */
+  weakAreaWeight: number;
+  /** Weight multiplier for questions in domains with <50% accuracy */
+  veryWeakAreaWeight: number;
+  /** Weight multiplier for questions never attempted */
+  unseenWeight: number;
+  /** Weight multiplier for questions in domains with >90% accuracy and 10+ attempts */
+  masteredWeight: number;
+  /** Number of recently-seen questions to exclude from selection */
+  cooldownWindowSize: number;
+  /** Overall accuracy threshold below which easy questions are favored */
+  beginnerThreshold: number;
+  /** Overall accuracy threshold above which hard questions are favored */
+  advancedThreshold: number;
+}
+
+/** Tracks when a user last encountered a specific question */
+export interface QuestionEncounter {
+  userId: number;
+  questionId: number;
+  lastSeenAt: Date | string;
+  encounterCount: number;
+}
+
+/** Empirical difficulty data derived from user performance on a question */
+export interface DifficultyCalibration {
+  questionId: number;
+  empiricalDifficulty: Difficulty | null;
+  sampleSize: number;
+  confidenceScore: number;
+}
+
+/** Prediction of when a user will reach exam readiness */
+export interface ReadinessProjection {
+  projectedReadyDate: string | null; // ISO date string or null if not projectable
+  currentPace: number; // study sessions per week
+  requiredPace: number; // sessions per week needed to hit target
+  improvementRate: number; // readiness points gained per day
+  daysRemaining: number | null; // estimated days until ready, null if not projectable
+  isOnTrack: boolean;
+  isProjectable: boolean; // false if insufficient data
+}
+
+/** Default configuration values for the adaptive learning engine */
+export const ADAPTIVE_DEFAULTS: AdaptiveSelectionConfig = {
+  weakAreaWeight: 3,
+  veryWeakAreaWeight: 5,
+  unseenWeight: 2,
+  masteredWeight: 0.5,
+  cooldownWindowSize: 30,
+  beginnerThreshold: 50,
+  advancedThreshold: 75,
+};
+
+/** Recommended exam duration in seconds mapped to question count */
+export type AdaptiveTimerConfig = Record<ExamSize, number>;
+
+export const ADAPTIVE_TIMER_MAP: AdaptiveTimerConfig = {
+  10: 720, // 12 minutes
+  15: 1080, // 18 minutes
+  25: 1800, // 30 minutes
+  50: 7200, // 2 hours (unchanged)
+};
