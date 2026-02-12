@@ -92,12 +92,17 @@ function calculateRequiredPace(
   const daysNeeded = pointsNeeded / improvementRate;
   const weeksNeeded = daysNeeded / 7;
 
-  // Assume current pace produces current improvement rate
-  // Required pace = currentPace * (1 + buffer) if on track, more if behind
   if (weeksNeeded <= 0) return currentPace;
 
-  // Sessions needed = (currentPace * weeksNeeded) across weeksNeeded weeks
-  return Math.ceil(currentPace * 1.1); // 10% buffer over current pace if improving
+  // Each session contributes: (weekly improvement) / (sessions per week)
+  // Weekly improvement = improvementRate * 7
+  const pointsPerSession = (improvementRate * 7) / currentPace;
+  if (pointsPerSession <= 0) return currentPace * 2 || 7;
+
+  // Required sessions = total points needed / points per session
+  // Spread over available weeks, with 10% buffer
+  const totalSessionsNeeded = pointsNeeded / pointsPerSession;
+  return Math.ceil((totalSessionsNeeded / weeksNeeded) * 1.1);
 }
 
 // ============================================================================
