@@ -19,6 +19,7 @@ Started: Thu 12 Feb 2026 18:32:20 SAST
 - Only destructure mock refs you use in test assertions — lint catches unused destructured vars from hoisted blocks
 - `selectQuestions()` returns `number[]` (IDs) — fetch full records via `inArray(questions.id, ids)` for response creation
 - `recordEncounters()` is synchronous — no await needed, call after response insertion
+- `updateQuestionStats()` and `recalibrateIfReady()` are synchronous — call fire-and-forget from answer submission paths
 
 ---
 
@@ -118,4 +119,19 @@ Started: Thu 12 Feb 2026 18:32:20 SAST
   - Flashcard route's bookmarked path needs its own conditions array with `inArray(questions.id, bookmarkedQuestionIds)` — can't share the same query path as adaptive selection
   - The GET `/:sessionId` endpoint fetches full question data separately (domain/topic joins) after session creation — the POST only stores question IDs, so `selectQuestions` returning IDs is sufficient
   - `recordEncounters` should be called for all sessions (including bookmarked) since encounter tracking is about cooldown windows regardless of selection method
+---
+
+## 2026-02-12 - US-008
+- Implemented: `difficultyCalibration.ts` with `updateQuestionStats(questionId, isCorrect)`, `recalibrateIfReady(questionId)`, `getCalibratedDifficulty(questionId)`
+- `updateQuestionStats` increments attemptCount (always) and correctCount (if correct) on questions table using SQL increment expressions
+- `recalibrateIfReady` checks min 5 attempts threshold, computes Bayesian confidence = 1 - 1/sqrt(sampleSize), derives empirical label (>80%=easy, 50-80%=medium, <50%=hard), blends with original via numeric mapping (easy=1, medium=2, hard=3) and stores result
+- `getCalibratedDifficulty` returns empiricalDifficulty if set, falls back to original difficulty, defaults to 'medium' for missing questions
+- Exports `_testing` object with pure functions: `empiricalLabel`, `confidence`, `blendDifficulty`, `difficultyToNumeric`, `numericToDifficulty`
+- 24 unit tests covering: empirical label thresholds, confidence curve behavior, difficulty numeric mapping, blend formula at 0/0.5/1 confidence, updateQuestionStats correct/incorrect paths, recalibrateIfReady threshold/calibration behavior, getCalibratedDifficulty fallback chain
+- Files changed: `packages/server/src/services/difficultyCalibration.ts`, `packages/server/src/services/difficultyCalibration.test.ts`
+- **Learnings for future iterations:**
+  - Bayesian confidence `1 - 1/sqrt(n)` is 0 at n=1, ~0.553 at n=5 (threshold), approaches 1 — good gradual ramp
+  - Numeric difficulty mapping (easy=1, medium=2, hard=3) allows linear interpolation then re-bucketing via thresholds (≤1.5=easy, ≤2.5=medium, >2.5=hard)
+  - `updateQuestionStats` and `recalibrateIfReady` are both synchronous (no async) since they use `.run()` — can be called fire-and-forget from answer submission paths
+  - Keep `getCalibratedDifficulty` async for consistency with other read services, even though better-sqlite3 is synchronous under the hood
 ---
