@@ -122,6 +122,9 @@ export const questions = sqliteTable(
     thumbsDownCount: integer('thumbs_down_count').notNull().default(0),
     reportCount: integer('report_count').notNull().default(0),
     isFlagged: integer('is_flagged', { mode: 'boolean' }).notNull().default(false),
+    empiricalDifficulty: text('empirical_difficulty').$type<'easy' | 'medium' | 'hard'>(),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    correctCount: integer('correct_count').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   },
   (table) => [
@@ -846,6 +849,27 @@ export const examShares = sqliteTable(
   ]
 );
 
+// ============ QUESTION ENCOUNTERS (Adaptive Learning) ============
+export const questionEncounters = sqliteTable(
+  'question_encounters',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => questions.id, { onDelete: 'cascade' }),
+    encounterCount: integer('encounter_count').notNull().default(1),
+    lastSeenAt: integer('last_seen_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('question_encounters_user_question_idx').on(table.userId, table.questionId),
+    index('question_encounters_user_idx').on(table.userId),
+    index('question_encounters_last_seen_idx').on(table.userId, table.lastSeenAt),
+  ]
+);
+
 // Type exports for Drizzle
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -924,3 +948,5 @@ export type WorkbookAssessmentRecord = typeof workbookAssessments.$inferSelect;
 export type NewWorkbookAssessment = typeof workbookAssessments.$inferInsert;
 export type WorkbookResourceRecord = typeof workbookResources.$inferSelect;
 export type NewWorkbookResource = typeof workbookResources.$inferInsert;
+export type QuestionEncounterRecord = typeof questionEncounters.$inferSelect;
+export type NewQuestionEncounter = typeof questionEncounters.$inferInsert;
