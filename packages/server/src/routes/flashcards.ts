@@ -377,8 +377,12 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
       // Feed difficulty calibration (fire-and-forget, synchronous)
       // Map SM-2 ratings: good/easy = correct, again/hard = incorrect
       const isCorrect = rating === 'good' || rating === 'easy';
-      updateQuestionStats(questionId, isCorrect);
-      recalibrateIfReady(questionId);
+      try {
+        updateQuestionStats(questionId, isCorrect);
+        recalibrateIfReady(questionId);
+      } catch (err) {
+        request.log.error({ err, questionId }, 'Difficulty calibration failed');
+      }
 
       // Award XP (non-critical, graceful degradation)
       let xpUpdate: XPAwardResponse | undefined;

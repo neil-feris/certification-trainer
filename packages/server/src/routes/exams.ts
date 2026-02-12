@@ -303,8 +303,15 @@ export async function examRoutes(fastify: FastifyInstance) {
         response.selectedAnswers.length === correctAnswers.length &&
         response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
         correctAnswers.every((a) => response.selectedAnswers.includes(a));
-      updateQuestionStats(response.questionId, isCorrect);
-      recalibrateIfReady(response.questionId);
+      try {
+        updateQuestionStats(response.questionId, isCorrect);
+        recalibrateIfReady(response.questionId);
+      } catch (err) {
+        request.log.error(
+          { err, questionId: response.questionId },
+          'Difficulty calibration failed'
+        );
+      }
     }
 
     return { success: true, processedCount: submittedResponses.length };
@@ -366,8 +373,12 @@ export async function examRoutes(fastify: FastifyInstance) {
       .where(and(eq(examResponses.examId, examId), eq(examResponses.questionId, questionId)));
 
     // Feed difficulty calibration (fire-and-forget, synchronous)
-    updateQuestionStats(questionId, isCorrect);
-    recalibrateIfReady(questionId);
+    try {
+      updateQuestionStats(questionId, isCorrect);
+      recalibrateIfReady(questionId);
+    } catch (err) {
+      request.log.error({ err, questionId }, 'Difficulty calibration failed');
+    }
 
     return { success: true, isCorrect };
   });

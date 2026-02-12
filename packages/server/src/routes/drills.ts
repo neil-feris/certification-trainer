@@ -304,8 +304,12 @@ export async function drillRoutes(fastify: FastifyInstance) {
     });
 
     // Feed difficulty calibration (fire-and-forget, synchronous)
-    updateQuestionStats(questionId, isCorrect);
-    recalibrateIfReady(questionId);
+    try {
+      updateQuestionStats(questionId, isCorrect);
+      recalibrateIfReady(questionId);
+    } catch (err) {
+      request.log.error({ err, questionId }, 'Difficulty calibration failed');
+    }
 
     // Return correctAnswers and explanation ONLY after user has submitted
     return {
