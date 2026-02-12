@@ -7,6 +7,7 @@ import {
   studySessions,
   studySessionResponses,
   spacedRepetition,
+  performanceStats,
 } from '../db/schema.js';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import type {
@@ -57,7 +58,28 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const userId = parseInt(request.user!.id, 10);
 
     // Map drill mode to domain filter for adaptive selector
-    const domainIds = mode === 'domain' && domainId ? [domainId] : undefined;
+    let domainIds: number[] | undefined;
+    if (mode === 'domain' && domainId) {
+      domainIds = [domainId];
+    } else if (mode === 'weak_areas') {
+      // Query domains with <70% accuracy for this user and certification
+      const weakDomains = await db
+        .select({ domainId: performanceStats.domainId })
+        .from(performanceStats)
+        .innerJoin(domains, eq(performanceStats.domainId, domains.id))
+        .where(
+          and(
+            eq(performanceStats.userId, userId),
+            eq(domains.certificationId, certId),
+            sql`${performanceStats.totalAttempts} > 0`,
+            sql`CAST(${performanceStats.correctAttempts} AS REAL) / ${performanceStats.totalAttempts} < 0.7`
+          )
+        );
+      if (weakDomains.length > 0) {
+        domainIds = weakDomains.map((d) => d.domainId);
+      }
+      // If no weak domains found, leave domainIds undefined (all domains)
+    }
 
     const selectedQuestionIds = await selectQuestions({
       userId,
