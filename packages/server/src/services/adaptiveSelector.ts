@@ -172,7 +172,10 @@ async function getCandidatePool(
     .select({
       id: schema.questions.id,
       domainId: schema.questions.domainId,
-      difficulty: schema.questions.difficulty,
+      difficulty:
+        sql<string>`COALESCE(${schema.questions.empiricalDifficulty}, ${schema.questions.difficulty})`.as(
+          'effective_difficulty'
+        ),
     })
     .from(schema.questions)
     .innerJoin(schema.domains, eq(schema.questions.domainId, schema.domains.id))
