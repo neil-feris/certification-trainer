@@ -29,6 +29,7 @@ import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
 import { selectQuestions } from '../services/adaptiveSelector.js';
 import { recordEncounters } from '../services/encounterService.js';
+import { updateQuestionStats, recalibrateIfReady } from '../services/difficultyCalibration.js';
 import {
   checkAndUnlock,
   checkDomainExpert,
@@ -282,6 +283,19 @@ export async function examRoutes(fastify: FastifyInstance) {
 
     await Promise.all(updatePromises);
 
+    // Feed difficulty calibration for all submitted questions (fire-and-forget, synchronous)
+    for (const response of submittedResponses) {
+      const question = questionMap.get(response.questionId);
+      if (!question) continue;
+      const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+      const isCorrect =
+        response.selectedAnswers.length === correctAnswers.length &&
+        response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => response.selectedAnswers.includes(a));
+      updateQuestionStats(response.questionId, isCorrect);
+      recalibrateIfReady(response.questionId);
+    }
+
     return { success: true, processedCount: submittedResponses.length };
   });
 
@@ -339,6 +353,10 @@ export async function examRoutes(fastify: FastifyInstance) {
         flagged: flagged ?? false,
       })
       .where(and(eq(examResponses.examId, examId), eq(examResponses.questionId, questionId)));
+
+    // Feed difficulty calibration (fire-and-forget, synchronous)
+    updateQuestionStats(questionId, isCorrect);
+    recalibrateIfReady(questionId);
 
     return { success: true, isCorrect };
   });

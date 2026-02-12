@@ -24,6 +24,7 @@ import { calculateNextReview } from '../services/spacedRepetition.js';
 import { awardCustomXP } from '../services/xpService.js';
 import { selectQuestions } from '../services/adaptiveSelector.js';
 import { recordEncounters } from '../services/encounterService.js';
+import { updateQuestionStats, recalibrateIfReady } from '../services/difficultyCalibration.js';
 import type {
   StartFlashcardSessionRequest,
   FlashcardCard,
@@ -372,6 +373,12 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
 
         return result;
       });
+
+      // Feed difficulty calibration (fire-and-forget, synchronous)
+      // Map SM-2 ratings: good/easy = correct, again/hard = incorrect
+      const isCorrect = rating === 'good' || rating === 'easy';
+      updateQuestionStats(questionId, isCorrect);
+      recalibrateIfReady(questionId);
 
       // Award XP (non-critical, graceful degradation)
       let xpUpdate: XPAwardResponse | undefined;

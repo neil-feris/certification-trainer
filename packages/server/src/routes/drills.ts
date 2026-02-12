@@ -30,6 +30,7 @@ import { authenticate } from '../middleware/auth.js';
 import { awardCustomXP } from '../services/xpService.js';
 import { selectQuestions } from '../services/adaptiveSelector.js';
 import { recordEncounters } from '../services/encounterService.js';
+import { updateQuestionStats, recalibrateIfReady } from '../services/difficultyCalibration.js';
 import {
   checkAndUnlock,
   checkDomainExpert,
@@ -275,6 +276,10 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
       return wasAddedToSR;
     });
+
+    // Feed difficulty calibration (fire-and-forget, synchronous)
+    updateQuestionStats(questionId, isCorrect);
+    recalibrateIfReady(questionId);
 
     // Return correctAnswers and explanation ONLY after user has submitted
     return {
