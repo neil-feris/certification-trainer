@@ -22,6 +22,8 @@ import {
 import { authenticate } from '../middleware/auth.js';
 import { calculateNextReview } from '../services/spacedRepetition.js';
 import { awardCustomXP } from '../services/xpService.js';
+import { selectQuestions } from '../services/adaptiveSelector.js';
+import { recordEncounters } from '../services/encounterService.js';
 import type {
   StartFlashcardSessionRequest,
   FlashcardCard,
@@ -77,25 +79,43 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
       conditions.push(inArray(questions.id, bookmarkedQuestionIds));
     }
 
-    // Select questions randomly
-    const selectedQuestions = await db
-      .select({
-        question: questions,
-        domain: domains,
-        topic: topics,
-      })
-      .from(questions)
-      .innerJoin(domains, eq(questions.domainId, domains.id))
-      .innerJoin(topics, eq(questions.topicId, topics.id))
-      .where(and(...conditions))
-      .orderBy(sql`RANDOM()`)
-      .limit(count);
+    let questionIds: number[];
 
-    if (selectedQuestions.length === 0) {
-      return reply.status(404).send({ error: 'No questions found for the specified criteria' });
+    if (bookmarkedOnly) {
+      // Bookmarked mode: use existing random selection from bookmarked questions
+      const selectedQuestions = await db
+        .select({
+          question: questions,
+          domain: domains,
+          topic: topics,
+        })
+        .from(questions)
+        .innerJoin(domains, eq(questions.domainId, domains.id))
+        .innerJoin(topics, eq(questions.topicId, topics.id))
+        .where(and(...conditions))
+        .orderBy(sql`RANDOM()`)
+        .limit(count);
+
+      if (selectedQuestions.length === 0) {
+        return reply.status(404).send({ error: 'No questions found for the specified criteria' });
+      }
+
+      questionIds = selectedQuestions.map((q) => q.question.id);
+    } else {
+      // Non-bookmarked mode: use adaptive selection
+      const selectedQuestionIds = await selectQuestions({
+        userId,
+        certificationId: certId,
+        count,
+        domainIds: domainId ? [domainId] : undefined,
+      });
+
+      if (selectedQuestionIds.length === 0) {
+        return reply.status(404).send({ error: 'No questions found for the specified criteria' });
+      }
+
+      questionIds = selectedQuestionIds;
     }
-
-    const questionIds = selectedQuestions.map((q) => q.question.id);
 
     // Create the flashcard session
     const [session] = await db
@@ -113,6 +133,9 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
         startedAt: new Date(),
       })
       .returning();
+
+    // Record encounters for adaptive cooldown tracking
+    recordEncounters(userId, questionIds);
 
     return {
       sessionId: session.id,

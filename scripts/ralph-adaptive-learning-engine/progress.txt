@@ -106,3 +106,16 @@ Started: Thu 12 Feb 2026 18:32:20 SAST
   - Drill route needed domain/topic join for question formatting (unlike exams which just needed flat question records) — use the joined select when the response includes domain/topic metadata
   - `selectedQuestionIds.length > 0` guard needed before `inArray()` — Drizzle/SQLite doesn't handle empty `IN ()` clause gracefully
 ---
+
+## 2026-02-12 - US-007
+- Integrated adaptive selection into `POST /api/study/flashcards` for non-bookmarked sessions
+- When `bookmarkedOnly` is false: uses `selectQuestions()` with userId, certificationId, count, and domainId filter
+- When `bookmarkedOnly` is true: preserves existing `ORDER BY RANDOM()` behavior with bookmark ID filtering
+- Added `recordEncounters(userId, questionIds)` after session creation for all sessions (bookmarked and adaptive)
+- Files changed: `packages/server/src/routes/flashcards.ts`
+- **Learnings for future iterations:**
+  - `selectQuestions` doesn't support `topicId` filtering — only `domainIds`. When a topic is specified, pass the parent domain to the selector. Topic-level granularity is less critical since adaptive weighting operates at domain level anyway
+  - Flashcard route's bookmarked path needs its own conditions array with `inArray(questions.id, bookmarkedQuestionIds)` — can't share the same query path as adaptive selection
+  - The GET `/:sessionId` endpoint fetches full question data separately (domain/topic joins) after session creation — the POST only stores question IDs, so `selectQuestions` returning IDs is sufficient
+  - `recordEncounters` should be called for all sessions (including bookmarked) since encounter tracking is about cooldown windows regardless of selection method
+---
