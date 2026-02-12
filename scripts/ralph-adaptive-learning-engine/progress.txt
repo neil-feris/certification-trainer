@@ -1,0 +1,108 @@
+# Ralph Progress Log
+Started: Thu 12 Feb 2026 18:32:20 SAST
+
+## Codebase Patterns
+- Shared package is single file: `packages/shared/src/index.ts` (~1700 lines), all types/constants exported from there
+- Shared must build first (`npm run build -w @ace-prep/shared`) before server/client typecheck
+- ExamSize type is `10 | 15 | 25 | 50` from `EXAM_SIZE_OPTIONS` const array
+- Use `as const` for constant arrays, derive types with `(typeof X)[number]`
+- Pre-existing lint warnings (192) are all `no-console` and `no-explicit-any` — no errors
+- lint-staged runs automatically on commit via pre-commit hook
+- Migrations in `startupMigrations.ts` use synchronous better-sqlite3 only — no async/await
+- Latest migration version is 13 — next should be 14
+- Schema type exports go at the bottom of `schema.ts` with pattern `TypeRecord` (select) and `NewType` (insert)
+- Drizzle schema table definitions use `sqliteTable` with index functions as 3rd arg returning array
+- Tests mocking db: use `vi.hoisted()` to declare mock fns, then `vi.mock('../db/index.js', () => ...)` with those refs
+- `feedbackService.test.ts` has pre-existing NODE_MODULE_VERSION failure — ignore in test runs
+- Export `_testing` object from services for direct unit testing of pure functions (avoids heavy DB mocks)
+- Don't use `require()` in tests for ESM modules — use static `import` after `vi.mock()`
+- Only destructure mock refs you use in test assertions — lint catches unused destructured vars from hoisted blocks
+- `selectQuestions()` returns `number[]` (IDs) — fetch full records via `inArray(questions.id, ids)` for response creation
+- `recordEncounters()` is synchronous — no await needed, call after response insertion
+
+---
+
+## 2026-02-12 - US-001
+- Implemented: AdaptiveSelectionConfig, QuestionEncounter, DifficultyCalibration, ReadinessProjection interfaces
+- Added ADAPTIVE_DEFAULTS constant, AdaptiveTimerConfig type, ADAPTIVE_TIMER_MAP constant
+- Files changed: `packages/shared/src/index.ts` (+68 lines)
+- **Learnings for future iterations:**
+  - All shared types live in a single `index.ts` — append new sections at the end with section comment headers
+  - Shared `dist/` is gitignored, only source matters for commits
+  - Build shared first, then typecheck server+client to validate
+---
+
+## 2026-02-12 - US-002
+- Implemented: `questionEncounters` table in schema.ts with userId, questionId, encounterCount, lastSeenAt + unique index
+- Added `empiricalDifficulty`, `attemptCount`, `correctCount` columns to `questions` table in schema.ts
+- Added migration version 13 in `startupMigrations.ts` — creates table + ALTER TABLE for 3 new columns (all idempotent)
+- Added type exports: `QuestionEncounterRecord`, `NewQuestionEncounter`
+- Files changed: `packages/server/src/db/schema.ts`, `packages/server/src/db/startupMigrations.ts`
+- **Learnings for future iterations:**
+  - Migration column existence checks use `PRAGMA table_info('tablename')` then `.some(col => col.name === 'x')`
+  - Table existence checks use `SELECT name FROM sqlite_master WHERE type='table' AND name='x'`
+  - Each ALTER TABLE must be a separate `db.exec()` call in SQLite (can't batch them)
+  - Indexes on `question_encounters` include composite (user_id, last_seen_at) for recent encounter queries
+---
+
+## 2026-02-12 - US-003
+- Implemented: `encounterService.ts` with `recordEncounters(userId, questionIds)` and `getRecentEncounters(userId, limit)`
+- `recordEncounters` uses synchronous `db.transaction()` — loops through questionIds, upserts each (select → insert or update)
+- `getRecentEncounters` is async, queries with `orderBy(desc(lastSeenAt))` and `limit()`
+- Full test suite with `vi.hoisted()` + `vi.mock()` pattern for mocking Drizzle db module
+- Files changed: `packages/server/src/services/encounterService.ts`, `packages/server/src/services/encounterService.test.ts`
+- **Learnings for future iterations:**
+  - `vi.mock()` factory is hoisted above variable declarations — must use `vi.hoisted()` to declare mock fns accessible in factory
+  - Drizzle chain mocking pattern: define full chain (select→from→where→all, insert→values→run, update→set→where→run) inside `vi.hoisted()`, return all needed refs
+  - `feedbackService.test.ts` has pre-existing failure (NODE_MODULE_VERSION mismatch) — not related to adaptive learning changes
+  - Services that write use synchronous `db.transaction()`, services that only read can use `async` + `await db.select()`
+---
+
+## 2026-02-12 - US-004
+- Implemented: `adaptiveSelector.ts` with `selectQuestions(params)` — core adaptive question selection algorithm
+- Weak area weighting: queries `performanceStats` for domain-level accuracy, applies multipliers (5x <50%, 3x <70%, 2x unseen, 0.5x mastered >90% with 10+ attempts)
+- Cooldown enforcement: excludes recently-seen questions from `questionEncounters`, auto-shrinks window (half → none) if pool too small
+- Difficulty progression: beginner (<50% overall) gets 1.5x easy / 0.5x hard, advanced (>75%) gets 1.5x hard / 0.5x easy, intermediate balanced
+- Fallback to `ORDER BY RANDOM()` when adaptive pool insufficient (candidates <= requested count)
+- Weighted random sampling without replacement via cumulative weight traversal
+- Exports `_testing` object with internals for direct unit testing of pure functions
+- 20 unit tests covering: weak area weights, difficulty multipliers, weighted sampling, overall accuracy calc, integration with mocked DB
+- Files changed: `packages/server/src/services/adaptiveSelector.ts`, `packages/server/src/services/adaptiveSelector.test.ts`
+- **Learnings for future iterations:**
+  - Don't use `require()` for ESM modules in tests — use static `import` at top level after `vi.mock()`
+  - Export `_testing` object for pure function unit testing — avoids heavy DB mock chains for core logic
+  - Only destructure mock refs you actually use in test assertions — lint catches unused vars from hoisted destructuring
+  - `notInArray` from drizzle-orm for cooldown exclusion queries
+  - Mock chain for multi-join queries: `select → from → innerJoin → where → all` (innerJoin returns object with `where`)
+  - `performanceStats` has domain-level aggregates only — no per-question tracking, must use domain accuracy as proxy
+---
+
+## 2026-02-12 - US-005
+- Integrated adaptive selection into `POST /api/exams` exam creation endpoint
+- Replaced `baseQuery.orderBy(sql\`RANDOM()\`).limit(targetCount)` with `selectQuestions()` call
+- `selectQuestions` returns question IDs → fetch full records with `inArray(questions.id, selectedIds)`
+- Passes `focusDomains` as `domainIds` to selector when provided in request body
+- Added `recordEncounters(userId, selectedQuestionIds)` call after exam response insertion
+- API contract unchanged: still returns `{ examId, totalQuestions }`
+- Cold-start users: `selectQuestions` handles zero performance history via its fallback to RANDOM()
+- Files changed: `packages/server/src/routes/exams.ts`
+- **Learnings for future iterations:**
+  - `selectQuestions` returns `number[]` (IDs only) — must fetch full question records separately for exam response creation
+  - `recordEncounters` is synchronous (uses `db.transaction()`) — can call it fire-and-forget, no await needed
+  - Keep the available count check before calling `selectQuestions` — the selector has its own fallback but the count check provides a better user error message
+  - Route integration is minimal: import 2 services, replace 1 query line, add 1 encounter recording line
+---
+
+## 2026-02-12 - US-006
+- Integrated adaptive selection into `POST /api/drills` drill creation endpoint
+- Replaced manual `weak_areas` performance query + `ORDER BY RANDOM()` with `selectQuestions()` call
+- Mode mapping: `domain` mode passes `domainIds: [domainId]`, `weak_areas` and `all` modes pass no domain filter (selector's weak area weighting handles prioritization naturally)
+- Added `recordEncounters(userId, selectedQuestionIds)` after session creation
+- Removed unused `performanceStats` import (no longer needed — selector handles performance queries internally)
+- API contract unchanged: still returns `{ drillId, questions, startedAt, timeLimitSeconds }`
+- Files changed: `packages/server/src/routes/drills.ts`
+- **Learnings for future iterations:**
+  - Drill modes don't need special handling for `weak_areas` — the adaptive selector's weak area weighting already prioritizes domains with <70% accuracy, achieving the same effect without the manual `performanceStats` query
+  - Drill route needed domain/topic join for question formatting (unlike exams which just needed flat question records) — use the joined select when the response includes domain/topic metadata
+  - `selectedQuestionIds.length > 0` guard needed before `inArray()` — Drizzle/SQLite doesn't handle empty `IN ()` clause gracefully
+---
