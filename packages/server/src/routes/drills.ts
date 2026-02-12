@@ -88,8 +88,8 @@ export async function drillRoutes(fastify: FastifyInstance) {
       domainIds,
     });
 
-    // Fetch full question records with domain/topic joins
-    const selectedQuestions =
+    // Fetch full question records and preserve adaptive selection order
+    const fetchedQuestions =
       selectedQuestionIds.length > 0
         ? await db
             .select({
@@ -102,6 +102,10 @@ export async function drillRoutes(fastify: FastifyInstance) {
             .innerJoin(topics, eq(questions.topicId, topics.id))
             .where(inArray(questions.id, selectedQuestionIds))
         : [];
+    const drillQuestionMap = new Map(fetchedQuestions.map((q) => [q.question.id, q]));
+    const selectedQuestions = selectedQuestionIds
+      .map((id) => drillQuestionMap.get(id)!)
+      .filter(Boolean);
 
     if (selectedQuestions.length === 0) {
       return reply.status(404).send({ error: 'No questions found for the specified criteria' });

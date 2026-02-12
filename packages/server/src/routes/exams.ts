@@ -178,11 +178,13 @@ export async function examRoutes(fastify: FastifyInstance) {
       domainIds: focusDomains && focusDomains.length > 0 ? focusDomains : undefined,
     });
 
-    // Fetch full question records for the selected IDs
-    const selectedQuestions = await db
+    // Fetch full question records and preserve adaptive selection order
+    const fetchedQuestions = await db
       .select()
       .from(questions)
       .where(inArray(questions.id, selectedQuestionIds));
+    const questionMap = new Map(fetchedQuestions.map((q) => [q.id, q]));
+    const selectedQuestions = selectedQuestionIds.map((id) => questionMap.get(id)!).filter(Boolean);
 
     // Create exam
     const [newExam] = await db
