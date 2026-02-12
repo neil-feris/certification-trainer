@@ -10,7 +10,9 @@ import type {
   XPAwardResponse,
   QuestionWithDomain,
   OfflineExamSubmission,
+  ExamSize,
 } from '@ace-prep/shared';
+import { ADAPTIVE_TIMER_MAP } from '@ace-prep/shared';
 import {
   saveOfflineExam,
   getOfflineExam,
@@ -49,13 +51,14 @@ interface ExamState {
   responses: Map<number, ExamResponse>;
   startTime: number | null;
   timeRemaining: number; // seconds
+  examDuration: number; // total duration for current exam in seconds
   isSubmitting: boolean;
   // Offline exam state
   isOfflineExam: boolean;
   offlineExamId: string | null; // Client-generated UUID for offline exams
 
   // Actions
-  startExam: (examId: number, questions: ExamQuestion[]) => void;
+  startExam: (examId: number, questions: ExamQuestion[], durationSeconds?: number) => void;
   setCurrentQuestion: (index: number) => void;
   answerQuestion: (questionId: number, selectedAnswers: number[]) => void;
   toggleFlag: (questionId: number) => void;
@@ -81,7 +84,11 @@ interface ExamState {
   getProgress: () => { answered: number; flagged: number; total: number };
 }
 
-const EXAM_DURATION = 2 * 60 * 60; // 2 hours in seconds
+const DEFAULT_EXAM_DURATION = 7200; // 2 hours fallback
+
+function getExamDuration(questionCount: number): number {
+  return ADAPTIVE_TIMER_MAP[questionCount as ExamSize] ?? DEFAULT_EXAM_DURATION;
+}
 const DEFAULT_OFFLINE_QUESTION_COUNT = 50;
 
 // Track pending IndexedDB writes to prevent data loss on browser close
@@ -141,12 +148,13 @@ export const useExamStore = create<ExamState>()(
       questions: [],
       responses: new Map(),
       startTime: null,
-      timeRemaining: EXAM_DURATION,
+      timeRemaining: DEFAULT_EXAM_DURATION,
+      examDuration: DEFAULT_EXAM_DURATION,
       isSubmitting: false,
       isOfflineExam: false,
       offlineExamId: null,
 
-      startExam: (examId, questions) => {
+      startExam: (examId, questions, durationSeconds) => {
         Sentry.startSpan(
           {
             op: 'ui.action',
@@ -167,13 +175,16 @@ export const useExamStore = create<ExamState>()(
               });
             });
 
+            const duration = durationSeconds ?? getExamDuration(questions.length);
+
             set({
               examId,
               questions,
               responses,
               currentQuestionIndex: 0,
               startTime: Date.now(),
-              timeRemaining: EXAM_DURATION,
+              timeRemaining: duration,
+              examDuration: duration,
               isSubmitting: false,
             });
           }
@@ -341,7 +352,8 @@ export const useExamStore = create<ExamState>()(
           questions: [],
           responses: new Map(),
           startTime: null,
-          timeRemaining: EXAM_DURATION,
+          timeRemaining: DEFAULT_EXAM_DURATION,
+          examDuration: DEFAULT_EXAM_DURATION,
           isSubmitting: false,
           isOfflineExam: false,
           offlineExamId: null,
@@ -376,7 +388,8 @@ export const useExamStore = create<ExamState>()(
           questions: [],
           responses: new Map(),
           startTime: null,
-          timeRemaining: EXAM_DURATION,
+          timeRemaining: DEFAULT_EXAM_DURATION,
+          examDuration: DEFAULT_EXAM_DURATION,
           isSubmitting: false,
           isOfflineExam: false,
           offlineExamId: null,
@@ -476,7 +489,8 @@ export const useExamStore = create<ExamState>()(
                 responses,
                 currentQuestionIndex: 0,
                 startTime: now,
-                timeRemaining: EXAM_DURATION,
+                timeRemaining: getExamDuration(selectedQuestions.length),
+                examDuration: getExamDuration(selectedQuestions.length),
                 isSubmitting: false,
                 isOfflineExam: true,
               });
@@ -611,7 +625,8 @@ export const useExamStore = create<ExamState>()(
                 questions: [],
                 responses: new Map(),
                 startTime: null,
-                timeRemaining: EXAM_DURATION,
+                timeRemaining: DEFAULT_EXAM_DURATION,
+                examDuration: DEFAULT_EXAM_DURATION,
                 isSubmitting: false,
                 isOfflineExam: false,
               });
@@ -675,10 +690,11 @@ export const useExamStore = create<ExamState>()(
             });
           });
 
-          // Calculate remaining time
+          // Calculate remaining time using adaptive duration
+          const duration = getExamDuration(examQuestions.length);
           const startedAtTime = new Date(offlineExam.startedAt).getTime();
           const elapsedSeconds = Math.floor((Date.now() - startedAtTime) / 1000);
-          const remainingTime = Math.max(0, EXAM_DURATION - elapsedSeconds);
+          const remainingTime = Math.max(0, duration - elapsedSeconds);
 
           set({
             examId: null,
@@ -688,6 +704,7 @@ export const useExamStore = create<ExamState>()(
             currentQuestionIndex: offlineExam.currentQuestionIndex,
             startTime: startedAtTime,
             timeRemaining: remainingTime,
+            examDuration: duration,
             isSubmitting: false,
             isOfflineExam: true,
           });
@@ -725,7 +742,8 @@ export const useExamStore = create<ExamState>()(
           questions: [],
           responses: new Map(),
           startTime: null,
-          timeRemaining: EXAM_DURATION,
+          timeRemaining: DEFAULT_EXAM_DURATION,
+          examDuration: DEFAULT_EXAM_DURATION,
           isSubmitting: false,
           isOfflineExam: false,
         });

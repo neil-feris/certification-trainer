@@ -443,10 +443,13 @@ export const examApi = {
   },
   get: (id: number) => request<any>(`/exams/${id}`),
   create: (options?: CreateExamRequest) =>
-    request<{ examId: number; totalQuestions: number }>('/exams', {
-      method: 'POST',
-      body: JSON.stringify(options || {}),
-    }),
+    request<{ examId: number; totalQuestions: number; recommendedDurationSeconds: number }>(
+      '/exams',
+      {
+        method: 'POST',
+        body: JSON.stringify(options || {}),
+      }
+    ),
   submitAnswer: (
     examId: number,
     data: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number }
