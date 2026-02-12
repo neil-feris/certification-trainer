@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react';
 import type {
+  ReadinessProjection,
   LearningPathItem,
   LearningPathStats,
   LearningPathDetailResponse,
@@ -641,6 +642,11 @@ export const progressApi = {
   },
   getMasteryMap: (certificationId: number) => {
     return request<MasteryMapResponse>(`/progress/mastery-map?certificationId=${certificationId}`);
+  },
+  getReadinessProjection: (certificationId: number) => {
+    return request<ReadinessProjection>(
+      `/progress/readiness-projection?certificationId=${certificationId}`
+    );
   },
 };
 

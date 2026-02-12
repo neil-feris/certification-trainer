@@ -143,6 +143,14 @@ export function Dashboard() {
     staleTime: 300000, // 5 min cache
   });
 
+  // Fetch readiness projection
+  const { data: projection } = useQuery({
+    queryKey: ['readinessProjection', selectedCertificationId],
+    queryFn: () => progressApi.getReadinessProjection(selectedCertificationId!),
+    enabled: selectedCertificationId !== null,
+    staleTime: 300000,
+  });
+
   // Fetch Question of the Day
   const {
     data: qotd,
@@ -322,6 +330,33 @@ export function Dashboard() {
         <div className={styles.statCard}>
           <div className={styles.statLabel}>Exam Readiness</div>
           <ReadinessWidget readiness={readiness ?? null} isLoading={readinessLoading} />
+        </div>
+        <div className={styles.statCard}>
+          <div className={styles.statLabel}>Readiness Projection</div>
+          {projection?.isProjectable ? (
+            <div className={styles.projectionWidget}>
+              {projection.daysRemaining === 0 ? (
+                <div className={styles.projectionReady}>Exam Ready</div>
+              ) : projection.projectedReadyDate ? (
+                <>
+                  <div className={styles.projectionDate}>
+                    {new Date(projection.projectedReadyDate).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </div>
+                  <div className={styles.projectionMeta} data-on-track={projection.isOnTrack}>
+                    {projection.daysRemaining}d &middot;{' '}
+                    {projection.isOnTrack ? 'On track' : 'Behind pace'}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : (
+            <div className={styles.projectionEmpty}>
+              <span className={styles.projectionEmptyLabel}>Not enough data yet</span>
+            </div>
+          )}
         </div>
         <div className={styles.statCard}>
           {streakLoading ? (

@@ -71,6 +71,13 @@ export function ReadinessPage() {
     staleTime: 300000,
   });
 
+  const { data: projection } = useQuery({
+    queryKey: ['readinessProjection', certId],
+    queryFn: () => progressApi.getReadinessProjection(certId!),
+    enabled: certId !== null,
+    staleTime: 300000,
+  });
+
   const selectedCertName = certifications?.find((c) => c.id === certId)?.shortName ?? 'Select';
 
   if (isLoading) {
@@ -209,6 +216,83 @@ export function ReadinessPage() {
           </div>
         </div>
       </div>
+
+      {/* Readiness Projection */}
+      {projection && (
+        <div className={styles.section}>
+          <h2 className={styles.sectionTitle}>Readiness Projection</h2>
+          <div className={styles.projectionCard}>
+            {projection.isProjectable ? (
+              <>
+                <div className={styles.projectionMain}>
+                  {projection.daysRemaining === 0 ? (
+                    <div className={styles.projectionReady}>
+                      <span className={styles.projectionReadyIcon}>&#10003;</span>
+                      <span className={styles.projectionReadyText}>You&apos;re exam ready!</span>
+                    </div>
+                  ) : projection.projectedReadyDate ? (
+                    <div className={styles.projectionDate}>
+                      <span className={styles.projectionDateLabel}>Projected Ready</span>
+                      <span className={styles.projectionDateValue}>
+                        {new Date(projection.projectedReadyDate).toLocaleDateString(undefined, {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                      <span className={styles.projectionDays} data-on-track={projection.isOnTrack}>
+                        {projection.daysRemaining} days remaining
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+                <div className={styles.projectionStats}>
+                  <div className={styles.projectionStat}>
+                    <span className={styles.projectionStatLabel}>Improvement Rate</span>
+                    <span className={styles.projectionStatValue}>
+                      {projection.improvementRate > 0 ? '+' : ''}
+                      {projection.improvementRate} pts/day
+                    </span>
+                  </div>
+                  <div className={styles.projectionStat}>
+                    <span className={styles.projectionStatLabel}>Current Pace</span>
+                    <span className={styles.projectionStatValue}>
+                      {projection.currentPace} sessions/wk
+                    </span>
+                  </div>
+                  <div className={styles.projectionStat}>
+                    <span className={styles.projectionStatLabel}>Required Pace</span>
+                    <span className={styles.projectionStatValue}>
+                      {projection.requiredPace} sessions/wk
+                    </span>
+                  </div>
+                  <div className={styles.projectionStat}>
+                    <span className={styles.projectionStatLabel}>On Track</span>
+                    <span
+                      className={styles.projectionStatValue}
+                      style={{
+                        color: projection.isOnTrack ? 'var(--success)' : 'var(--warning)',
+                      }}
+                    >
+                      {projection.isOnTrack ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className={styles.projectionEmpty}>
+                <span className={styles.projectionEmptyText}>
+                  Not enough data to project readiness yet
+                </span>
+                <span className={styles.projectionEmptyHint}>
+                  Complete more study sessions to build a trend. At least 3 readiness snapshots are
+                  needed.
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Historical Trend Chart */}
       {chartData.length > 1 && (

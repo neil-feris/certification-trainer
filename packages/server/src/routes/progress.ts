@@ -24,6 +24,7 @@ import type {
 import { authenticate } from '../middleware/auth.js';
 import { getStreak } from '../services/streakService.js';
 import { getXP } from '../services/xpService.js';
+import { projectReadiness } from '../services/readinessProjection.js';
 import { calculateReadinessScore } from '../services/readinessService.js';
 import {
   GCP_SERVICE_CATEGORIES,
@@ -576,6 +577,26 @@ export async function progressRoutes(fastify: FastifyInstance) {
       return history;
     }
   );
+
+  // Get predictive readiness projection (projected exam-ready date, pace, improvement rate)
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/readiness-projection', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
+    const userId = parseInt(request.user!.id, 10);
+
+    try {
+      const projection = await projectReadiness(userId, certId);
+      return projection;
+    } catch (error) {
+      request.log.error({ err: error }, 'Readiness projection failed');
+      return reply.status(500).send({
+        error: 'Failed to calculate readiness projection',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
 
   // Get dashboard stats - optimized with aggregated queries (filtered by certification and user)
   fastify.get<{ Querystring: { certificationId?: string } }>(
