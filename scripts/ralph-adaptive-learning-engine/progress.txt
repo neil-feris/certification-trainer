@@ -20,6 +20,9 @@ Started: Thu 12 Feb 2026 18:32:20 SAST
 - `selectQuestions()` returns `number[]` (IDs) — fetch full records via `inArray(questions.id, ids)` for response creation
 - `recordEncounters()` is synchronous — no await needed, call after response insertion
 - `updateQuestionStats()` and `recalibrateIfReady()` are synchronous — call fire-and-forget from answer submission paths
+- `parseCertificationIdFromQuery()` is the standard helper for cert ID validation in progress routes — auto-sends error response on failure
+- Dashboard stats grid: use `statCard` + `statLabel` header pattern; add new widget cards inline in `statsGrid`
+- CSS data attributes (`data-on-track="true"`) + attribute selectors preferred over className composition for binary conditional styles
 - `readinessSnapshots` has `overallScore` (real 0-100) and `calculatedAt` (timestamp) — good for time-series analysis
 - Pace calculation: exams, studySessions, flashcardSessions all share `status`/`completedAt`/`userId`/`certificationId` columns
 - Test mock for sequential `.all()` calls: use call counter in `mockImplementation` to return different data per invocation
@@ -194,4 +197,26 @@ Started: Thu 12 Feb 2026 18:32:20 SAST
   - Linear regression with 2+ points is sufficient mathematically but 3+ gives more reliable projections in practice
   - Pace calculation across 3 tables (exams, studySessions, flashcardSessions) — all have `status`, `completedAt`, `userId`, `certificationId` columns for consistent filtering
   - Test mock pattern for multiple sequential `.all()` calls: use call counter in `mockImplementation` to return different data per invocation
+---
+
+## 2026-02-12 - US-012
+- Added `GET /api/progress/readiness-projection` endpoint in `progress.ts` calling `projectReadiness(userId, certId)`
+- Added `getReadinessProjection(certificationId)` to client `progressApi` in `client.ts`
+- Added projection section to `ReadinessPage.tsx`:
+  - Displays projected ready date, days remaining, improvement rate, current/required pace, on-track status
+  - Shows "exam ready" state when `daysRemaining === 0`
+  - Gracefully handles `isProjectable: false` with "Not enough data" message
+- Added compact projection widget to `Dashboard.tsx` in the stats grid:
+  - Shows projected date (month + day) and days remaining with on-track indicator
+  - Color-coded: green for on track, amber for behind pace
+  - Shows "Not enough data yet" when insufficient snapshots
+- Styled using existing CSS variables (`--bg-secondary`, `--border-color`, `--success`, `--warning`, `--text-muted`, etc.)
+- Responsive: projection stats grid collapses from 4 to 2 columns on mobile
+- Files changed: `packages/server/src/routes/progress.ts`, `packages/client/src/api/client.ts`, `packages/client/src/components/progress/ReadinessPage.tsx`, `packages/client/src/components/progress/ReadinessPage.module.css`, `packages/client/src/components/dashboard/Dashboard.tsx`, `packages/client/src/components/dashboard/Dashboard.module.css`
+- **Learnings for future iterations:**
+  - `parseCertificationIdFromQuery` is the standard utility for query param cert ID parsing in progress routes — handles validation and error response
+  - Dashboard stats grid uses `statCard` class — add new stat cards in the same pattern with `statLabel` header + content below
+  - CSS data attributes (`data-on-track="true"`) + CSS attribute selectors is the pattern for conditional styling (avoid className composition for binary states)
+  - TanStack Query `useQuery` infers the return type from `queryFn` — no need to import the return type for type safety in the component
+  - ReadinessPage already fetches readiness + history — adding a third query for projection fits naturally alongside them with same staleTime (300s)
 ---
