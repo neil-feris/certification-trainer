@@ -20,6 +20,9 @@ Started: Thu 12 Feb 2026 18:32:20 SAST
 - `selectQuestions()` returns `number[]` (IDs) — fetch full records via `inArray(questions.id, ids)` for response creation
 - `recordEncounters()` is synchronous — no await needed, call after response insertion
 - `updateQuestionStats()` and `recalibrateIfReady()` are synchronous — call fire-and-forget from answer submission paths
+- `readinessSnapshots` has `overallScore` (real 0-100) and `calculatedAt` (timestamp) — good for time-series analysis
+- Pace calculation: exams, studySessions, flashcardSessions all share `status`/`completedAt`/`userId`/`certificationId` columns
+- Test mock for sequential `.all()` calls: use call counter in `mockImplementation` to return different data per invocation
 
 ---
 
@@ -171,4 +174,24 @@ Started: Thu 12 Feb 2026 18:32:20 SAST
   - When replacing a module-level constant with a function, use `replace_all` carefully — the constant name might appear as a substring of other identifiers (e.g., `DEFAULT_EXAM_DURATION` contains `EXAM_DURATION`)
   - Zustand stores with `persist` middleware need new state fields added to both the interface and all `set({...})` reset call sites — easy to miss some
   - The `formatDuration` helper keeps ExamSetup display consistent with timer map values — changing `ADAPTIVE_TIMER_MAP` automatically updates the UI
+---
+
+## 2026-02-12 - US-011
+- Implemented: `readinessProjection.ts` with `projectReadiness(userId, certificationId)` returning `ReadinessProjection`
+- Linear regression on `readinessSnapshots` (last 30 days) to derive improvement rate (points/day)
+- Study pace from completed exams + study sessions + flashcard sessions in last 30 days, normalized to sessions/week
+- Projects days remaining as `(passingScore - currentScore) / improvementRate` with ceiling rounding
+- `isProjectable` = false when <3 snapshots, zero/negative improvement rate, or projection >365 days
+- Already-passing users: `daysRemaining: 0, isOnTrack: true, projectedReadyDate: null`
+- `calculateRequiredPace` provides guidance on needed study intensity
+- Exports `_testing` object with pure functions: `linearRegression`, `projectDaysRemaining`, `calculateRequiredPace`
+- 24 unit tests: linearRegression (7 — positive/negative/flat/noisy/single/empty/identical-x), projectDaysRemaining (7), calculateRequiredPace (4), constants (2), integration with mocked DB (4 — insufficient data, declining, positive trend, already passing)
+- Files changed: `packages/server/src/services/readinessProjection.ts`, `packages/server/src/services/readinessProjection.test.ts`
+- **Learnings for future iterations:**
+  - `readinessSnapshots` stores `overallScore` (0-100 real) and `calculatedAt` (timestamp mode) — ideal for time-series regression
+  - Services that only read can import `db` directly from `../db/index.js` (no param passing needed)
+  - `Promise.all` for parallel independent queries (snapshots, activity counts, passing score) — significantly faster than sequential
+  - Linear regression with 2+ points is sufficient mathematically but 3+ gives more reliable projections in practice
+  - Pace calculation across 3 tables (exams, studySessions, flashcardSessions) — all have `status`, `completedAt`, `userId`, `certificationId` columns for consistent filtering
+  - Test mock pattern for multiple sequential `.all()` calls: use call counter in `mockImplementation` to return different data per invocation
 ---
