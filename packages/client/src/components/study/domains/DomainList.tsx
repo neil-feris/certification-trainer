@@ -24,10 +24,13 @@ export function DomainList({ onStartPractice, highlightDomainId }: DomainListPro
     enabled: selectedCertificationId !== null,
   });
 
+  const hasWorkbook = selectedCert?.capabilities?.hasWorkbook ?? false;
+
   const { data: workbookProgress } = useQuery({
     queryKey: ['workbookProgress'],
     queryFn: () => workbookApi.getProgress(),
     staleTime: 60000,
+    enabled: hasWorkbook,
   });
 
   const handleGoToWorkbook = () => {
@@ -49,10 +52,12 @@ export function DomainList({ onStartPractice, highlightDomainId }: DomainListPro
       </div>
 
       {/* Official Questions Card */}
-      <OfficialQuestionsCard
-        summary={workbookProgress?.summary}
-        onGoToWorkbook={handleGoToWorkbook}
-      />
+      {hasWorkbook && (
+        <OfficialQuestionsCard
+          summary={workbookProgress?.summary}
+          onGoToWorkbook={handleGoToWorkbook}
+        />
+      )}
 
       <div className={styles.domainList}>
         {domains.map((domain: any) => (

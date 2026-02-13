@@ -643,6 +643,11 @@ export const progressApi = {
   getMasteryMap: (certificationId: number) => {
     return request<MasteryMapResponse>(`/progress/mastery-map?certificationId=${certificationId}`);
   },
+  getServiceCategories: (certificationId: number) => {
+    return request<import('@ace-prep/shared').ServiceCategoryData[]>(
+      `/progress/service-categories?certificationId=${certificationId}`
+    );
+  },
   getReadinessProjection: (certificationId: number) => {
     return request<ReadinessProjection>(
       `/progress/readiness-projection?certificationId=${certificationId}`

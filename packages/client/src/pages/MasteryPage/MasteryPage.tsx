@@ -2,8 +2,14 @@ import { useState, useCallback, useMemo, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { progressApi } from '../../api/client';
 import { useCertificationStore } from '../../stores/certificationStore';
-import type { ServiceMastery, MasteryCategory } from '@ace-prep/shared';
+import type { ServiceMastery, MasteryCategory, CertificationProvider } from '@ace-prep/shared';
 import styles from './MasteryPage.module.css';
+
+const PROVIDER_LABEL: Record<CertificationProvider, string> = {
+  gcp: 'GCP',
+  aws: 'AWS',
+  azure: 'Azure',
+};
 
 const MASTERY_COLORS: Record<string, string> = {
   none: 'var(--bg-tertiary)',
@@ -108,6 +114,12 @@ function CategorySection({ category }: { category: MasteryCategory }) {
 
 export function MasteryPage() {
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
+  const providerLabel = selectedCert
+    ? (PROVIDER_LABEL[selectedCert.provider] ?? selectedCert.provider.toUpperCase())
+    : '';
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['mastery-map', selectedCertificationId],
@@ -147,7 +159,7 @@ export function MasteryPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>GCP Service Mastery</h1>
+        <h1 className={styles.title}>{providerLabel} Service Mastery</h1>
         <div className={styles.summary}>
           <div className={styles.summaryItem}>
             <span className={styles.summaryValue}>{data.totals.servicesAttempted}</span>

@@ -386,9 +386,11 @@ export function Dashboard() {
             <XPDisplay variant="full" xp={xp} />
           ) : null}
         </div>
-        <div className={styles.statCard}>
-          <WorkbookWidget />
-        </div>
+        {selectedCert?.capabilities?.hasWorkbook && (
+          <div className={styles.statCard}>
+            <WorkbookWidget />
+          </div>
+        )}
       </div>
 
       {/* XP History Panel */}

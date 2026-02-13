@@ -1,4 +1,5 @@
 import type { WorkbookProgressSummary } from '@ace-prep/shared';
+import { useCertificationStore } from '../../../stores/certificationStore';
 import styles from './OfficialQuestionsCard.module.css';
 
 interface Props {
@@ -23,10 +24,15 @@ const OfficialBadgeIcon = () => (
 );
 
 export function OfficialQuestionsCard({ summary, onGoToWorkbook }: Props) {
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
+  const certShortName = selectedCert?.shortName ?? 'Exam';
+
   const mastered = summary?.mastered ?? 0;
-  const total = summary?.total ?? 41;
+  const total = summary?.total ?? 0;
   const percentComplete = summary?.percentComplete ?? 0;
-  const isComplete = mastered === total;
+  const isComplete = total > 0 && mastered === total;
 
   const getStatusText = () => {
     if (!summary) return 'Start studying official questions';
@@ -42,11 +48,12 @@ export function OfficialQuestionsCard({ summary, onGoToWorkbook }: Props) {
       </div>
       <div className={styles.content}>
         <div className={styles.titleRow}>
-          <h3 className={styles.title}>Official Google Questions</h3>
+          <h3 className={styles.title}>Official Practice Questions</h3>
           {isComplete && <span className={styles.completeBadge}>Complete</span>}
         </div>
         <p className={styles.description}>
-          41 diagnostic questions from the ACE Exam Prep Workbook
+          {total > 0 ? `${total} diagnostic` : 'Diagnostic'} questions from the {certShortName} Exam
+          Prep Workbook
         </p>
         <div className={styles.stats}>
           <span className={styles.progress}>
