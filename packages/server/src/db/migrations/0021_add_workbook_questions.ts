@@ -77,8 +77,8 @@ function getIds(domainCode: string, topicCode: string): { domainId: number; topi
 
 // Prepare insert statement
 const insertQuestion = db.prepare(`
-  INSERT INTO questions (domain_id, topic_id, question_text, question_type, options, correct_answers, explanation, difficulty, gcp_services, is_generated, source, created_at)
-  VALUES (@domainId, @topicId, @questionText, @questionType, @options, @correctAnswers, @explanation, @difficulty, @gcpServices, @isGenerated, @source, @createdAt)
+  INSERT INTO questions (domain_id, topic_id, question_text, question_type, options, correct_answers, explanation, difficulty, cloud_services, is_generated, source, created_at)
+  VALUES (@domainId, @topicId, @questionText, @questionType, @options, @correctAnswers, @explanation, @difficulty, @cloudServices, @isGenerated, @source, @createdAt)
 `);
 
 interface WorkbookQuestion {
@@ -90,7 +90,7 @@ interface WorkbookQuestion {
   correctAnswers: number[];
   explanation: string;
   difficulty: 'easy' | 'medium' | 'hard';
-  gcpServices: string[];
+  cloudServices: string[];
 }
 
 const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
@@ -113,7 +113,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Using Google Groups for IAM management is a best practice. It allows centralized permission management and makes it easier to add/remove users. Binding the group to roles/compute.viewer gives all members the necessary read-only access to Compute Engine resources.',
     difficulty: 'medium',
-    gcpServices: ['Compute Engine', 'IAM'],
+    cloudServices: ['Compute Engine', 'IAM'],
   },
 
   // 1.1.02
@@ -132,7 +132,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'The Google Cloud resource hierarchy is: Organization (top) → Folders (optional, for grouping) → Projects → Resources. This hierarchy enables inheritance of IAM policies from parent to child.',
     difficulty: 'easy',
-    gcpServices: ['Resource Manager'],
+    cloudServices: ['Resource Manager'],
   },
 
   // 1.1.03
@@ -151,7 +151,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Only the Project Name can be changed after creation. The Project ID is chosen at creation time and is immutable. The Project Number is automatically assigned by Google Cloud and cannot be changed. There is no "Project Category" attribute.',
     difficulty: 'easy',
-    gcpServices: ['Resource Manager'],
+    cloudServices: ['Resource Manager'],
   },
 
   // 1.1.04
@@ -171,7 +171,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Using a Google Group with roles/storage.objectAdmin at the organization level follows best practices: group-based access management and applying permissions at the appropriate hierarchy level. This gives Jane full object management capabilities across all projects while maintaining least privilege (not full editor access).',
     difficulty: 'medium',
-    gcpServices: ['Cloud Storage', 'IAM'],
+    cloudServices: ['Cloud Storage', 'IAM'],
   },
 
   // 1.1.05
@@ -191,7 +191,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       "Google recommends using predefined roles or custom roles instead of basic roles (Owner, Editor, Viewer) because they provide more granular permissions. Basic roles should only be used when predefined roles don't meet requirements. This follows the principle of least privilege.",
     difficulty: 'medium',
-    gcpServices: ['IAM'],
+    cloudServices: ['IAM'],
   },
 
   // 1.1.06
@@ -212,7 +212,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'The Compute Engine Viewer role (roles/compute.viewer) grants read-only access. This includes list and get permissions for viewing resources but not create, update, delete, or setIAM permissions which would modify state.',
     difficulty: 'medium',
-    gcpServices: ['Compute Engine', 'IAM'],
+    cloudServices: ['Compute Engine', 'IAM'],
   },
 
   // 1.2.07
@@ -232,7 +232,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'A billing account can be linked to multiple projects (one-to-many relationship), but each project can only be linked to one billing account at a time. Even for free-tier resources, a billing account must be linked to enable APIs and services.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Billing'],
+    cloudServices: ['Cloud Billing'],
   },
 
   // 1.2.08
@@ -252,7 +252,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'The budget scope custom email delivery allows adding email recipients for budget alerts without granting them any IAM roles or access to billing information. This is the simplest way to notify someone of budget alerts without giving them billing permissions.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Billing'],
+    cloudServices: ['Cloud Billing'],
   },
 
   // ============ SECTION 2: Planning and configuring a cloud solution ============
@@ -274,7 +274,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'When you need to configure specific operating system dependencies, Compute Engine VMs provide the most control. You can choose the OS, install custom packages, and configure system-level settings. Containers and serverless platforms abstract away the OS layer.',
     difficulty: 'easy',
-    gcpServices: ['Compute Engine'],
+    cloudServices: ['Compute Engine'],
   },
 
   // 2.1.02
@@ -294,7 +294,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Cloud Run allows you to deploy containerized applications quickly without managing infrastructure. Containers are portable across any environment that supports containers. This combines rapid development with portability.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Run'],
+    cloudServices: ['Cloud Run'],
   },
 
   // 2.1.03
@@ -314,7 +314,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'For a highly-customized OS with minimal changes and time, a lift-and-shift to Compute Engine VMs is the fastest approach. You can use the same OS configuration and make minimal modifications. Containerizing or using PaaS would require more significant changes.',
     difficulty: 'easy',
-    gcpServices: ['Compute Engine'],
+    cloudServices: ['Compute Engine'],
   },
 
   // 2.1.04
@@ -329,7 +329,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'GKE provides full control over container management, reliability configurations, and autoscaling policies while Google manages the Kubernetes control plane. Cloud Run abstracts away more control, App Engine is for code not containers, and Compute Engine requires managing everything.',
     difficulty: 'medium',
-    gcpServices: ['GKE'],
+    cloudServices: ['GKE'],
   },
 
   // 2.2.05
@@ -344,7 +344,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       "BigQuery is Google Cloud's enterprise data warehouse designed for analytics. It uses standard SQL, handles large datasets efficiently, and is optimized for analytical queries like aggregations and reporting. Cloud SQL and Spanner are for transactional workloads.",
     difficulty: 'easy',
-    gcpServices: ['BigQuery'],
+    cloudServices: ['BigQuery'],
   },
 
   // 2.2.06
@@ -359,7 +359,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Standard storage class is designed for frequently accessed ("hot") data. Since the application frequently analyzes the data for dashboards and business processes, Standard provides the lowest latency and no retrieval fees. Archive, Coldline, and Nearline have minimum storage durations and retrieval costs.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Storage'],
+    cloudServices: ['Cloud Storage'],
   },
 
   // 2.2.07
@@ -374,7 +374,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'BigQuery is designed for analytics and supports time-based partitioning for historical data. Bigtable excels at time-series data with high throughput and low latency for analytics. Cloud Storage is for objects, Firestore for documents, and Cloud SQL for transactional workloads.',
     difficulty: 'medium',
-    gcpServices: ['BigQuery', 'Bigtable'],
+    cloudServices: ['BigQuery', 'Bigtable'],
   },
 
   // 2.3.08
@@ -394,7 +394,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'For a regional pilot with local traffic and low-cost requirements: Standard tier is cheaper than Premium tier. Regional load balancers are appropriate since traffic is local. External Application LB for the frontend (HTTP/HTTPS from users) and internal Application LB between tiers (secure internal traffic).',
     difficulty: 'hard',
-    gcpServices: ['Cloud Load Balancing'],
+    cloudServices: ['Cloud Load Balancing'],
   },
 
   // 2.3.09
@@ -413,7 +413,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Application Load Balancers operate at Layer 7 (HTTP/HTTPS application layer) and can make routing decisions based on URL paths, headers, and other application-level data. Network Load Balancers operate at Layer 4 (TCP/UDP transport layer).',
     difficulty: 'easy',
-    gcpServices: ['Cloud Load Balancing'],
+    cloudServices: ['Cloud Load Balancing'],
   },
 
   // ============ SECTION 3: Deploying and implementing a cloud solution ============
@@ -435,7 +435,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'User-defined functions (UDFs) are not fully supported in Cloud SQL for MySQL. For a database with UDFs, you need to run MySQL on a Compute Engine VM where you have full control. N2 machines provide good price-performance for database workloads.',
     difficulty: 'hard',
-    gcpServices: ['Compute Engine', 'Cloud SQL'],
+    cloudServices: ['Compute Engine', 'Cloud SQL'],
   },
 
   // 3.1.02
@@ -455,7 +455,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Opportunistic updates apply the new template when instances are recreated due to other events (scaling, health check failures, manual recreation). This uses minimal additional resources compared to PROACTIVE updates which create new instances immediately. Max surge would use more resources.',
     difficulty: 'medium',
-    gcpServices: ['Compute Engine'],
+    cloudServices: ['Compute Engine'],
   },
 
   // 3.2.03
@@ -475,7 +475,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Private cluster ensures only team members can access it. Standard mode (vs Autopilot) gives developers control to change cluster architecture. Zonal is fine since HA is not required. Ubuntu image allows customization if needed.',
     difficulty: 'medium',
-    gcpServices: ['GKE'],
+    cloudServices: ['GKE'],
   },
 
   // 3.3.04
@@ -495,7 +495,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       "Cloud Run is the best fit: it runs containers (supporting custom packages), is fully managed (no infrastructure), and scales to zero (pay only when handling requests). App Engine Flexible uses containers but doesn't scale to zero. Cloud Run functions are for event-driven code, not containerized apps.",
     difficulty: 'easy',
-    gcpServices: ['Cloud Run'],
+    cloudServices: ['Cloud Run'],
   },
 
   // 3.3.05
@@ -515,7 +515,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'google.storage.object.finalize is triggered when an object creation/overwrite is finalized (upload complete). This is the correct event for processing newly added files. The other options are not valid Cloud Storage trigger events.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Run functions', 'Cloud Storage'],
+    cloudServices: ['Cloud Run functions', 'Cloud Storage'],
   },
 
   // 3.4.06
@@ -535,7 +535,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'gsutil mb can create a multi-regional bucket (US multi-region covers both coasts) with uniform bucket-level access (which disables ACLs). The --uniform-bucket-level-access flag turns off ACL evaluation. Option D references Europe which is not needed.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Storage'],
+    cloudServices: ['Cloud Storage'],
   },
 
   // 3.4.07
@@ -555,7 +555,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       '--availability-type=REGIONAL enables high availability with automatic failover. This creates a primary instance and a standby replica in a different zone. When the primary fails, Cloud SQL automatically fails over to the standby.',
     difficulty: 'medium',
-    gcpServices: ['Cloud SQL'],
+    cloudServices: ['Cloud SQL'],
   },
 
   // 3.4.08
@@ -575,7 +575,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'BigQuery Data Transfer Service provides scheduled, managed transfers from Cloud Storage to BigQuery with no code required. This is the simplest (fewest steps) and most cost-effective solution. Streaming API has costs, and Dataflow adds complexity.',
     difficulty: 'easy',
-    gcpServices: ['BigQuery', 'Cloud Storage'],
+    cloudServices: ['BigQuery', 'Cloud Storage'],
   },
 
   // 3.5.09
@@ -595,7 +595,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Custom mode VPC networks give you complete control over subnet creation and IP ranges. You define each subnet manually. Auto mode creates subnets automatically with predefined IP ranges. Converting auto to custom is one-way and still has the original auto-created subnets.',
     difficulty: 'easy',
-    gcpServices: ['VPC'],
+    cloudServices: ['VPC'],
   },
 
   // 3.6.10
@@ -614,7 +614,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'terraform apply creates, updates, or destroys infrastructure resources to match the configuration. terraform init downloads providers, terraform validate checks syntax, and terraform plan shows a preview. Apply actually makes the changes.',
     difficulty: 'easy',
-    gcpServices: ['Terraform'],
+    cloudServices: ['Terraform'],
   },
 
   // ============ SECTION 4: Ensuring successful operation of a cloud solution ============
@@ -636,7 +636,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'The correct command is gcloud compute snapshots list. Snapshots are part of the compute service, so the command structure is gcloud compute snapshots list. The list subcommand shows all available snapshots.',
     difficulty: 'easy',
-    gcpServices: ['Compute Engine'],
+    cloudServices: ['Compute Engine'],
   },
 
   // 4.1.02
@@ -656,7 +656,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'A snapshot schedule that is attached to a disk cannot be deleted. You must first detach the schedule from the disk(s) using it, then you can delete the snapshot schedule.',
     difficulty: 'medium',
-    gcpServices: ['Compute Engine'],
+    cloudServices: ['Compute Engine'],
   },
 
   // 4.2.03
@@ -676,7 +676,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'For an internal Application Load Balancer in GKE, you use an Ingress resource with the kubernetes.io/ingress.class: "gce-internal" annotation (or gce for external). This creates an internal HTTP(S) load balancer.',
     difficulty: 'medium',
-    gcpServices: ['GKE', 'Cloud Load Balancing'],
+    cloudServices: ['GKE', 'Cloud Load Balancing'],
   },
 
   // 4.2.04
@@ -691,7 +691,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Services in Kubernetes provide a stable endpoint (IP and DNS name) to access a set of pods. Services define how to access the pods and provide load balancing. Pods run the workload, Deployments manage pod lifecycle, and Pod templates define pod specifications.',
     difficulty: 'easy',
-    gcpServices: ['GKE'],
+    cloudServices: ['GKE'],
   },
 
   // 4.2.05
@@ -705,7 +705,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'kubectl apply is the declarative approach - you declare the desired state in YAML files and apply them. Kubernetes determines what changes to make. kubectl create is imperative (creates new objects), kubectl replace is imperative (full replacement), kubectl run is imperative (runs containers).',
     difficulty: 'easy',
-    gcpServices: ['GKE'],
+    cloudServices: ['GKE'],
   },
 
   // 4.3.06
@@ -725,7 +725,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Concurrency settings control how many requests each container instance handles simultaneously. Lower concurrency means each instance handles fewer requests, which typically means fewer database connections per instance. Combined with max instances, this limits total connections.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Run'],
+    cloudServices: ['Cloud Run'],
   },
 
   // 4.4.07
@@ -746,7 +746,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'CreatedBefore specifies the date condition (objects created before this date). MatchesStorageClass ensures the rule only applies to Standard storage class objects. Age is based on object age, not a specific date.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Storage'],
+    cloudServices: ['Cloud Storage'],
   },
 
   // 4.5.08
@@ -766,7 +766,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       '/21 provides 2048 IP addresses (2^11 - reserved), which is enough for 2000 users. /22 only provides 1024 IPs (not enough). /20 provides 4096 IPs (more than needed). The correct command syntax includes "compute" and the correct region spelling.',
     difficulty: 'medium',
-    gcpServices: ['VPC'],
+    cloudServices: ['VPC'],
   },
 
   // 4.6.09
@@ -786,7 +786,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'You want alerts when CPU exceeds 60%, so the condition should be "above" 0.60 (not below). "Any time series violates" triggers when any single VM exceeds the threshold. CPU utilization (not load) is the percentage metric. Duration of 5 minutes prevents false alerts.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Monitoring', 'Compute Engine'],
+    cloudServices: ['Cloud Monitoring', 'Compute Engine'],
   },
 
   // ============ SECTION 5: Configuring access and security ============
@@ -808,7 +808,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Service accounts are the correct identity type for applications. In GKE, you use Workload Identity to map Kubernetes service accounts to Google Cloud service accounts, which then have IAM permissions to access Spanner. Human accounts (Google, Workspace, Cloud Identity) are for users, not applications.',
     difficulty: 'easy',
-    gcpServices: ['IAM', 'GKE', 'Cloud Spanner'],
+    cloudServices: ['IAM', 'GKE', 'Cloud Spanner'],
   },
 
   // 5.1.02
@@ -828,7 +828,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       "roles/resourcemanager.folderIamAdmin at the folder level gives you permission to manage IAM for all projects within that folder. This follows least privilege - you get access to only the ecommerce folder's projects, not the entire organization.",
     difficulty: 'medium',
-    gcpServices: ['IAM', 'Resource Manager'],
+    cloudServices: ['IAM', 'Resource Manager'],
   },
 
   // 5.1.03
@@ -848,7 +848,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Custom roles can be updated in place using gcloud iam roles update. You modify the role definition locally (add Cloud Run permissions) and update it. This preserves existing role bindings and is the simplest approach. Deleting or recreating roles would remove existing bindings.',
     difficulty: 'medium',
-    gcpServices: ['IAM', 'Cloud Run'],
+    cloudServices: ['IAM', 'Cloud Run'],
   },
 
   // 5.2.04
@@ -868,7 +868,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'Service accounts are designed for non-human identities like applications, VMs, and containers. In GKE, each pod can have its own service account via Workload Identity for fine-grained access control. Interactive analysis and development typically use user accounts.',
     difficulty: 'easy',
-    gcpServices: ['IAM', 'GKE'],
+    cloudServices: ['IAM', 'GKE'],
   },
 
   // 5.2.05
@@ -888,7 +888,7 @@ const WORKBOOK_QUESTIONS: WorkbookQuestion[] = [
     explanation:
       'For end-user mobile apps accessing Google Cloud services, OAuth 2.0 client credentials are recommended. This allows users to authenticate with their own identity. API keys lack user context, service accounts are for applications not end users, and service account keys should be avoided when possible.',
     difficulty: 'medium',
-    gcpServices: ['IAM', 'Pub/Sub'],
+    cloudServices: ['IAM', 'Pub/Sub'],
   },
 ];
 
@@ -910,7 +910,7 @@ try {
       correctAnswers: JSON.stringify(q.correctAnswers),
       explanation: q.explanation,
       difficulty: q.difficulty,
-      gcpServices: JSON.stringify(q.gcpServices),
+      cloudServices: JSON.stringify(q.cloudServices),
       isGenerated: 0,
       source: 'workbook',
       createdAt: now,
