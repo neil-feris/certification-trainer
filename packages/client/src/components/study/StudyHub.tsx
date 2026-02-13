@@ -64,6 +64,14 @@ export function StudyHub() {
     s.certifications.find((c) => c.id === s.selectedCertificationId)
   );
   const hasWorkbook = selectedCert?.capabilities?.hasWorkbook ?? false;
+
+  // Reset tab when switching to a cert without workbook support
+  useEffect(() => {
+    if (!hasWorkbook && activeTab === 'workbook') {
+      setActiveTab('path');
+    }
+  }, [hasWorkbook, activeTab]);
+
   const drillId = useDrillStore((s) => s.drillId);
   const isDrillActive = useDrillStore((s) => s.isActive);
   const showDrillSummary = useDrillStore((s) => s.showSummary);
