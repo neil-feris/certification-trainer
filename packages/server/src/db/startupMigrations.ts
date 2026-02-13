@@ -3413,7 +3413,14 @@ const migrations: Migration[] = [
         .prepare("SELECT capabilities FROM certifications WHERE code = 'AWS-SAA'")
         .get() as { capabilities: string | null } | undefined;
 
-      const existing = row?.capabilities ? JSON.parse(row.capabilities) : {};
+      let existing = {};
+      if (row?.capabilities) {
+        try {
+          existing = JSON.parse(row.capabilities);
+        } catch {
+          console.warn('  [migration] Invalid JSON in capabilities column, resetting to {}');
+        }
+      }
       const merged = { ...existing, hasWorkbook: true };
 
       db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'AWS-SAA'").run(
