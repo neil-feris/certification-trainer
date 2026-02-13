@@ -141,10 +141,10 @@ export function FeedbackPanel({
         <p className={styles.explanation}>{explanation}</p>
       </div>
 
-      {/* GCP Services */}
+      {/* Cloud Services */}
       {cloudServices.length > 0 && (
         <div className={styles.section}>
-          <h4 className={styles.sectionTitle}>GCP Services</h4>
+          <h4 className={styles.sectionTitle}>Cloud Services</h4>
           <div className={styles.tags}>
             {cloudServices.map((service) => (
               <span key={service} className={styles.tag}>
