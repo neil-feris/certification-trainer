@@ -197,6 +197,7 @@ export const spacedRepetition = sqliteTable(
     questionId: integer('question_id')
       .notNull()
       .references(() => questions.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id').references(() => certifications.id),
     easeFactor: real('ease_factor').notNull().default(2.5),
     interval: integer('interval').notNull().default(1), // Days
     repetitions: integer('repetitions').notNull().default(0),
@@ -825,7 +826,8 @@ export const workbookAssessments = sqliteTable(
 // ============ WORKBOOK RESOURCES ============
 export const workbookResources = sqliteTable('workbook_resources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gcpService: text('gcp_service').notNull().unique(), // e.g., "Compute Engine", "IAM"
+  certificationId: integer('certification_id').references(() => certifications.id),
+  cloudService: text('cloud_service').notNull(), // e.g., "Compute Engine", "EC2"
   courses: text('courses'), // JSON: [{name: string, module?: string}]
   skillBadges: text('skill_badges'), // JSON: string[]
   documentationLinks: text('documentation_links'), // JSON: [{title: string, url: string}]

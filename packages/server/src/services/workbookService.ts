@@ -546,10 +546,10 @@ export async function getResourcesByServices(cloudServices: string[]): Promise<W
   const resources = await db
     .select()
     .from(workbookResources)
-    .where(inArray(workbookResources.gcpService, cloudServices));
+    .where(inArray(workbookResources.cloudService, cloudServices));
 
   return resources.map((r) => ({
-    gcpService: r.gcpService,
+    cloudService: r.cloudService,
     courses: r.courses ? JSON.parse(r.courses) : [],
     skillBadges: r.skillBadges ? JSON.parse(r.skillBadges) : [],
     documentationLinks: r.documentationLinks ? JSON.parse(r.documentationLinks) : [],

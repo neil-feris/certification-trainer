@@ -1369,6 +1369,67 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 20,
+    name: 'update_workbook_resources_provider_agnostic',
+    up: (db) => {
+      const columns = db.prepare("PRAGMA table_info('workbook_resources')").all() as Array<{
+        name: string;
+      }>;
+
+      // Rename gcp_service → cloud_service
+      const hasGcpService = columns.some((col) => col.name === 'gcp_service');
+      const hasCloudService = columns.some((col) => col.name === 'cloud_service');
+      if (hasGcpService && !hasCloudService) {
+        db.exec('ALTER TABLE workbook_resources RENAME COLUMN gcp_service TO cloud_service');
+        console.log('  [migration] Renamed workbook_resources.gcp_service → cloud_service');
+      }
+
+      // Add certification_id column
+      const hasCertId = columns.some((col) => col.name === 'certification_id');
+      if (!hasCertId) {
+        db.exec(
+          'ALTER TABLE workbook_resources ADD COLUMN certification_id INTEGER REFERENCES certifications(id)'
+        );
+        const aceCert = db.prepare("SELECT id FROM certifications WHERE code = 'ACE'").get() as
+          | { id: number }
+          | undefined;
+        if (aceCert) {
+          db.prepare(
+            'UPDATE workbook_resources SET certification_id = ? WHERE certification_id IS NULL'
+          ).run(aceCert.id);
+        }
+        console.log('  [migration] Added certification_id to workbook_resources');
+      }
+    },
+  },
+  {
+    version: 21,
+    name: 'add_certification_id_to_spaced_repetition',
+    up: (db) => {
+      const columns = db.prepare("PRAGMA table_info('spaced_repetition')").all() as Array<{
+        name: string;
+      }>;
+      const hasCertId = columns.some((col) => col.name === 'certification_id');
+
+      if (!hasCertId) {
+        db.exec(
+          'ALTER TABLE spaced_repetition ADD COLUMN certification_id INTEGER REFERENCES certifications(id)'
+        );
+        db.exec(`
+          UPDATE spaced_repetition
+          SET certification_id = (
+            SELECT d.certification_id FROM questions q
+            JOIN domains d ON q.domain_id = d.id
+            WHERE q.id = spaced_repetition.question_id
+          )
+          WHERE certification_id IS NULL
+        `);
+        db.exec('CREATE INDEX IF NOT EXISTS sr_cert_idx ON spaced_repetition(certification_id)');
+        console.log('  [migration] Added certification_id to spaced_repetition with backfill');
+      }
+    },
+  },
 ];
 
 /**

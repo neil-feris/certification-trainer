@@ -1681,7 +1681,7 @@ export interface WorkbookResourceLink {
 }
 
 export interface WorkbookResource {
-  gcpService: string;
+  cloudService: string;
   courses: WorkbookResourceCourse[];
   skillBadges: string[];
   documentationLinks: WorkbookResourceLink[];
