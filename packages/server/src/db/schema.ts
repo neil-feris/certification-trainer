@@ -824,14 +824,20 @@ export const workbookAssessments = sqliteTable(
 );
 
 // ============ WORKBOOK RESOURCES ============
-export const workbookResources = sqliteTable('workbook_resources', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  certificationId: integer('certification_id').references(() => certifications.id),
-  cloudService: text('cloud_service').notNull(), // e.g., "Compute Engine", "EC2"
-  courses: text('courses'), // JSON: [{name: string, module?: string}]
-  skillBadges: text('skill_badges'), // JSON: string[]
-  documentationLinks: text('documentation_links'), // JSON: [{title: string, url: string}]
-});
+export const workbookResources = sqliteTable(
+  'workbook_resources',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id').references(() => certifications.id),
+    cloudService: text('cloud_service').notNull(), // e.g., "Compute Engine", "EC2"
+    courses: text('courses'), // JSON: [{name: string, module?: string}]
+    skillBadges: text('skill_badges'), // JSON: string[]
+    documentationLinks: text('documentation_links'), // JSON: [{title: string, url: string}]
+  },
+  (table) => [
+    uniqueIndex('workbook_resources_cert_svc_idx').on(table.certificationId, table.cloudService),
+  ]
+);
 
 // ============ SERVICE CATEGORIES (Provider-Agnostic Mastery Map) ============
 export const serviceCategories = sqliteTable(

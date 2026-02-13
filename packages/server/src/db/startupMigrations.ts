@@ -1980,6 +1980,39 @@ const migrations: Migration[] = [
       console.log('  [migration] Updated certification capabilities for ACE, PCA, AWS-SAA');
     },
   },
+  {
+    version: 26,
+    name: 'fix_workbook_resources_unique_constraint',
+    up: (db) => {
+      // The original table had UNIQUE on gcp_service (now cloud_service).
+      // For multi-cert support, uniqueness should be (certification_id, cloud_service).
+      // SQLite requires table rebuild to change inline constraints.
+      const hasOldTable = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='workbook_resources'")
+        .get();
+      if (!hasOldTable) return;
+
+      db.exec(`
+        CREATE TABLE workbook_resources_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cloud_service TEXT NOT NULL,
+          courses TEXT DEFAULT '[]',
+          skill_badges TEXT DEFAULT '[]',
+          documentation_links TEXT DEFAULT '[]',
+          certification_id INTEGER REFERENCES certifications(id),
+          UNIQUE(certification_id, cloud_service)
+        );
+        INSERT INTO workbook_resources_new (id, cloud_service, courses, skill_badges, documentation_links, certification_id)
+          SELECT id, cloud_service, courses, skill_badges, documentation_links, certification_id
+          FROM workbook_resources;
+        DROP TABLE workbook_resources;
+        ALTER TABLE workbook_resources_new RENAME TO workbook_resources;
+      `);
+      console.log(
+        '  [migration] Rebuilt workbook_resources with composite UNIQUE(certification_id, cloud_service)'
+      );
+    },
+  },
 ];
 
 /**
