@@ -1035,6 +1035,7 @@ const migrations: Migration[] = [
             'Cloud Run',
             'GKE',
             'Anthos',
+            'Bare Metal Solution',
           ],
         },
         {
@@ -1064,6 +1065,7 @@ const migrations: Migration[] = [
             'Cloud VPN',
             'Cloud NAT',
             'Cloud Armor',
+            'Network Intelligence Center',
           ],
         },
         {
@@ -1077,6 +1079,7 @@ const migrations: Migration[] = [
             'Pub/Sub',
             'Cloud Composer',
             'Data Catalog',
+            'Looker',
           ],
         },
         {
@@ -1102,11 +1105,14 @@ const migrations: Migration[] = [
             'Cloud Audit Logs',
             'Binary Authorization',
             'VPC Service Controls',
+            'Security Command Center',
+            'Certificate Authority Service',
+            'Identity-Aware Proxy',
           ],
         },
         {
           id: 'operations',
-          name: 'Operations',
+          name: 'Management & Operations',
           order: 7,
           services: [
             'Cloud Monitoring',
@@ -1115,7 +1121,15 @@ const migrations: Migration[] = [
             'Cloud Trace',
             'Cloud Profiler',
             'Cloud Debugger',
+            'Cloud Deploy',
+            'Config Connector',
           ],
+        },
+        {
+          id: 'app-services',
+          name: 'Application Services',
+          order: 8,
+          services: ['Apigee API Management', 'Cloud Tasks', 'Cloud Scheduler', 'Eventarc'],
         },
       ];
 
