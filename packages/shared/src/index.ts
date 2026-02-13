@@ -1545,6 +1545,37 @@ export interface UserFeedbackResponse {
   } | null;
 }
 
+// ============ SERVICE CATEGORIES (Provider-Agnostic Mastery Map) ============
+
+export interface ServiceCategoryData {
+  id: number;
+  certificationId: number;
+  categoryId: string; // slug: 'compute', 'storage', etc.
+  categoryName: string;
+  displayOrder: number;
+  services: string[];
+}
+
+// ============ LEARNING PATH ITEMS (Per-Certification, DB-backed) ============
+
+export interface LearningPathItemData {
+  id: number;
+  certificationId: number;
+  itemOrder: number;
+  title: string;
+  type: 'course' | 'skill_badge' | 'lab' | 'exam' | 'reading';
+  url: string | null;
+  description: string | null;
+  topics: string[];
+  whyItMatters: string | null;
+  durationEstimate: string | null;
+}
+
+export interface LearningPathItemWithProgress extends LearningPathItemData {
+  isCompleted: boolean;
+  completedAt: string | null;
+}
+
 // ============ GCP MASTERY MAP TYPES ============
 
 export {

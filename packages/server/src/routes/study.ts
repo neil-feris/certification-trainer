@@ -11,12 +11,12 @@ import {
   learningPathProgress,
   spacedRepetition,
   learningPathSummaries,
+  learningPathItems,
   caseStudies,
 } from '../db/schema.js';
 import { eq, desc, and, sql, inArray, like, or } from 'drizzle-orm';
 import { generateStudySummary, generateExplanation } from '../services/studyGenerator.js';
 import { generateLearningPathSummary } from '../services/learningPathGenerator.js';
-import { LEARNING_PATH_ITEMS, LEARNING_PATH_TOTAL } from '../data/learningPathContent.js';
 import type {
   StartStudySessionRequest,
   SubmitStudyAnswerRequest,
@@ -117,6 +117,13 @@ export async function studyRoutes(fastify: FastifyInstance) {
       if (certId === null) return; // Error already sent
       const userId = parseInt(request.user!.id, 10);
 
+      // Get learning path items from database
+      const pathItems = await db
+        .select()
+        .from(learningPathItems)
+        .where(eq(learningPathItems.certificationId, certId))
+        .orderBy(learningPathItems.itemOrder);
+
       // Get completion status for this certification and user
       const progress = await db
         .select()
@@ -129,10 +136,11 @@ export async function studyRoutes(fastify: FastifyInstance) {
         );
       const completedMap = new Map(progress.map((p) => [p.pathItemOrder, p.completedAt]));
 
-      return LEARNING_PATH_ITEMS.map((item) => ({
+      return pathItems.map((item) => ({
         ...item,
-        isCompleted: completedMap.has(item.order),
-        completedAt: completedMap.get(item.order) || null,
+        topics: JSON.parse(item.topics || '[]'),
+        isCompleted: completedMap.has(item.itemOrder),
+        completedAt: completedMap.get(item.itemOrder) || null,
       }));
     }
   );
@@ -263,7 +271,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
               eq(learningPathProgress.userId, userId)
             )
           );
-        const pathComplete = (completedItems[0]?.count ?? 0) >= LEARNING_PATH_TOTAL;
+        // Count total learning path items for this certification
+        const [totalPathItems] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(learningPathItems)
+          .where(eq(learningPathItems.certificationId, certId));
+        const pathComplete = (completedItems[0]?.count ?? 0) >= (totalPathItems?.count ?? 0);
 
         const achievementContext: AchievementContext = {
           streak: currentStreak,
@@ -307,7 +320,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
             eq(learningPathProgress.userId, userId)
           )
         );
-      const total = LEARNING_PATH_TOTAL;
+      // Get total learning path items from database
+      const [totalResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(learningPathItems)
+        .where(eq(learningPathItems.certificationId, certId));
+      const total = totalResult?.count ?? 0;
       const completed = progress.length;
 
       // Find the first incomplete item
@@ -361,8 +379,13 @@ export async function studyRoutes(fastify: FastifyInstance) {
       if (certId === null) return; // Error already sent
       const userId = parseInt(request.user!.id, 10);
 
-      // Find the requested item
-      const itemData = LEARNING_PATH_ITEMS.find((item) => item.order === order);
+      // Find the requested item from database
+      const [itemData] = await db
+        .select()
+        .from(learningPathItems)
+        .where(
+          and(eq(learningPathItems.certificationId, certId), eq(learningPathItems.itemOrder, order))
+        );
       if (!itemData) {
         return reply.status(404).send({ error: 'Learning path item not found' });
       }
@@ -380,7 +403,12 @@ export async function studyRoutes(fastify: FastifyInstance) {
         );
 
       const item: LearningPathItem = {
-        ...itemData,
+        order: itemData.itemOrder,
+        title: itemData.title,
+        type: itemData.type as LearningPathItem['type'],
+        description: itemData.description || '',
+        topics: JSON.parse(itemData.topics || '[]'),
+        whyItMatters: itemData.whyItMatters || '',
         isCompleted: !!progressRecord,
         completedAt: progressRecord?.completedAt || null,
       };
@@ -426,10 +454,18 @@ export async function studyRoutes(fastify: FastifyInstance) {
       // If no cached summary or regenerate requested, generate new one
       if (!summary) {
         try {
-          const generated = await generateLearningPathSummary(itemData, order, certId);
+          const itemForSummary = {
+            order: itemData.itemOrder,
+            title: itemData.title,
+            type: itemData.type as 'course' | 'skill_badge' | 'exam',
+            description: itemData.description || '',
+            topics: JSON.parse(itemData.topics || '[]') as string[],
+            whyItMatters: itemData.whyItMatters || '',
+          };
+          const generated = await generateLearningPathSummary(itemForSummary, order, certId);
 
           // Find related topic IDs based on topic name matching
-          const topicNames = itemData.topics;
+          const topicNames = JSON.parse(itemData.topics || '[]') as string[];
           const relatedTopicIds: number[] = [];
 
           if (topicNames.length > 0) {
@@ -569,11 +605,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
         }));
       }
 
+      // Get total learning path items for this certification
+      const [totalItemsResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(learningPathItems)
+        .where(eq(learningPathItems.certificationId, certId));
+
       return {
         item,
         summary,
         relatedQuestions,
-        totalItems: LEARNING_PATH_TOTAL,
+        totalItems: totalItemsResult?.count ?? 0,
       };
     }
   );

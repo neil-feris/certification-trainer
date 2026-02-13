@@ -10,8 +10,10 @@ import {
   certifications,
   xpHistory,
   readinessSnapshots,
+  serviceCategories,
+  serviceCategoryItems,
 } from '../db/schema.js';
-import { eq, sql, desc, and } from 'drizzle-orm';
+import { eq, sql, desc, and, inArray } from 'drizzle-orm';
 import { importProgressSchema, formatZodError } from '../validation/schemas.js';
 import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import type {
@@ -27,10 +29,10 @@ import { getXP } from '../services/xpService.js';
 import { projectReadiness } from '../services/readinessProjection.js';
 import { calculateReadinessScore } from '../services/readinessService.js';
 import {
-  GCP_SERVICE_CATEGORIES,
   type MasteryMapResponse,
   type ServiceMastery,
   type MasteryCategory,
+  type ServiceCategoryData,
   toServiceId,
   getMasteryLevel,
 } from '@ace-prep/shared';
@@ -994,7 +996,42 @@ export async function progressRoutes(fastify: FastifyInstance) {
     return reply.status(501).send({ error: 'Import not yet implemented' });
   });
 
-  // GET /progress/mastery-map - GCP service mastery grid
+  // GET /progress/service-categories - Get service categories for a certification
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/service-categories', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
+
+    const categories = await db
+      .select({
+        id: serviceCategories.id,
+        certificationId: serviceCategories.certificationId,
+        categoryId: serviceCategories.categoryId,
+        categoryName: serviceCategories.categoryName,
+        displayOrder: serviceCategories.displayOrder,
+      })
+      .from(serviceCategories)
+      .where(eq(serviceCategories.certificationId, certId))
+      .orderBy(serviceCategories.displayOrder);
+
+    const result: ServiceCategoryData[] = [];
+    for (const cat of categories) {
+      const items = await db
+        .select({ serviceName: serviceCategoryItems.serviceName })
+        .from(serviceCategoryItems)
+        .where(eq(serviceCategoryItems.categoryId, cat.id));
+
+      result.push({
+        ...cat,
+        services: items.map((i) => i.serviceName),
+      });
+    }
+
+    return result;
+  });
+
+  // GET /progress/mastery-map - Service mastery grid
   fastify.get<{
     Querystring: { certificationId: string };
   }>('/mastery-map', async (request, reply) => {
@@ -1052,9 +1089,44 @@ export async function progressRoutes(fastify: FastifyInstance) {
       }
     >();
 
-    // Initialize from canonical list
-    for (const category of GCP_SERVICE_CATEGORIES) {
-      for (const serviceName of category.services) {
+    // Load service categories from DB
+    const dbCategories = await db
+      .select({
+        id: serviceCategories.id,
+        categoryId: serviceCategories.categoryId,
+        categoryName: serviceCategories.categoryName,
+        displayOrder: serviceCategories.displayOrder,
+      })
+      .from(serviceCategories)
+      .where(eq(serviceCategories.certificationId, certificationId))
+      .orderBy(serviceCategories.displayOrder);
+
+    // Get all items for these categories
+    const dbCategoryIds = dbCategories.map((c) => c.id);
+    const allCategoryItems =
+      dbCategoryIds.length > 0
+        ? await db
+            .select({
+              categoryId: serviceCategoryItems.categoryId,
+              serviceName: serviceCategoryItems.serviceName,
+            })
+            .from(serviceCategoryItems)
+            .where(inArray(serviceCategoryItems.categoryId, dbCategoryIds))
+        : [];
+
+    // Group items by category
+    const categoryItemsMap = new Map<number, string[]>();
+    for (const item of allCategoryItems) {
+      if (!categoryItemsMap.has(item.categoryId)) {
+        categoryItemsMap.set(item.categoryId, []);
+      }
+      categoryItemsMap.get(item.categoryId)!.push(item.serviceName);
+    }
+
+    // Initialize from DB categories
+    for (const cat of dbCategories) {
+      const services = categoryItemsMap.get(cat.id) || [];
+      for (const serviceName of services) {
         const id = toServiceId(serviceName);
         serviceStats.set(id, {
           attempted: 0,
@@ -1104,6 +1176,15 @@ export async function progressRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Build set of all canonical service IDs from DB categories
+    const canonicalServiceIds = new Set<string>();
+    for (const cat of dbCategories) {
+      const services = categoryItemsMap.get(cat.id) || [];
+      for (const serviceName of services) {
+        canonicalServiceIds.add(toServiceId(serviceName));
+      }
+    }
+
     // Build response with categories
     const categories: MasteryCategory[] = [];
     let servicesAttempted = 0;
@@ -1111,10 +1192,11 @@ export async function progressRoutes(fastify: FastifyInstance) {
     let totalCorrect = 0;
     let totalAttempted = 0;
 
-    for (const cat of GCP_SERVICE_CATEGORIES) {
+    for (const cat of dbCategories) {
       const categoryServices: ServiceMastery[] = [];
+      const services = categoryItemsMap.get(cat.id) || [];
 
-      for (const serviceName of cat.services) {
+      for (const serviceName of services) {
         const id = toServiceId(serviceName);
         const stats = serviceStats.get(id)!;
         const accuracy = stats.attempted > 0 ? (stats.correct / stats.attempted) * 100 : null;
@@ -1122,8 +1204,8 @@ export async function progressRoutes(fastify: FastifyInstance) {
         categoryServices.push({
           id,
           name: serviceName,
-          category: cat.name,
-          categoryId: cat.id,
+          category: cat.categoryName,
+          categoryId: cat.categoryId,
           questionsAttempted: stats.attempted,
           totalQuestions: stats.total,
           correctCount: stats.correct,
@@ -1141,25 +1223,22 @@ export async function progressRoutes(fastify: FastifyInstance) {
       }
 
       categories.push({
-        id: cat.id,
-        name: cat.name,
+        id: cat.categoryId,
+        name: cat.categoryName,
         services: categoryServices,
       });
     }
 
-    // Add "Other" category for services not in canonical list
+    // Add "Other" category for services not in DB categories
     const otherServices: ServiceMastery[] = [];
     for (const [id, stats] of serviceStats) {
-      const isCanonical = GCP_SERVICE_CATEGORIES.some((cat) =>
-        cat.services.some((s) => toServiceId(s) === id)
-      );
-      if (!isCanonical && stats.total > 0) {
+      if (!canonicalServiceIds.has(id) && stats.total > 0) {
         const accuracy = stats.attempted > 0 ? (stats.correct / stats.attempted) * 100 : null;
         otherServices.push({
           id,
           name: id.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
           category: 'Other',
-          categoryId: 'operations',
+          categoryId: 'other',
           questionsAttempted: stats.attempted,
           totalQuestions: stats.total,
           correctCount: stats.correct,
@@ -1178,7 +1257,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     if (otherServices.length > 0) {
       categories.push({
-        id: 'operations',
+        id: 'other',
         name: 'Other',
         services: otherServices,
       });

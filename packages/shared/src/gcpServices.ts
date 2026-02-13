@@ -52,7 +52,8 @@ export const GCP_SERVICE_CATEGORIES = [
   },
 ] as const;
 
-export type GcpCategoryId = (typeof GCP_SERVICE_CATEGORIES)[number]['id'];
+/** @deprecated Use DB-backed service categories instead of this derived type */
+export type GcpCategoryId = string;
 
 export type MasteryLevel = 'none' | 'low' | 'medium' | 'high';
 
@@ -60,7 +61,7 @@ export interface ServiceMastery {
   id: string;
   name: string;
   category: string;
-  categoryId: GcpCategoryId;
+  categoryId: string;
   questionsAttempted: number;
   totalQuestions: number;
   correctCount: number;
@@ -70,7 +71,7 @@ export interface ServiceMastery {
 }
 
 export interface MasteryCategory {
-  id: GcpCategoryId;
+  id: string;
   name: string;
   services: ServiceMastery[];
 }
