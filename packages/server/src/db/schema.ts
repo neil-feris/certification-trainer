@@ -831,6 +831,39 @@ export const workbookResources = sqliteTable('workbook_resources', {
   documentationLinks: text('documentation_links'), // JSON: [{title: string, url: string}]
 });
 
+// ============ SERVICE CATEGORIES (Provider-Agnostic Mastery Map) ============
+export const serviceCategories = sqliteTable(
+  'service_categories',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    categoryName: text('category_name').notNull(),
+    categoryId: text('category_id').notNull(), // slug: 'compute', 'storage', etc.
+    displayOrder: integer('display_order').notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex('service_categories_cert_cat_idx').on(table.certificationId, table.categoryId),
+    index('service_categories_cert_idx').on(table.certificationId),
+  ]
+);
+
+export const serviceCategoryItems = sqliteTable(
+  'service_category_items',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => serviceCategories.id, { onDelete: 'cascade' }),
+    serviceName: text('service_name').notNull(),
+  },
+  (table) => [
+    uniqueIndex('service_category_items_cat_svc_idx').on(table.categoryId, table.serviceName),
+    index('service_category_items_cat_idx').on(table.categoryId),
+  ]
+);
+
 // ============ EXAM SHARING ============
 export const examShares = sqliteTable(
   'exam_shares',

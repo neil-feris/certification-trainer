@@ -820,6 +820,49 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 14,
+    name: 'create_service_categories_tables',
+    up: (db) => {
+      const tableExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='service_categories'")
+        .get();
+
+      if (!tableExists) {
+        db.exec(`
+          CREATE TABLE service_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            certification_id INTEGER NOT NULL REFERENCES certifications(id) ON DELETE CASCADE,
+            category_name TEXT NOT NULL,
+            category_id TEXT NOT NULL,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(certification_id, category_id)
+          );
+          CREATE INDEX IF NOT EXISTS service_categories_cert_idx ON service_categories(certification_id);
+        `);
+        console.log('  [migration] Created service_categories table');
+      }
+
+      const itemsTableExists = db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='service_category_items'"
+        )
+        .get();
+
+      if (!itemsTableExists) {
+        db.exec(`
+          CREATE TABLE service_category_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL REFERENCES service_categories(id) ON DELETE CASCADE,
+            service_name TEXT NOT NULL,
+            UNIQUE(category_id, service_name)
+          );
+          CREATE INDEX IF NOT EXISTS service_category_items_cat_idx ON service_category_items(category_id);
+        `);
+        console.log('  [migration] Created service_category_items table');
+      }
+    },
+  },
 ];
 
 /**
