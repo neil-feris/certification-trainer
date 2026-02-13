@@ -828,7 +828,9 @@ export const workbookResources = sqliteTable(
   'workbook_resources',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    certificationId: integer('certification_id').references(() => certifications.id),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id),
     cloudService: text('cloud_service').notNull(), // e.g., "Compute Engine", "EC2"
     courses: text('courses'), // JSON: [{name: string, module?: string}]
     skillBadges: text('skill_badges'), // JSON: string[]

@@ -2013,7 +2013,7 @@ const migrations: Migration[] = [
           courses TEXT DEFAULT '[]',
           skill_badges TEXT DEFAULT '[]',
           documentation_links TEXT DEFAULT '[]',
-          certification_id INTEGER REFERENCES certifications(id),
+          certification_id INTEGER NOT NULL REFERENCES certifications(id),
           UNIQUE(certification_id, cloud_service)
         );
         INSERT INTO workbook_resources_new (id, cloud_service, courses, skill_badges, documentation_links, certification_id)
