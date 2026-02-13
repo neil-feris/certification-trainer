@@ -2086,6 +2086,1350 @@ const migrations: Migration[] = [
       console.log('  [migration] Created sr_user_cert_idx composite index');
     },
   },
+  {
+    version: 28,
+    name: 'seed_aws_saa_workbook_content',
+    up: (db) => {
+      // --- PART 1: Workbook Resources for 51 AWS services ---
+      const awsCert = db.prepare("SELECT id FROM certifications WHERE code = 'AWS-SAA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!awsCert) {
+        console.log('  [migration] AWS-SAA certification not found, skipping');
+        return;
+      }
+
+      const existingResources = db
+        .prepare('SELECT COUNT(*) as count FROM workbook_resources WHERE certification_id = ?')
+        .get(awsCert.id) as { count: number };
+
+      if (existingResources.count === 0) {
+        const insertResource = db.prepare(`
+          INSERT INTO workbook_resources (certification_id, cloud_service, courses, skill_badges, documentation_links)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+
+        const resources = [
+          // ===== COMPUTE (7) =====
+          {
+            service: 'EC2',
+            courses: [
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 2: Compute in the Cloud',
+              },
+              { name: 'Architecting on AWS', module: 'Module 3: Adding a Compute Layer' },
+              { name: 'AWS Technical Essentials', module: 'Module 2: AWS Compute' },
+            ],
+            skillBadges: ['Amazon EC2 Auto Scaling Deep Dive', 'Getting Started with Amazon EC2'],
+            docs: [
+              {
+                title: 'Amazon EC2 User Guide',
+                url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/',
+              },
+              {
+                title: 'EC2 Instance Types',
+                url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html',
+              },
+              {
+                title: 'EC2 Auto Scaling',
+                url: 'https://docs.aws.amazon.com/autoscaling/ec2/userguide/',
+              },
+            ],
+          },
+          {
+            service: 'Lambda',
+            courses: [
+              { name: 'AWS Lambda Foundations', module: 'Full Course' },
+              { name: 'Architecting on AWS', module: 'Module 10: Serverless Architecture' },
+              { name: 'Developing Serverless Solutions on AWS', module: 'Module 2: AWS Lambda' },
+            ],
+            skillBadges: ['Serverless Architectures with AWS Lambda'],
+            docs: [
+              {
+                title: 'AWS Lambda Developer Guide',
+                url: 'https://docs.aws.amazon.com/lambda/latest/dg/',
+              },
+              {
+                title: 'Lambda Function Configuration',
+                url: 'https://docs.aws.amazon.com/lambda/latest/dg/lambda-functions.html',
+              },
+            ],
+          },
+          {
+            service: 'ECS',
+            courses: [
+              { name: 'Amazon Elastic Container Service Primer', module: 'Full Course' },
+              { name: 'Architecting on AWS', module: 'Module 3: Adding a Compute Layer' },
+            ],
+            skillBadges: ['Amazon ECS Primer'],
+            docs: [
+              {
+                title: 'Amazon ECS Developer Guide',
+                url: 'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/',
+              },
+              {
+                title: 'ECS Task Definitions',
+                url: 'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html',
+              },
+            ],
+          },
+          {
+            service: 'EKS',
+            courses: [
+              { name: 'Amazon Elastic Kubernetes Service Primer', module: 'Full Course' },
+              {
+                name: 'Running Containers on Amazon EKS',
+                module: 'Module 1: Kubernetes Fundamentals',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon EKS User Guide',
+                url: 'https://docs.aws.amazon.com/eks/latest/userguide/',
+              },
+              {
+                title: 'EKS Best Practices Guide',
+                url: 'https://docs.aws.amazon.com/eks/latest/best-practices/',
+              },
+            ],
+          },
+          {
+            service: 'Fargate',
+            courses: [
+              { name: 'Amazon Elastic Container Service Primer', module: 'Fargate Launch Type' },
+              { name: 'Architecting on AWS', module: 'Module 3: Adding a Compute Layer' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Fargate User Guide (ECS)',
+                url: 'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/AWS_Fargate.html',
+              },
+              {
+                title: 'Fargate on EKS',
+                url: 'https://docs.aws.amazon.com/eks/latest/userguide/fargate.html',
+              },
+            ],
+          },
+          {
+            service: 'Elastic Beanstalk',
+            courses: [
+              { name: 'AWS Technical Essentials', module: 'Module 2: AWS Compute' },
+              { name: 'Architecting on AWS', module: 'Module 3: Adding a Compute Layer' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Elastic Beanstalk Developer Guide',
+                url: 'https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/',
+              },
+              {
+                title: 'EB Platform Configuration',
+                url: 'https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/concepts.platforms.html',
+              },
+            ],
+          },
+          {
+            service: 'Batch',
+            courses: [{ name: 'AWS Batch Primer', module: 'Full Course' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Batch User Guide',
+                url: 'https://docs.aws.amazon.com/batch/latest/userguide/',
+              },
+              {
+                title: 'Batch Compute Environments',
+                url: 'https://docs.aws.amazon.com/batch/latest/userguide/compute_environments.html',
+              },
+            ],
+          },
+
+          // ===== STORAGE (6) =====
+          {
+            service: 'S3',
+            courses: [
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 5: Storage and Databases',
+              },
+              { name: 'Architecting on AWS', module: 'Module 4: Adding a Storage Layer' },
+              { name: 'AWS Technical Essentials', module: 'Module 3: AWS Storage' },
+            ],
+            skillBadges: [
+              'Amazon S3 Business Continuity and Disaster Recovery',
+              'Getting Started with Amazon S3',
+            ],
+            docs: [
+              {
+                title: 'Amazon S3 User Guide',
+                url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/',
+              },
+              {
+                title: 'S3 Storage Classes',
+                url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html',
+              },
+              {
+                title: 'S3 Versioning',
+                url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html',
+              },
+            ],
+          },
+          {
+            service: 'EBS',
+            courses: [
+              { name: 'AWS Technical Essentials', module: 'Module 3: AWS Storage' },
+              { name: 'Architecting on AWS', module: 'Module 4: Adding a Storage Layer' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon EBS User Guide',
+                url: 'https://docs.aws.amazon.com/ebs/latest/userguide/',
+              },
+              {
+                title: 'EBS Volume Types',
+                url: 'https://docs.aws.amazon.com/ebs/latest/userguide/ebs-volume-types.html',
+              },
+              {
+                title: 'EBS Snapshots',
+                url: 'https://docs.aws.amazon.com/ebs/latest/userguide/EBSSnapshots.html',
+              },
+            ],
+          },
+          {
+            service: 'EFS',
+            courses: [
+              { name: 'AWS Storage Offerings', module: 'Amazon Elastic File System' },
+              { name: 'Architecting on AWS', module: 'Module 4: Adding a Storage Layer' },
+            ],
+            skillBadges: [],
+            docs: [
+              { title: 'Amazon EFS User Guide', url: 'https://docs.aws.amazon.com/efs/latest/ug/' },
+              {
+                title: 'EFS Performance Modes',
+                url: 'https://docs.aws.amazon.com/efs/latest/ug/performance.html',
+              },
+            ],
+          },
+          {
+            service: 'FSx',
+            courses: [{ name: 'AWS Storage Offerings', module: 'Amazon FSx' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon FSx for Windows File Server',
+                url: 'https://docs.aws.amazon.com/fsx/latest/WindowsGuide/',
+              },
+              {
+                title: 'Amazon FSx for Lustre',
+                url: 'https://docs.aws.amazon.com/fsx/latest/LustreGuide/',
+              },
+            ],
+          },
+          {
+            service: 'Storage Gateway',
+            courses: [
+              { name: 'AWS Storage Offerings', module: 'AWS Storage Gateway' },
+              { name: 'Architecting on AWS', module: 'Module 4: Adding a Storage Layer' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Storage Gateway User Guide',
+                url: 'https://docs.aws.amazon.com/storagegateway/latest/userguide/',
+              },
+              {
+                title: 'Storage Gateway Types',
+                url: 'https://docs.aws.amazon.com/storagegateway/latest/userguide/WhatIsStorageGateway.html',
+              },
+            ],
+          },
+          {
+            service: 'Snow Family',
+            courses: [
+              { name: 'AWS Storage Offerings', module: 'AWS Snow Family' },
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 5: Storage and Databases',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Snow Family User Guide',
+                url: 'https://docs.aws.amazon.com/snowball/latest/developer-guide/',
+              },
+              {
+                title: 'Snowball Edge Overview',
+                url: 'https://docs.aws.amazon.com/snowball/latest/developer-guide/whatisedge.html',
+              },
+            ],
+          },
+
+          // ===== DATABASE (7) =====
+          {
+            service: 'RDS',
+            courses: [
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 5: Storage and Databases',
+              },
+              { name: 'Architecting on AWS', module: 'Module 5: Adding a Database Layer' },
+              { name: 'AWS Technical Essentials', module: 'Module 4: AWS Databases' },
+            ],
+            skillBadges: ['Amazon RDS Service Primer'],
+            docs: [
+              {
+                title: 'Amazon RDS User Guide',
+                url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/',
+              },
+              {
+                title: 'RDS Multi-AZ Deployments',
+                url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html',
+              },
+              {
+                title: 'RDS Read Replicas',
+                url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html',
+              },
+            ],
+          },
+          {
+            service: 'Aurora',
+            courses: [
+              { name: 'Amazon Aurora Service Primer', module: 'Full Course' },
+              { name: 'Architecting on AWS', module: 'Module 5: Adding a Database Layer' },
+            ],
+            skillBadges: ['Amazon Aurora Service Introduction'],
+            docs: [
+              {
+                title: 'Amazon Aurora User Guide',
+                url: 'https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/',
+              },
+              {
+                title: 'Aurora Replicas',
+                url: 'https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Replication.html',
+              },
+              {
+                title: 'Aurora Global Database',
+                url: 'https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html',
+              },
+            ],
+          },
+          {
+            service: 'DynamoDB',
+            courses: [
+              { name: 'Amazon DynamoDB Service Primer', module: 'Full Course' },
+              { name: 'Architecting on AWS', module: 'Module 5: Adding a Database Layer' },
+              { name: 'AWS Technical Essentials', module: 'Module 4: AWS Databases' },
+            ],
+            skillBadges: ['Amazon DynamoDB Service Introduction'],
+            docs: [
+              {
+                title: 'Amazon DynamoDB Developer Guide',
+                url: 'https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/',
+              },
+              {
+                title: 'DynamoDB Core Components',
+                url: 'https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html',
+              },
+              {
+                title: 'DynamoDB Global Tables',
+                url: 'https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html',
+              },
+            ],
+          },
+          {
+            service: 'ElastiCache',
+            courses: [
+              { name: 'Amazon ElastiCache Service Primer', module: 'Full Course' },
+              { name: 'Architecting on AWS', module: 'Module 5: Adding a Database Layer' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon ElastiCache User Guide (Redis)',
+                url: 'https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/',
+              },
+              {
+                title: 'ElastiCache Caching Strategies',
+                url: 'https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Strategies.html',
+              },
+            ],
+          },
+          {
+            service: 'Redshift',
+            courses: [
+              { name: 'Amazon Redshift Primer', module: 'Full Course' },
+              {
+                name: 'Data Analytics Fundamentals',
+                module: 'Module 5: Analysis and Visualization',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon Redshift Management Guide',
+                url: 'https://docs.aws.amazon.com/redshift/latest/mgmt/',
+              },
+              {
+                title: 'Redshift Clusters',
+                url: 'https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html',
+              },
+            ],
+          },
+          {
+            service: 'Neptune',
+            courses: [{ name: 'Amazon Neptune Primer', module: 'Full Course' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon Neptune User Guide',
+                url: 'https://docs.aws.amazon.com/neptune/latest/userguide/',
+              },
+              {
+                title: 'Neptune Graph Data Model',
+                url: 'https://docs.aws.amazon.com/neptune/latest/userguide/feature-overview-data-model.html',
+              },
+            ],
+          },
+          {
+            service: 'DocumentDB',
+            courses: [{ name: 'Amazon DocumentDB Service Primer', module: 'Full Course' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon DocumentDB Developer Guide',
+                url: 'https://docs.aws.amazon.com/documentdb/latest/developerguide/',
+              },
+              {
+                title: 'DocumentDB Clusters',
+                url: 'https://docs.aws.amazon.com/documentdb/latest/developerguide/db-clusters-understanding.html',
+              },
+            ],
+          },
+
+          // ===== NETWORKING (8) =====
+          {
+            service: 'VPC',
+            courses: [
+              { name: 'AWS Networking Basics', module: 'Module 1: Networking Fundamentals' },
+              { name: 'Architecting on AWS', module: 'Module 2: Adding a Networking Layer' },
+              { name: 'AWS Technical Essentials', module: 'Module 1: AWS Networking' },
+            ],
+            skillBadges: ['Networking Concepts'],
+            docs: [
+              {
+                title: 'Amazon VPC User Guide',
+                url: 'https://docs.aws.amazon.com/vpc/latest/userguide/',
+              },
+              {
+                title: 'VPC Subnets',
+                url: 'https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html',
+              },
+              {
+                title: 'NAT Gateways',
+                url: 'https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html',
+              },
+            ],
+          },
+          {
+            service: 'ELB (ALB/NLB/GWLB)',
+            courses: [
+              {
+                name: 'Architecting on AWS',
+                module: 'Module 6: Creating a Networking Environment',
+              },
+              { name: 'AWS Technical Essentials', module: 'Module 2: AWS Compute' },
+            ],
+            skillBadges: ['Elastic Load Balancing Service Introduction'],
+            docs: [
+              {
+                title: 'Elastic Load Balancing User Guide',
+                url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/',
+              },
+              {
+                title: 'Application Load Balancer',
+                url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/application/',
+              },
+              {
+                title: 'Network Load Balancer',
+                url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/network/',
+              },
+            ],
+          },
+          {
+            service: 'CloudFront',
+            courses: [
+              { name: 'Amazon CloudFront Primer', module: 'Full Course' },
+              {
+                name: 'Architecting on AWS',
+                module: 'Module 6: Creating a Networking Environment',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon CloudFront Developer Guide',
+                url: 'https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/',
+              },
+              {
+                title: 'CloudFront Distributions',
+                url: 'https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/distribution-working-with.html',
+              },
+            ],
+          },
+          {
+            service: 'Route 53',
+            courses: [
+              { name: 'Amazon Route 53 Primer', module: 'Full Course' },
+              {
+                name: 'Architecting on AWS',
+                module: 'Module 6: Creating a Networking Environment',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon Route 53 Developer Guide',
+                url: 'https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/',
+              },
+              {
+                title: 'Route 53 Routing Policies',
+                url: 'https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html',
+              },
+              {
+                title: 'Route 53 Health Checks',
+                url: 'https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html',
+              },
+            ],
+          },
+          {
+            service: 'Direct Connect',
+            courses: [
+              { name: 'AWS Networking Basics', module: 'Module 4: Hybrid Connectivity' },
+              {
+                name: 'Architecting on AWS',
+                module: 'Module 6: Creating a Networking Environment',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Direct Connect User Guide',
+                url: 'https://docs.aws.amazon.com/directconnect/latest/UserGuide/',
+              },
+              {
+                title: 'Direct Connect Gateways',
+                url: 'https://docs.aws.amazon.com/directconnect/latest/UserGuide/direct-connect-gateways.html',
+              },
+            ],
+          },
+          {
+            service: 'Transit Gateway',
+            courses: [
+              { name: 'AWS Networking Basics', module: 'Module 3: AWS Connectivity' },
+              { name: 'Advanced Architecting on AWS', module: 'Module 1: Networking' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Transit Gateway Guide',
+                url: 'https://docs.aws.amazon.com/vpc/latest/tgw/',
+              },
+              {
+                title: 'Transit Gateway Architecture',
+                url: 'https://docs.aws.amazon.com/vpc/latest/tgw/how-transit-gateways-work.html',
+              },
+            ],
+          },
+          {
+            service: 'API Gateway',
+            courses: [
+              { name: 'Amazon API Gateway for Serverless Applications', module: 'Full Course' },
+              { name: 'Developing Serverless Solutions on AWS', module: 'Module 3: API Gateway' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'API Gateway Developer Guide (REST)',
+                url: 'https://docs.aws.amazon.com/apigateway/latest/developerguide/',
+              },
+              {
+                title: 'API Gateway API Types',
+                url: 'https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-endpoint-types.html',
+              },
+            ],
+          },
+          {
+            service: 'Global Accelerator',
+            courses: [{ name: 'AWS Networking Basics', module: 'Module 5: Edge Networking' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Global Accelerator Developer Guide',
+                url: 'https://docs.aws.amazon.com/global-accelerator/latest/dg/',
+              },
+              {
+                title: 'Global Accelerator Concepts',
+                url: 'https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html',
+              },
+            ],
+          },
+
+          // ===== SECURITY (10) =====
+          {
+            service: 'IAM',
+            courses: [
+              { name: 'AWS Cloud Practitioner Essentials', module: 'Module 6: Security' },
+              {
+                name: 'AWS Security Fundamentals',
+                module: 'Module 2: Identity and Access Management',
+              },
+              { name: 'Architecting on AWS', module: 'Module 7: Connecting Networks' },
+            ],
+            skillBadges: [
+              'AWS Identity and Access Management - Basics',
+              'AWS Identity and Access Management - Architecture and Terminology',
+            ],
+            docs: [
+              { title: 'IAM User Guide', url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/' },
+              {
+                title: 'IAM Policies and Permissions',
+                url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html',
+              },
+              {
+                title: 'IAM Roles',
+                url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html',
+              },
+            ],
+          },
+          {
+            service: 'KMS',
+            courses: [
+              { name: 'AWS Security Fundamentals', module: 'Module 4: Data Protection' },
+              { name: 'Architecting on AWS', module: 'Module 8: Securing Your Application' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS KMS Developer Guide',
+                url: 'https://docs.aws.amazon.com/kms/latest/developerguide/',
+              },
+              {
+                title: 'KMS Key Concepts',
+                url: 'https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html',
+              },
+              {
+                title: 'KMS Envelope Encryption',
+                url: 'https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#enveloping',
+              },
+            ],
+          },
+          {
+            service: 'CloudHSM',
+            courses: [{ name: 'AWS Security Fundamentals', module: 'Module 4: Data Protection' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS CloudHSM User Guide',
+                url: 'https://docs.aws.amazon.com/cloudhsm/latest/userguide/',
+              },
+              {
+                title: 'CloudHSM Clusters',
+                url: 'https://docs.aws.amazon.com/cloudhsm/latest/userguide/clusters.html',
+              },
+            ],
+          },
+          {
+            service: 'WAF',
+            courses: [
+              { name: 'AWS Security Fundamentals', module: 'Module 3: Infrastructure Protection' },
+              { name: 'Architecting on AWS', module: 'Module 8: Securing Your Application' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS WAF Developer Guide',
+                url: 'https://docs.aws.amazon.com/waf/latest/developerguide/',
+              },
+              {
+                title: 'WAF Web ACLs',
+                url: 'https://docs.aws.amazon.com/waf/latest/developerguide/web-acl.html',
+              },
+              {
+                title: 'WAF Rule Groups',
+                url: 'https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-groups.html',
+              },
+            ],
+          },
+          {
+            service: 'Shield',
+            courses: [
+              { name: 'AWS Security Fundamentals', module: 'Module 3: Infrastructure Protection' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Shield Developer Guide',
+                url: 'https://docs.aws.amazon.com/waf/latest/developerguide/shield-chapter.html',
+              },
+              {
+                title: 'Shield Advanced',
+                url: 'https://docs.aws.amazon.com/waf/latest/developerguide/ddos-advanced.html',
+              },
+            ],
+          },
+          {
+            service: 'Cognito',
+            courses: [
+              {
+                name: 'AWS Security Fundamentals',
+                module: 'Module 2: Identity and Access Management',
+              },
+              {
+                name: 'Developing Serverless Solutions on AWS',
+                module: 'Module 4: Authentication and Authorization',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon Cognito Developer Guide',
+                url: 'https://docs.aws.amazon.com/cognito/latest/developerguide/',
+              },
+              {
+                title: 'Cognito User Pools',
+                url: 'https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-identity-pools.html',
+              },
+              {
+                title: 'Cognito Identity Pools',
+                url: 'https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-identity.html',
+              },
+            ],
+          },
+          {
+            service: 'Organizations',
+            courses: [
+              { name: 'AWS Cloud Practitioner Essentials', module: 'Module 6: Security' },
+              { name: 'AWS Security Fundamentals', module: 'Module 5: Governance' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Organizations User Guide',
+                url: 'https://docs.aws.amazon.com/organizations/latest/userguide/',
+              },
+              {
+                title: 'Service Control Policies',
+                url: 'https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html',
+              },
+            ],
+          },
+          {
+            service: 'GuardDuty',
+            courses: [
+              { name: 'AWS Security Fundamentals', module: 'Module 6: Detection and Response' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon GuardDuty User Guide',
+                url: 'https://docs.aws.amazon.com/guardduty/latest/ug/',
+              },
+              {
+                title: 'GuardDuty Finding Types',
+                url: 'https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_finding-types-active.html',
+              },
+            ],
+          },
+          {
+            service: 'Inspector',
+            courses: [
+              { name: 'AWS Security Fundamentals', module: 'Module 6: Detection and Response' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon Inspector User Guide',
+                url: 'https://docs.aws.amazon.com/inspector/latest/user/',
+              },
+              {
+                title: 'Inspector Scanning',
+                url: 'https://docs.aws.amazon.com/inspector/latest/user/scanning.html',
+              },
+            ],
+          },
+          {
+            service: 'Macie',
+            courses: [{ name: 'AWS Security Fundamentals', module: 'Module 4: Data Protection' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon Macie User Guide',
+                url: 'https://docs.aws.amazon.com/macie/latest/user/',
+              },
+              {
+                title: 'Macie Discovery Jobs',
+                url: 'https://docs.aws.amazon.com/macie/latest/user/discovery-jobs.html',
+              },
+            ],
+          },
+
+          // ===== MANAGEMENT (7) =====
+          {
+            service: 'CloudWatch',
+            courses: [
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 7: Monitoring and Analytics',
+              },
+              { name: 'Architecting on AWS', module: 'Module 9: Monitoring and Scaling' },
+              { name: 'AWS Technical Essentials', module: 'Module 5: Monitoring and Optimization' },
+            ],
+            skillBadges: ['Introduction to Amazon CloudWatch'],
+            docs: [
+              {
+                title: 'Amazon CloudWatch User Guide',
+                url: 'https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/',
+              },
+              {
+                title: 'CloudWatch Alarms',
+                url: 'https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html',
+              },
+              {
+                title: 'CloudWatch Logs',
+                url: 'https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/',
+              },
+            ],
+          },
+          {
+            service: 'CloudTrail',
+            courses: [
+              { name: 'AWS Security Fundamentals', module: 'Module 5: Governance' },
+              { name: 'Architecting on AWS', module: 'Module 9: Monitoring and Scaling' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS CloudTrail User Guide',
+                url: 'https://docs.aws.amazon.com/awscloudtrail/latest/userguide/',
+              },
+              {
+                title: 'CloudTrail Events',
+                url: 'https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-concepts.html',
+              },
+            ],
+          },
+          {
+            service: 'Config',
+            courses: [{ name: 'AWS Security Fundamentals', module: 'Module 5: Governance' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Config Developer Guide',
+                url: 'https://docs.aws.amazon.com/config/latest/developerguide/',
+              },
+              {
+                title: 'Config Rules',
+                url: 'https://docs.aws.amazon.com/config/latest/developerguide/evaluate-config.html',
+              },
+            ],
+          },
+          {
+            service: 'Systems Manager',
+            courses: [
+              { name: 'AWS Systems Manager Primer', module: 'Full Course' },
+              { name: 'Architecting on AWS', module: 'Module 9: Monitoring and Scaling' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Systems Manager User Guide',
+                url: 'https://docs.aws.amazon.com/systems-manager/latest/userguide/',
+              },
+              {
+                title: 'SSM Parameter Store',
+                url: 'https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html',
+              },
+              {
+                title: 'SSM Session Manager',
+                url: 'https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html',
+              },
+            ],
+          },
+          {
+            service: 'CloudFormation',
+            courses: [
+              { name: 'AWS CloudFormation Primer', module: 'Full Course' },
+              { name: 'Architecting on AWS', module: 'Module 11: Automating Your Architecture' },
+            ],
+            skillBadges: ['Introduction to AWS CloudFormation'],
+            docs: [
+              {
+                title: 'AWS CloudFormation User Guide',
+                url: 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/',
+              },
+              {
+                title: 'CloudFormation Templates',
+                url: 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-guide.html',
+              },
+              {
+                title: 'CloudFormation Stacks',
+                url: 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacks.html',
+              },
+            ],
+          },
+          {
+            service: 'Trusted Advisor',
+            courses: [
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 7: Monitoring and Analytics',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Trusted Advisor User Guide',
+                url: 'https://docs.aws.amazon.com/awssupport/latest/user/trusted-advisor.html',
+              },
+              {
+                title: 'Trusted Advisor Check Reference',
+                url: 'https://docs.aws.amazon.com/awssupport/latest/user/trusted-advisor-check-reference.html',
+              },
+            ],
+          },
+          {
+            service: 'Service Catalog',
+            courses: [{ name: 'AWS Service Catalog Primer', module: 'Full Course' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Service Catalog Admin Guide',
+                url: 'https://docs.aws.amazon.com/servicecatalog/latest/adminguide/',
+              },
+              {
+                title: 'Service Catalog Portfolios',
+                url: 'https://docs.aws.amazon.com/servicecatalog/latest/adminguide/catalogs_portfolios.html',
+              },
+            ],
+          },
+
+          // ===== INTEGRATION (6) =====
+          {
+            service: 'SQS',
+            courses: [
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 8: Messaging and Queuing',
+              },
+              { name: 'Architecting on AWS', module: 'Module 10: Serverless Architecture' },
+              { name: 'AWS Technical Essentials', module: 'Module 6: Messaging and Integration' },
+            ],
+            skillBadges: ['Introduction to Amazon Simple Queue Service'],
+            docs: [
+              {
+                title: 'Amazon SQS Developer Guide',
+                url: 'https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/',
+              },
+              {
+                title: 'SQS Standard vs FIFO',
+                url: 'https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-queue-types.html',
+              },
+              {
+                title: 'SQS Dead-Letter Queues',
+                url: 'https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html',
+              },
+            ],
+          },
+          {
+            service: 'SNS',
+            courses: [
+              {
+                name: 'AWS Cloud Practitioner Essentials',
+                module: 'Module 8: Messaging and Queuing',
+              },
+              { name: 'Architecting on AWS', module: 'Module 10: Serverless Architecture' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon SNS Developer Guide',
+                url: 'https://docs.aws.amazon.com/sns/latest/dg/',
+              },
+              {
+                title: 'SNS Message Filtering',
+                url: 'https://docs.aws.amazon.com/sns/latest/dg/sns-message-filtering.html',
+              },
+            ],
+          },
+          {
+            service: 'EventBridge',
+            courses: [
+              { name: 'Amazon EventBridge Primer', module: 'Full Course' },
+              {
+                name: 'Developing Serverless Solutions on AWS',
+                module: 'Module 6: Event-Driven Architecture',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon EventBridge User Guide',
+                url: 'https://docs.aws.amazon.com/eventbridge/latest/userguide/',
+              },
+              {
+                title: 'EventBridge Rules',
+                url: 'https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html',
+              },
+              {
+                title: 'EventBridge Event Buses',
+                url: 'https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-bus.html',
+              },
+            ],
+          },
+          {
+            service: 'Step Functions',
+            courses: [
+              { name: 'AWS Step Functions Primer', module: 'Full Course' },
+              {
+                name: 'Developing Serverless Solutions on AWS',
+                module: 'Module 7: Orchestrating Workflows',
+              },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'AWS Step Functions Developer Guide',
+                url: 'https://docs.aws.amazon.com/step-functions/latest/dg/',
+              },
+              {
+                title: 'Step Functions State Machine Concepts',
+                url: 'https://docs.aws.amazon.com/step-functions/latest/dg/concepts-standard-vs-express.html',
+              },
+            ],
+          },
+          {
+            service: 'Kinesis',
+            courses: [
+              { name: 'Amazon Kinesis Primer', module: 'Full Course' },
+              { name: 'Data Analytics Fundamentals', module: 'Module 3: Processing' },
+            ],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon Kinesis Data Streams Developer Guide',
+                url: 'https://docs.aws.amazon.com/streams/latest/dev/',
+              },
+              {
+                title: 'Kinesis Data Firehose',
+                url: 'https://docs.aws.amazon.com/firehose/latest/dev/',
+              },
+            ],
+          },
+          {
+            service: 'AppFlow',
+            courses: [{ name: 'Amazon AppFlow Primer', module: 'Full Course' }],
+            skillBadges: [],
+            docs: [
+              {
+                title: 'Amazon AppFlow User Guide',
+                url: 'https://docs.aws.amazon.com/appflow/latest/userguide/',
+              },
+              {
+                title: 'AppFlow Connectors',
+                url: 'https://docs.aws.amazon.com/appflow/latest/userguide/app-specific.html',
+              },
+            ],
+          },
+        ];
+
+        for (const r of resources) {
+          insertResource.run(
+            awsCert.id,
+            r.service,
+            JSON.stringify(r.courses),
+            JSON.stringify(r.skillBadges),
+            JSON.stringify(r.docs)
+          );
+        }
+
+        console.log(`  [migration] Seeded ${resources.length} AWS workbook resources`);
+      } else {
+        console.log('  [migration] AWS workbook resources already exist, skipping');
+      }
+
+      // --- PART 2: Insert 10 official AWS SAA-C03 sample questions ---
+      const existingQuestions = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM questions q JOIN domains d ON q.domain_id = d.id JOIN certifications c ON d.certification_id = c.id WHERE c.code = 'AWS-SAA' AND q.source = 'workbook'"
+        )
+        .get() as { count: number };
+
+      if (existingQuestions.count === 0) {
+        const getDomain = db.prepare(
+          "SELECT d.id FROM domains d JOIN certifications c ON d.certification_id = c.id WHERE c.code = 'AWS-SAA' AND d.code = ?"
+        );
+        const getTopic = db.prepare('SELECT id FROM topics WHERE domain_id = ? AND code = ?');
+        const insertQ = db.prepare(`
+          INSERT INTO questions (domain_id, topic_id, question_text, question_type, options, correct_answers, explanation, difficulty, cloud_services, is_generated, source, created_at)
+          VALUES (@domainId, @topicId, @questionText, @questionType, @options, @correctAnswers, @explanation, @difficulty, @cloudServices, @isGenerated, @source, @createdAt)
+        `);
+
+        const now = Math.floor(Date.now() / 1000);
+        let insertedCount = 0;
+
+        const sampleQuestions = [
+          {
+            domainCode: 'SECURE_ARCH',
+            topicCode: 'VPC_SEC',
+            questionText:
+              'A company runs a public-facing three-tier web application in a VPC across multiple Availability Zones. Amazon EC2 instances for the application tier running in private subnets need to download software patches from the internet. However, the EC2 instances cannot be directly accessible from the internet. Which actions should be taken to allow the EC2 instances to download the needed patches? (Select TWO.)',
+            questionType: 'multiple',
+            options: [
+              'A. Configure a NAT gateway in a public subnet.',
+              'B. Define a custom route table with a route to the NAT gateway for internet traffic and associate it with the private subnets for the application tier.',
+              'C. Assign Elastic IP addresses to the EC2 instances.',
+              'D. Define a custom route table with a route to the internet gateway for internet traffic and associate it with the private subnets for the application tier.',
+              'E. Configure a NAT instance in a private subnet.',
+            ],
+            correctAnswers: [0, 1],
+            explanation:
+              'A NAT gateway forwards traffic from the EC2 instances in the private subnet to the internet or other AWS services, and then sends the response back to the instances. After a NAT gateway is created, the route tables for private subnets must be updated to point internet traffic to the NAT gateway.',
+            difficulty: 'medium',
+            cloudServices: ['VPC', 'EC2'],
+          },
+          {
+            domainCode: 'COST_ARCH',
+            topicCode: 'PRICING',
+            questionText:
+              'A solutions architect wants to design a solution to save costs for Amazon EC2 instances that do not need to run during a 2-week company shutdown. The applications running on the EC2 instances store data in instance memory that must be present when the instances resume operation. Which approach should the solutions architect recommend to shut down and resume the EC2 instances?',
+            questionType: 'single',
+            options: [
+              'A. Modify the application to store the data on instance store volumes. Reattach the volumes while restarting them.',
+              'B. Snapshot the EC2 instances before stopping them. Restore the snapshot after restarting the instances.',
+              'C. Run the applications on EC2 instances enabled for hibernation. Hibernate the instances before the 2-week company shutdown.',
+              'D. Note the Availability Zone for each EC2 instance before stopping it. Restart the instances in the same Availability Zones after the 2-week company shutdown.',
+            ],
+            correctAnswers: [2],
+            explanation:
+              'Hibernating EC2 instances save the contents of instance memory to an Amazon Elastic Block Store (Amazon EBS) root volume. When the instances restart, the instance memory contents are reloaded.',
+            difficulty: 'medium',
+            cloudServices: ['EC2', 'EBS'],
+          },
+          {
+            domainCode: 'RESILIENT_ARCH',
+            topicCode: 'HA_DESIGN',
+            questionText:
+              "A company plans to run a monitoring application on an Amazon EC2 instance in a VPC. Connections are made to the EC2 instance using the instance's private IPv4 address. A solutions architect needs to design a solution that will allow traffic to be quickly directed to a standby EC2 instance if the application fails and becomes unreachable. Which approach will meet these requirements?",
+            questionType: 'single',
+            options: [
+              'A. Deploy an Application Load Balancer configured with a listener for the private IP address and register the primary EC2 instance with the load balancer. Upon failure, de-register the instance and register the standby EC2 instance.',
+              'B. Configure a custom DHCP option set. Configure DHCP to assign the same private IP address to the standby EC2 instance when the primary EC2 instance fails.',
+              'C. Attach a secondary elastic network interface to the EC2 instance configured with the private IP address. Move the network interface to the standby EC2 instance if the primary EC2 instance becomes unreachable.',
+              'D. Associate an Elastic IP address with the network interface of the primary EC2 instance. Disassociate the Elastic IP from the primary instance upon failure and associate it with a standby EC2 instance.',
+            ],
+            correctAnswers: [2],
+            explanation:
+              'A secondary elastic network interface can be added to an EC2 instance. While primary network interfaces cannot be detached from an instance, secondary network interfaces can be detached and attached to a different EC2 instance.',
+            difficulty: 'medium',
+            cloudServices: ['EC2', 'VPC'],
+          },
+          {
+            domainCode: 'PERF_ARCH',
+            topicCode: 'STORAGE',
+            questionText:
+              "An analytics company is planning to offer a web analytics service to its users. The service will require that the users' webpages include a JavaScript script that makes authenticated GET requests to the company's Amazon S3 bucket. What must a solutions architect do to ensure that the script will successfully execute?",
+            questionType: 'single',
+            options: [
+              'A. Enable cross-origin resource sharing (CORS) on the S3 bucket.',
+              'B. Enable S3 Versioning on the S3 bucket.',
+              'C. Provide the users with a signed URL for the script.',
+              'D. Configure an S3 bucket policy to allow public execute privileges.',
+            ],
+            correctAnswers: [0],
+            explanation:
+              'Web browsers will block running a script that originates from a server with a domain name that is different from the webpage. Amazon S3 can be configured with CORS to send HTTP headers that allow the script to run.',
+            difficulty: 'easy',
+            cloudServices: ['S3'],
+          },
+          {
+            domainCode: 'SECURE_ARCH',
+            topicCode: 'ENCRYPTION',
+            questionText:
+              "A company's security team requires that all data stored in the cloud be encrypted at rest at all times using encryption keys stored on premises. Which encryption options meet these requirements? (Select TWO.)",
+            questionType: 'multiple',
+            options: [
+              'A. Use server-side encryption with Amazon S3 managed encryption keys (SSE-S3).',
+              'B. Use server-side encryption with AWS KMS managed encryption keys (SSE-KMS).',
+              'C. Use server-side encryption with customer-provided encryption keys (SSE-C).',
+              'D. Use client-side encryption to provide at-rest encryption.',
+              "E. Use an AWS Lambda function invoked by Amazon S3 events to encrypt the data using the customer's keys.",
+            ],
+            correctAnswers: [2, 3],
+            explanation:
+              'Server-side encryption with customer-provided keys (SSE-C) enables Amazon S3 to encrypt objects on the server side using an encryption key provided in the PUT request. Customers also have the option to encrypt data on the client side before uploading it to Amazon S3 and then decrypt the data after downloading it.',
+            difficulty: 'medium',
+            cloudServices: ['S3', 'KMS'],
+          },
+          {
+            domainCode: 'COST_ARCH',
+            topicCode: 'PRICING',
+            questionText:
+              'A company uses Amazon EC2 Reserved Instances to run its data processing workload. The nightly job typically takes 7 hours to run and must finish within a 10-hour time window. The company anticipates temporary increases in demand at the end of each month that will cause the job to run over the time limit with the capacity of the current resources. Once started, the processing job cannot be interrupted before completion. The company wants to implement a solution that would provide increased resource capacity as cost-effectively as possible. What should a solutions architect do to accomplish this?',
+            questionType: 'single',
+            options: [
+              'A. Deploy On-Demand Instances during periods of high demand.',
+              'B. Create a second EC2 reservation for additional instances.',
+              'C. Deploy Spot Instances during periods of high demand.',
+              'D. Increase the EC2 instance size in the EC2 reservation to support the increased workload.',
+            ],
+            correctAnswers: [0],
+            explanation:
+              'While Spot Instances would be the least costly option, they are not suitable for jobs that cannot be interrupted or must complete within a certain time period. On-Demand Instances would be billed for the number of seconds they are running.',
+            difficulty: 'medium',
+            cloudServices: ['EC2'],
+          },
+          {
+            domainCode: 'RESILIENT_ARCH',
+            topicCode: 'DECOUPLE',
+            questionText:
+              'A company runs an online voting system for a weekly live television program. During broadcasts, users submit hundreds of thousands of votes within minutes to a front-end fleet of Amazon EC2 instances that run in an Auto Scaling group. The EC2 instances write the votes to an Amazon RDS database. However, the database is unable to keep up with the requests that come from the EC2 instances. A solutions architect must design a solution that processes the votes in the most efficient manner and without downtime. Which solution meets these requirements?',
+            questionType: 'single',
+            options: [
+              'A. Migrate the front-end application to AWS Lambda. Use Amazon API Gateway to route user requests to the Lambda functions.',
+              'B. Scale the database horizontally by converting it to a Multi-AZ deployment. Configure the front-end application to write to both the primary and secondary DB instances.',
+              'C. Configure the front-end application to send votes to an Amazon Simple Queue Service (Amazon SQS) queue. Provision worker instances to read the SQS queue and write the vote information to the database.',
+              'D. Use Amazon EventBridge (Amazon CloudWatch Events) to create a scheduled event to re-provision the database with larger, memory optimized instances during voting periods. When voting ends, re-provision the database to use smaller instances.',
+            ],
+            correctAnswers: [2],
+            explanation:
+              'Decouple the ingestion of votes from the database to allow the voting system to continue processing votes without waiting for the database writes. Add dedicated workers to read from the SQS queue to allow votes to be entered into the database at a controllable rate.',
+            difficulty: 'medium',
+            cloudServices: ['SQS', 'RDS', 'EC2'],
+          },
+          {
+            domainCode: 'RESILIENT_ARCH',
+            topicCode: 'HA_DESIGN',
+            questionText:
+              'A company has a two-tier application architecture that runs in public and private subnets. Amazon EC2 instances running the web application are in the public subnet and an EC2 instance for the database runs on the private subnet. The web application instances and the database are running in a single Availability Zone (AZ). Which combination of steps should a solutions architect take to provide high availability for this architecture? (Select TWO.)',
+            questionType: 'multiple',
+            options: [
+              'A. Create new public and private subnets in the same AZ.',
+              'B. Create an Amazon EC2 Auto Scaling group and Application Load Balancer spanning multiple AZs for the web application instances.',
+              'C. Add the existing web application instances to an Auto Scaling group behind an Application Load Balancer.',
+              'D. Create new public and private subnets in a new AZ. Create a database using an EC2 instance in the public subnet in the new AZ. Migrate the old database contents to the new database.',
+              'E. Create new public and private subnets in the same VPC, each in a new AZ. Create an Amazon RDS Multi-AZ DB instance in the private subnets. Migrate the old database contents to the new DB instance.',
+            ],
+            correctAnswers: [1, 4],
+            explanation:
+              'Create new subnets in a new Availability Zone to provide a redundant network. Create an Auto Scaling group with instances in two AZs behind the load balancer to ensure high availability of the web application. Create an RDS DB instance in the two private subnets to make the database tier highly available too.',
+            difficulty: 'hard',
+            cloudServices: ['EC2', 'RDS', 'ELB (ALB/NLB/GWLB)', 'VPC'],
+          },
+          {
+            domainCode: 'RESILIENT_ARCH',
+            topicCode: 'SCALING',
+            questionText:
+              'A website runs a custom web application that receives a burst of traffic each day at noon. The users upload new pictures and content daily, but have been complaining of timeouts. The architecture uses Amazon EC2 Auto Scaling groups, and the application consistently takes 1 minute to initiate upon boot up before responding to user requests. How should a solutions architect redesign the architecture to better respond to changing traffic?',
+            questionType: 'single',
+            options: [
+              'A. Configure a Network Load Balancer with a slow start configuration.',
+              'B. Configure Amazon ElastiCache for Redis to offload direct requests from the EC2 instances.',
+              'C. Configure an Auto Scaling step scaling policy with an EC2 instance warmup condition.',
+              'D. Configure Amazon CloudFront to use an Application Load Balancer as the origin.',
+            ],
+            correctAnswers: [2],
+            explanation:
+              'With a step scaling policy, you can specify the number of seconds that it takes for a newly launched instance to warm up. Until its specified warm-up time has expired, an EC2 instance is not counted toward the aggregated metrics of the Auto Scaling group. This ensures that you do not add more instances than you need.',
+            difficulty: 'medium',
+            cloudServices: ['EC2', 'ELB (ALB/NLB/GWLB)'],
+          },
+          {
+            domainCode: 'PERF_ARCH',
+            topicCode: 'DATABASE',
+            questionText:
+              'An application running on AWS uses an Amazon Aurora Multi-AZ DB cluster deployment for its database. When evaluating performance metrics, a solutions architect discovered that the database reads are causing high I/O and adding latency to the write requests against the database. What should the solutions architect do to separate the read requests from the write requests?',
+            questionType: 'single',
+            options: [
+              'A. Enable read-through caching on the Aurora database.',
+              'B. Update the application to read from the Multi-AZ standby instance.',
+              'C. Create an Aurora replica and modify the application to use the appropriate endpoints.',
+              'D. Create a second Aurora database and link it to the primary database as a read replica.',
+            ],
+            correctAnswers: [2],
+            explanation:
+              'Aurora Replicas provide a way to offload read traffic. Aurora Replicas share the same underlying storage as the main database, so lag time is generally very low. Aurora Replicas have their own endpoints, so the application will need to be configured to direct read traffic to the new endpoints.',
+            difficulty: 'medium',
+            cloudServices: ['Aurora'],
+          },
+        ];
+
+        for (const q of sampleQuestions) {
+          const domain = getDomain.get(q.domainCode) as { id: number } | undefined;
+          if (!domain) {
+            console.log(`  [migration] Domain ${q.domainCode} not found, skipping question`);
+            continue;
+          }
+          const topic = getTopic.get(domain.id, q.topicCode) as { id: number } | undefined;
+          if (!topic) {
+            console.log(`  [migration] Topic ${q.topicCode} not found, skipping question`);
+            continue;
+          }
+
+          insertQ.run({
+            domainId: domain.id,
+            topicId: topic.id,
+            questionText: q.questionText,
+            questionType: q.questionType,
+            options: JSON.stringify(q.options),
+            correctAnswers: JSON.stringify(q.correctAnswers),
+            explanation: q.explanation,
+            difficulty: q.difficulty,
+            cloudServices: JSON.stringify(q.cloudServices),
+            isGenerated: 0,
+            source: 'workbook',
+            createdAt: now,
+          });
+          insertedCount++;
+        }
+
+        console.log(`  [migration] Inserted ${insertedCount} AWS SAA-C03 sample questions`);
+        if (insertedCount < sampleQuestions.length) {
+          console.warn(
+            `  [migration] WARNING: Only ${insertedCount}/${sampleQuestions.length} questions inserted — domain/topic codes may be mismatched`
+          );
+        }
+      } else {
+        console.log('  [migration] AWS SAA workbook questions already exist, skipping');
+      }
+
+      // --- PART 3: Update capabilities to enable workbook ---
+      const row = db
+        .prepare("SELECT capabilities FROM certifications WHERE code = 'AWS-SAA'")
+        .get() as { capabilities: string | null } | undefined;
+
+      let existing = {};
+      if (row?.capabilities) {
+        try {
+          existing = JSON.parse(row.capabilities);
+        } catch {
+          console.warn('  [migration] Invalid JSON in capabilities column, resetting to {}');
+        }
+      }
+      const merged = { ...existing, hasWorkbook: true };
+
+      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'AWS-SAA'").run(
+        JSON.stringify(merged)
+      );
+
+      console.log('  [migration] Updated AWS-SAA capabilities: hasWorkbook = true');
+    },
+  },
 ];
 
 /**
