@@ -139,13 +139,13 @@ Key tables in `packages/server/src/db/schema.ts` (~47 tables):
 
 1. **Edit** `packages/server/src/db/startupMigrations.ts`
 2. **Add** a new migration object to the `migrations` array with:
-   - `version`: Next sequential number (current latest: **27**)
+   - `version`: Next sequential number (current latest: **28**)
    - `name`: Descriptive snake_case name
    - `up`: Function that performs the migration
 
 ```typescript
 {
-  version: 28,  // Increment from last version (27)
+  version: 29,  // Increment from last version (28)
   name: 'add_user_preferences_table',
   up: (db) => {
     // Check if already exists (idempotent)
