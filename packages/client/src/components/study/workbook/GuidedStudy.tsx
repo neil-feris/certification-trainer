@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { workbookApi } from '../../../api/client';
+import { useCertificationStore } from '../../../stores/certificationStore';
 import { WorkbookQuestion } from './WorkbookQuestion';
 import { FeedbackPanel } from './FeedbackPanel';
 import styles from './GuidedStudy.module.css';
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function GuidedStudy({ onExit }: Props) {
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isRevealed, setIsRevealed] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -20,13 +22,15 @@ export function GuidedStudy({ onExit }: Props) {
   } | null>(null);
 
   const { refetch } = useQuery({
-    queryKey: ['workbookProgress'],
-    queryFn: workbookApi.getProgress,
+    queryKey: ['workbookProgress', selectedCertificationId],
+    queryFn: () => workbookApi.getProgress(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null,
   });
 
   const { data: guidedData, refetch: refetchGuided } = useQuery({
-    queryKey: ['workbookGuidedNext'],
-    queryFn: workbookApi.getGuidedNext,
+    queryKey: ['workbookGuidedNext', selectedCertificationId],
+    queryFn: () => workbookApi.getGuidedNext(selectedCertificationId ?? undefined),
+    enabled: selectedCertificationId !== null,
   });
 
   const question = guidedData?.question;

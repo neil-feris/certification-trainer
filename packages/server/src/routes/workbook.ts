@@ -16,6 +16,7 @@ import {
   formatZodError,
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
+import { parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import { db } from '../db/index.js';
 import { workbookAssessments } from '../db/schema.js';
 import { updateStreak } from '../services/streakService.js';
@@ -35,15 +36,23 @@ export async function workbookRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
   // Get all workbook questions with progress
-  fastify.get('/progress', async (request) => {
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/progress', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
     const userId = parseInt(request.user!.id, 10);
-    return getWorkbookProgressForUser(userId);
+    return getWorkbookProgressForUser(userId, certId);
   });
 
   // Get benchmark comparison data
-  fastify.get('/benchmark', async (request) => {
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/benchmark', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
     const userId = parseInt(request.user!.id, 10);
-    return getWorkbookBenchmark(userId);
+    return getWorkbookBenchmark(userId, certId);
   });
 
   // Get learning resources for GCP services
@@ -67,9 +76,13 @@ export async function workbookRoutes(fastify: FastifyInstance) {
   });
 
   // Get next question for guided study
-  fastify.get('/guided/next', async (request) => {
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/guided/next', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
     const userId = parseInt(request.user!.id, 10);
-    return getNextGuidedQuestion(userId);
+    return getNextGuidedQuestion(userId, certId);
   });
 
   // Submit answer for guided study
@@ -142,8 +155,11 @@ export async function workbookRoutes(fastify: FastifyInstance) {
 
   // Get assessment questions
   fastify.get<{
-    Querystring: { count?: string; type?: string };
+    Querystring: { count?: string; type?: string; certificationId?: string };
   }>('/assessment', async (request, reply) => {
+    const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
+    if (certId === null) return;
+
     const parseResult = workbookAssessmentQuerySchema.safeParse(request.query);
     if (!parseResult.success) {
       return reply.status(400).send(formatZodError(parseResult.error));
@@ -158,7 +174,12 @@ export async function workbookRoutes(fastify: FastifyInstance) {
     // Quick assessment weights toward non-mastered; full exam is random
     const weightNonMastered = type === 'quick';
 
-    const questions = await getAssessmentQuestions(userId, questionCount, weightNonMastered);
+    const questions = await getAssessmentQuestions(
+      userId,
+      questionCount,
+      weightNonMastered,
+      certId
+    );
     const timeLimit = type === 'full' ? 60 * 60 : questionCount * 90; // 60 min or 90s/question
 
     // Track assessment start for time validation

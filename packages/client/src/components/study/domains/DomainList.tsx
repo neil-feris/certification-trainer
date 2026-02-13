@@ -27,10 +27,10 @@ export function DomainList({ onStartPractice, highlightDomainId }: DomainListPro
   const hasWorkbook = selectedCert?.capabilities?.hasWorkbook ?? false;
 
   const { data: workbookProgress } = useQuery({
-    queryKey: ['workbookProgress'],
-    queryFn: () => workbookApi.getProgress(),
+    queryKey: ['workbookProgress', selectedCertificationId],
+    queryFn: () => workbookApi.getProgress(selectedCertificationId ?? undefined),
     staleTime: 60000,
-    enabled: hasWorkbook,
+    enabled: hasWorkbook && selectedCertificationId !== null,
   });
 
   const handleGoToWorkbook = () => {

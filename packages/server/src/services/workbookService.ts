@@ -39,7 +39,7 @@ export interface WorkbookQuestionWithProgress extends WorkbookQuestion {
 /**
  * Get all workbook questions ordered by their original sequence
  */
-export async function getWorkbookQuestions(): Promise<WorkbookQuestion[]> {
+export async function getWorkbookQuestions(certificationId: number): Promise<WorkbookQuestion[]> {
   const result = await db
     .select({
       question: questions,
@@ -49,7 +49,7 @@ export async function getWorkbookQuestions(): Promise<WorkbookQuestion[]> {
     .from(questions)
     .innerJoin(domains, eq(questions.domainId, domains.id))
     .innerJoin(topics, eq(questions.topicId, topics.id))
-    .where(eq(questions.source, 'workbook'))
+    .where(and(eq(questions.source, 'workbook'), eq(domains.certificationId, certificationId)))
     .orderBy(questions.id); // Original insertion order
 
   return result.map((r, index) => ({
@@ -70,11 +70,14 @@ export async function getWorkbookQuestions(): Promise<WorkbookQuestion[]> {
 /**
  * Get workbook questions with user progress
  */
-export async function getWorkbookProgressForUser(userId: number): Promise<{
+export async function getWorkbookProgressForUser(
+  userId: number,
+  certificationId: number
+): Promise<{
   questions: WorkbookQuestionWithProgress[];
   summary: WorkbookProgressSummary;
 }> {
-  const workbookQuestions = await getWorkbookQuestions();
+  const workbookQuestions = await getWorkbookQuestions(certificationId);
   const questionIds = workbookQuestions.map((q) => q.id);
 
   // Get user progress for all workbook questions
@@ -363,9 +366,10 @@ export async function resetWorkbookProgress(userId: number): Promise<void> {
 export async function getAssessmentQuestions(
   userId: number,
   count: number,
-  weightNonMastered: boolean = true
+  weightNonMastered: boolean = true,
+  certificationId: number
 ): Promise<WorkbookQuestion[]> {
-  const workbookQuestions = await getWorkbookQuestions();
+  const workbookQuestions = await getWorkbookQuestions(certificationId);
 
   if (!weightNonMastered) {
     // Simple random selection
@@ -374,7 +378,10 @@ export async function getAssessmentQuestions(
   }
 
   // Get progress to weight non-mastered questions
-  const { questions: questionsWithProgress } = await getWorkbookProgressForUser(userId);
+  const { questions: questionsWithProgress } = await getWorkbookProgressForUser(
+    userId,
+    certificationId
+  );
 
   // Separate by mastery
   const nonMastered = questionsWithProgress.filter((q) => q.progress.masteryLevel !== 'mastered');
@@ -400,12 +407,15 @@ export async function getAssessmentQuestions(
 /**
  * Get the next unanswered question for guided study
  */
-export async function getNextGuidedQuestion(userId: number): Promise<{
+export async function getNextGuidedQuestion(
+  userId: number,
+  certificationId: number
+): Promise<{
   question: WorkbookQuestionWithProgress | null;
   currentIndex: number;
   totalQuestions: number;
 }> {
-  const { questions } = await getWorkbookProgressForUser(userId);
+  const { questions } = await getWorkbookProgressForUser(userId, certificationId);
 
   // Find first unattempted question
   const nextIndex = questions.findIndex((q) => q.progress.masteryLevel === 'unattempted');
@@ -441,9 +451,12 @@ function calculateMedian(values: number[]): number {
 /**
  * Get workbook benchmark comparison data for a user
  */
-export async function getWorkbookBenchmark(userId: number): Promise<WorkbookBenchmark> {
+export async function getWorkbookBenchmark(
+  userId: number,
+  certificationId: number
+): Promise<WorkbookBenchmark> {
   // Get all workbook question IDs
-  const workbookQuestions = await getWorkbookQuestions();
+  const workbookQuestions = await getWorkbookQuestions(certificationId);
   const totalQuestions = workbookQuestions.length;
   const questionIds = workbookQuestions.map((q) => q.id);
 

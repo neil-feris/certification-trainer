@@ -985,11 +985,20 @@ export const feedbackApi = {
 
 // Workbook
 export const workbookApi = {
-  getProgress: () => request<WorkbookProgressResponse>('/workbook/progress'),
+  getProgress: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<WorkbookProgressResponse>(`/workbook/progress${params}`);
+  },
 
-  getBenchmark: () => request<WorkbookBenchmark>('/workbook/benchmark'),
+  getBenchmark: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<WorkbookBenchmark>(`/workbook/benchmark${params}`);
+  },
 
-  getGuidedNext: () => request<WorkbookGuidedNextResponse>('/workbook/guided/next'),
+  getGuidedNext: (certificationId?: number) => {
+    const params = certificationId ? `?certificationId=${certificationId}` : '';
+    return request<WorkbookGuidedNextResponse>(`/workbook/guided/next${params}`);
+  },
 
   submitAnswer: (questionId: number, selectedAnswers: number[]) =>
     request<WorkbookAnswerResponse>('/workbook/answer', {
@@ -1002,8 +1011,17 @@ export const workbookApi = {
       method: 'POST',
     }),
 
-  getAssessment: (count: number = 15, type: 'quick' | 'full' = 'quick') =>
-    request<WorkbookAssessmentResponse>(`/workbook/assessment?count=${count}&type=${type}`),
+  getAssessment: (
+    count: number = 15,
+    type: 'quick' | 'full' = 'quick',
+    certificationId?: number
+  ) => {
+    const params = new URLSearchParams();
+    params.set('count', String(count));
+    params.set('type', type);
+    if (certificationId) params.set('certificationId', String(certificationId));
+    return request<WorkbookAssessmentResponse>(`/workbook/assessment?${params}`);
+  },
 
   completeAssessment: (data: WorkbookAssessmentCompleteRequest) =>
     request<WorkbookAssessmentCompleteResponse>('/workbook/assessment/complete', {
