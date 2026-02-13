@@ -3180,7 +3180,7 @@ const migrations: Migration[] = [
           VALUES (@domainId, @topicId, @questionText, @questionType, @options, @correctAnswers, @explanation, @difficulty, @cloudServices, @isGenerated, @source, @createdAt)
         `);
 
-        const now = Date.now();
+        const now = Math.floor(Date.now() / 1000);
         let insertedCount = 0;
 
         const sampleQuestions = [
