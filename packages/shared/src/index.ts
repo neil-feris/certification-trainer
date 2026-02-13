@@ -5,10 +5,14 @@ export type CertificationProvider = 'gcp' | 'aws' | 'azure';
 
 export interface CertificationCapabilities {
   hasCaseStudies: boolean;
+  hasWorkbook: boolean;
+  hasMasteryMap: boolean;
 }
 
 export const DEFAULT_CERTIFICATION_CAPABILITIES: CertificationCapabilities = {
   hasCaseStudies: false,
+  hasWorkbook: false,
+  hasMasteryMap: false,
 };
 
 export interface Certification {
@@ -154,7 +158,7 @@ export interface Question {
   correctAnswers: number[];
   explanation: string;
   difficulty: Difficulty;
-  gcpServices: string[];
+  cloudServices: string[];
   isGenerated: boolean;
   createdAt: Date;
 }
@@ -412,7 +416,7 @@ export interface QuestionForSession {
   options: string[];
   // correctAnswers and explanation are OMITTED to prevent cheating
   difficulty: Difficulty;
-  gcpServices: string[];
+  cloudServices: string[];
   isGenerated: boolean;
   createdAt: Date;
   domain: Domain;
@@ -478,7 +482,7 @@ export interface GeneratedQuestion {
   options: string[];
   correctAnswers: number[];
   explanation: string;
-  gcpServices: string[];
+  cloudServices: string[];
   difficulty: Difficulty;
 }
 
@@ -951,7 +955,7 @@ export interface NoteQuestionDetail {
   text: string;
   options: string[];
   correctAnswers: number[];
-  gcpServices: string[];
+  cloudServices: string[];
   explanation: string | null;
 }
 
@@ -1541,6 +1545,37 @@ export interface UserFeedbackResponse {
   } | null;
 }
 
+// ============ SERVICE CATEGORIES (Provider-Agnostic Mastery Map) ============
+
+export interface ServiceCategoryData {
+  id: number;
+  certificationId: number;
+  categoryId: string; // slug: 'compute', 'storage', etc.
+  categoryName: string;
+  displayOrder: number;
+  services: string[];
+}
+
+// ============ LEARNING PATH ITEMS (Per-Certification, DB-backed) ============
+
+export interface LearningPathItemData {
+  id: number;
+  certificationId: number;
+  itemOrder: number;
+  title: string;
+  type: 'course' | 'skill_badge' | 'lab' | 'exam' | 'reading';
+  url: string | null;
+  description: string | null;
+  topics: string[];
+  whyItMatters: string | null;
+  durationEstimate: string | null;
+}
+
+export interface LearningPathItemWithProgress extends LearningPathItemData {
+  isCompleted: boolean;
+  completedAt: string | null;
+}
+
 // ============ GCP MASTERY MAP TYPES ============
 
 export {
@@ -1566,7 +1601,7 @@ export interface WorkbookQuestion {
   correctAnswers?: number[]; // Only included after answer submission in guided mode
   explanation?: string; // Only included after answer submission
   difficulty: string;
-  gcpServices: string[];
+  cloudServices: string[];
   domain: { id: number; code: string; name: string };
   topic: { id: number; code: string; name: string };
   orderIndex: number;
@@ -1681,7 +1716,7 @@ export interface WorkbookResourceLink {
 }
 
 export interface WorkbookResource {
-  gcpService: string;
+  cloudService: string;
   courses: WorkbookResourceCourse[];
   skillBadges: string[];
   documentationLinks: WorkbookResourceLink[];

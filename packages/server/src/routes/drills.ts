@@ -188,11 +188,16 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Session is not a timed drill' });
     }
 
-    // Get the question
+    // Get the question and its certification
     const [question] = await db.select().from(questions).where(eq(questions.id, questionId));
     if (!question) {
       return reply.status(404).send({ error: 'Question not found' });
     }
+    const [questionDomain] = await db
+      .select({ certificationId: domains.certificationId })
+      .from(domains)
+      .where(eq(domains.id, question.domainId));
+    const srCertificationId = questionDomain?.certificationId ?? null;
 
     let correctAnswers: number[];
     try {
@@ -272,6 +277,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
               .values({
                 userId,
                 questionId,
+                certificationId: srCertificationId,
                 easeFactor: 2.5,
                 interval: 1,
                 repetitions: 0,

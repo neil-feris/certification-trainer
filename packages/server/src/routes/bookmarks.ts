@@ -122,7 +122,9 @@ export async function bookmarkRoutes(fastify: FastifyInstance) {
         ...row.question,
         options: JSON.parse(row.question.options as string),
         correctAnswers: JSON.parse(row.question.correctAnswers as string),
-        gcpServices: row.question.gcpServices ? JSON.parse(row.question.gcpServices as string) : [],
+        cloudServices: row.question.cloudServices
+          ? JSON.parse(row.question.cloudServices as string)
+          : [],
         isBookmarked: true,
         domain: row.domain,
         topic: row.topic,

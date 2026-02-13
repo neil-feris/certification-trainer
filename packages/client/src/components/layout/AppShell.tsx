@@ -26,6 +26,7 @@ interface NavItem {
   label: string;
   icon: string;
   requiresCaseStudies?: boolean;
+  requiresMasteryMap?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -37,7 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/questions', label: 'Question Bank', icon: '☰' },
   { path: '/progress', label: 'Progress', icon: '◔' },
   { path: '/readiness', label: 'Readiness', icon: '◐' },
-  { path: '/mastery', label: 'Mastery Map', icon: '🗺' },
+  { path: '/mastery', label: 'Mastery Map', icon: '🗺', requiresMasteryMap: true },
   { path: '/achievements', label: 'Achievements', icon: '🏆' },
   { path: '/review', label: 'Review', icon: '↻' },
   { path: '/bookmarks', label: 'Bookmarks', icon: '◆' },
@@ -106,9 +107,14 @@ export function AppShell({ children }: AppShellProps) {
 
   // Check certification capabilities for feature flags
   const hasCaseStudies = selectedCert?.capabilities?.hasCaseStudies ?? false;
+  const hasMasteryMap = selectedCert?.capabilities?.hasMasteryMap ?? false;
 
   // Filter nav items based on certification capabilities
-  const visibleNavItems = NAV_ITEMS.filter((item) => !item.requiresCaseStudies || hasCaseStudies);
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.requiresCaseStudies && !hasCaseStudies) return false;
+    if (item.requiresMasteryMap && !hasMasteryMap) return false;
+    return true;
+  });
 
   return (
     <div className={styles.shell}>

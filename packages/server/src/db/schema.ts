@@ -115,7 +115,7 @@ export const questions = sqliteTable(
     correctAnswers: text('correct_answers').notNull(), // JSON array of indices
     explanation: text('explanation').notNull(),
     difficulty: text('difficulty').notNull(), // 'easy' | 'medium' | 'hard'
-    gcpServices: text('gcp_services'), // JSON array
+    cloudServices: text('cloud_services'), // JSON array of provider services
     isGenerated: integer('is_generated', { mode: 'boolean' }).default(true),
     source: text('source').$type<'generated' | 'seed' | 'workbook'>().default('generated'),
     thumbsUpCount: integer('thumbs_up_count').notNull().default(0),
@@ -197,6 +197,7 @@ export const spacedRepetition = sqliteTable(
     questionId: integer('question_id')
       .notNull()
       .references(() => questions.id, { onDelete: 'cascade' }),
+    certificationId: integer('certification_id').references(() => certifications.id),
     easeFactor: real('ease_factor').notNull().default(2.5),
     interval: integer('interval').notNull().default(1), // Days
     repetitions: integer('repetitions').notNull().default(0),
@@ -823,13 +824,78 @@ export const workbookAssessments = sqliteTable(
 );
 
 // ============ WORKBOOK RESOURCES ============
-export const workbookResources = sqliteTable('workbook_resources', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  gcpService: text('gcp_service').notNull().unique(), // e.g., "Compute Engine", "IAM"
-  courses: text('courses'), // JSON: [{name: string, module?: string}]
-  skillBadges: text('skill_badges'), // JSON: string[]
-  documentationLinks: text('documentation_links'), // JSON: [{title: string, url: string}]
-});
+export const workbookResources = sqliteTable(
+  'workbook_resources',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id),
+    cloudService: text('cloud_service').notNull(), // e.g., "Compute Engine", "EC2"
+    courses: text('courses'), // JSON: [{name: string, module?: string}]
+    skillBadges: text('skill_badges'), // JSON: string[]
+    documentationLinks: text('documentation_links'), // JSON: [{title: string, url: string}]
+  },
+  (table) => [
+    uniqueIndex('workbook_resources_cert_svc_idx').on(table.certificationId, table.cloudService),
+  ]
+);
+
+// ============ SERVICE CATEGORIES (Provider-Agnostic Mastery Map) ============
+export const serviceCategories = sqliteTable(
+  'service_categories',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    categoryName: text('category_name').notNull(),
+    categoryId: text('category_id').notNull(), // slug: 'compute', 'storage', etc.
+    displayOrder: integer('display_order').notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex('service_categories_cert_cat_idx').on(table.certificationId, table.categoryId),
+    index('service_categories_cert_idx').on(table.certificationId),
+  ]
+);
+
+export const serviceCategoryItems = sqliteTable(
+  'service_category_items',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => serviceCategories.id, { onDelete: 'cascade' }),
+    serviceName: text('service_name').notNull(),
+  },
+  (table) => [
+    uniqueIndex('service_category_items_cat_svc_idx').on(table.categoryId, table.serviceName),
+    index('service_category_items_cat_idx').on(table.categoryId),
+  ]
+);
+
+// ============ LEARNING PATH ITEMS (Per-Certification) ============
+export const learningPathItems = sqliteTable(
+  'learning_path_items',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    itemOrder: integer('item_order').notNull(),
+    title: text('title').notNull(),
+    type: text('type').notNull(), // 'course' | 'skill_badge' | 'lab' | 'exam' | 'reading'
+    url: text('url'),
+    description: text('description'),
+    topics: text('topics'), // JSON array of strings
+    whyItMatters: text('why_it_matters'),
+    durationEstimate: text('duration_estimate'),
+  },
+  (table) => [
+    uniqueIndex('learning_path_items_cert_order_idx').on(table.certificationId, table.itemOrder),
+    index('learning_path_items_cert_idx').on(table.certificationId),
+  ]
+);
 
 // ============ EXAM SHARING ============
 export const examShares = sqliteTable(

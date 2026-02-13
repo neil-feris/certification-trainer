@@ -41,7 +41,11 @@ interface WorkbookState {
   // Actions
   setMode: (mode: WorkbookMode) => void;
   startGuidedStudy: () => void;
-  startAssessment: (type: 'quick' | 'full', count?: number) => Promise<void>;
+  startAssessment: (
+    type: 'quick' | 'full',
+    count?: number,
+    certificationId?: number
+  ) => Promise<void>;
   answerQuestion: (questionId: number, selectedAnswers: number[]) => void;
   revealAnswer: (questionId: number) => Promise<{
     isCorrect: boolean;
@@ -95,11 +99,11 @@ export const useWorkbookStore = create<WorkbookState>()(
         });
       },
 
-      startAssessment: async (type, count = 15) => {
+      startAssessment: async (type, count = 15, certificationId?) => {
         set({ isLoading: true });
 
         try {
-          const result = await workbookApi.getAssessment(count, type);
+          const result = await workbookApi.getAssessment(count, type, certificationId);
 
           const responses = new Map<number, WorkbookResponse>();
           result.questions.forEach((q) => {

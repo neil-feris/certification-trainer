@@ -311,8 +311,8 @@ for (const domain of ACE_DOMAINS) {
 
 // Seed sample questions
 const insertQuestion = db.prepare(`
-  INSERT INTO questions (domain_id, topic_id, question_text, question_type, options, correct_answers, explanation, difficulty, gcp_services, is_generated, created_at)
-  VALUES (@domainId, @topicId, @questionText, @questionType, @options, @correctAnswers, @explanation, @difficulty, @gcpServices, @isGenerated, @createdAt)
+  INSERT INTO questions (domain_id, topic_id, question_text, question_type, options, correct_answers, explanation, difficulty, cloud_services, is_generated, created_at)
+  VALUES (@domainId, @topicId, @questionText, @questionType, @options, @correctAnswers, @explanation, @difficulty, @cloudServices, @isGenerated, @createdAt)
 `);
 
 const getDomainByCode = db.prepare('SELECT id FROM domains WHERE code = ?');
@@ -335,7 +335,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'IAM policies are inherited down the resource hierarchy in GCP. When you create a project inside a folder, it automatically inherits the IAM policies from that folder (and any parent folders up to the organization).',
     difficulty: 'medium',
-    gcpServices: ['Resource Manager', 'IAM'],
+    cloudServices: ['Resource Manager', 'IAM'],
   },
   {
     domainCode: 'SETUP_CLOUD_ENV',
@@ -353,7 +353,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Billing Budgets and Alerts is the native GCP service for setting spending thresholds and notifications.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Billing'],
+    cloudServices: ['Cloud Billing'],
   },
   {
     domainCode: 'PLAN_CONFIG',
@@ -371,7 +371,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'Preemptible VMs (now called Spot VMs) offer up to 91% discount compared to regular VMs. They are ideal for fault-tolerant, batch workloads.',
     difficulty: 'medium',
-    gcpServices: ['Compute Engine'],
+    cloudServices: ['Compute Engine'],
   },
   {
     domainCode: 'DEPLOY_IMPLEMENT',
@@ -389,7 +389,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'Workload Identity is the recommended way to access GCP services from GKE. It provides secure, keyless authentication.',
     difficulty: 'medium',
-    gcpServices: ['GKE', 'Cloud SQL', 'Workload Identity'],
+    cloudServices: ['GKE', 'Cloud SQL', 'Workload Identity'],
   },
   {
     domainCode: 'DEPLOY_IMPLEMENT',
@@ -407,7 +407,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Run is a fully managed serverless platform for containerized applications. It automatically scales to zero when idle.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Run'],
+    cloudServices: ['Cloud Run'],
   },
   {
     domainCode: 'OPERATIONS',
@@ -426,7 +426,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'Create a logs-based metric in Cloud Logging with a filter for 500 errors, then create an alerting policy in Cloud Monitoring.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Logging', 'Cloud Monitoring'],
+    cloudServices: ['Cloud Logging', 'Cloud Monitoring'],
   },
   {
     domainCode: 'ACCESS_SECURITY',
@@ -444,7 +444,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'The roles/cloudfunctions.developer role grants permissions to create and manage Cloud Functions without IAM modification rights.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Functions', 'IAM'],
+    cloudServices: ['Cloud Functions', 'IAM'],
   },
   {
     domainCode: 'ACCESS_SECURITY',
@@ -462,7 +462,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'Attach a service account to the VM with only the required permissions. The VM receives credentials automatically via the metadata service.',
     difficulty: 'easy',
-    gcpServices: ['Compute Engine', 'Cloud Storage', 'IAM'],
+    cloudServices: ['Compute Engine', 'Cloud Storage', 'IAM'],
   },
   {
     domainCode: 'PLAN_CONFIG',
@@ -480,7 +480,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Spanner is the only GCP database that provides global distribution with strong consistency and low-latency.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Spanner'],
+    cloudServices: ['Cloud Spanner'],
   },
   {
     domainCode: 'DEPLOY_IMPLEMENT',
@@ -498,7 +498,7 @@ const SAMPLE_QUESTIONS = [
     explanation:
       'BigQuery load jobs are the most efficient for large batch loads from Cloud Storage. They are free and support wildcard URIs.',
     difficulty: 'medium',
-    gcpServices: ['BigQuery', 'Cloud Storage'],
+    cloudServices: ['BigQuery', 'Cloud Storage'],
   },
 ];
 
@@ -518,7 +518,7 @@ for (const q of SAMPLE_QUESTIONS) {
       correctAnswers: JSON.stringify(q.correctAnswers),
       explanation: q.explanation,
       difficulty: q.difficulty,
-      gcpServices: JSON.stringify(q.gcpServices),
+      cloudServices: JSON.stringify(q.cloudServices),
       isGenerated: 0,
       createdAt: now,
     });
@@ -739,7 +739,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'GKE Autopilot provides managed Kubernetes with minimal operational overhead. Cloud Spanner offers 99.999% availability. Cloud Armor provides WAF for PCI-DSS compliance.',
     difficulty: 'hard',
-    gcpServices: ['GKE', 'Cloud Spanner', 'Cloud Armor'],
+    cloudServices: ['GKE', 'Cloud Spanner', 'Cloud Armor'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -758,7 +758,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Pricing Calculator helps estimate costs. Migration Center provides workload discovery and TCO analysis.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Pricing Calculator', 'Migration Center'],
+    cloudServices: ['Cloud Pricing Calculator', 'Migration Center'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -776,7 +776,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'For strict EU data residency with high availability, deploying across multiple EU regions provides fault tolerance while organization policies ensure data never leaves the EU.',
     difficulty: 'hard',
-    gcpServices: ['Organization Policy Service', 'Cloud Spanner'],
+    cloudServices: ['Organization Policy Service', 'Cloud Spanner'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -794,7 +794,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Pub/Sub handles massive message ingestion with automatic scaling. Dataflow provides exactly-once processing. BigQuery streaming inserts support high-volume real-time analytics.',
     difficulty: 'medium',
-    gcpServices: ['Pub/Sub', 'Dataflow', 'BigQuery'],
+    cloudServices: ['Pub/Sub', 'Dataflow', 'BigQuery'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -812,7 +812,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Shared VPC is designed for this use case. The host project contains shared resources while service projects provide isolation for each team.',
     difficulty: 'easy',
-    gcpServices: ['Shared VPC', 'VPC'],
+    cloudServices: ['Shared VPC', 'VPC'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -830,7 +830,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Bigtable is designed for sub-millisecond latency at massive scale. It handles millions of reads per second and petabytes of data.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Bigtable'],
+    cloudServices: ['Cloud Bigtable'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -848,7 +848,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'The strangler fig pattern allows incremental modernization by gradually extracting functionality into new services while the monolith continues running.',
     difficulty: 'medium',
-    gcpServices: ['GKE'],
+    cloudServices: ['GKE'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -866,7 +866,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'At 1 Gbps, transferring 500TB would take approximately 46 days, exceeding the 2-week requirement. Transfer Appliance provides physical transfer that bypasses network limitations.',
     difficulty: 'easy',
-    gcpServices: ['Transfer Appliance', 'Cloud Storage'],
+    cloudServices: ['Transfer Appliance', 'Cloud Storage'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -884,7 +884,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Recommendations AI is a fully managed service that requires minimal ML expertise while providing production-ready recommendations.',
     difficulty: 'easy',
-    gcpServices: ['Recommendations AI', 'Vertex AI'],
+    cloudServices: ['Recommendations AI', 'Vertex AI'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -903,7 +903,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Vertex AI Workbench provides managed Jupyter notebooks. Vertex AI Pipelines enables automated, reproducible ML workflows.',
     difficulty: 'medium',
-    gcpServices: ['Vertex AI Workbench', 'Vertex AI Pipelines'],
+    cloudServices: ['Vertex AI Workbench', 'Vertex AI Pipelines'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -921,7 +921,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'RTO of 15 minutes and RPO of 5 minutes requires near-instant failover with minimal data loss. Hot standby with synchronous replication meets these requirements.',
     difficulty: 'medium',
-    gcpServices: ['Cloud SQL', 'Cloud Spanner', 'Cloud Load Balancing'],
+    cloudServices: ['Cloud SQL', 'Cloud Spanner', 'Cloud Load Balancing'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -939,7 +939,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Managed services with automatic scaling provide the elasticity needed for 1000x growth without operational overhead.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Run', 'GKE', 'Cloud SQL'],
+    cloudServices: ['Cloud Run', 'GKE', 'Cloud SQL'],
   },
   {
     domainCode: 'PCA_DESIGN_PLAN',
@@ -957,7 +957,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Storage provides cost-effective storage for all data types. BigQuery offers high-performance analytics. Looker provides enterprise BI capabilities.',
     difficulty: 'hard',
-    gcpServices: ['Cloud Storage', 'BigQuery', 'Looker'],
+    cloudServices: ['Cloud Storage', 'BigQuery', 'Looker'],
   },
 
   // Domain 2: Managing and Provisioning (9 questions)
@@ -977,7 +977,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Dedicated Interconnect provides 10/100 Gbps connections. For 99.99% availability SLA, you need redundant connections in two different edge availability domains.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Interconnect'],
+    cloudServices: ['Cloud Interconnect'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -995,7 +995,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Global external Application Load Balancer supports WebSocket connections, provides global anycast routing, and integrates with GKE.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Load Balancing', 'GKE'],
+    cloudServices: ['Cloud Load Balancing', 'GKE'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -1013,7 +1013,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Autoclass automatically transitions objects between storage classes based on access patterns, providing optimal cost savings.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Storage'],
+    cloudServices: ['Cloud Storage'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -1031,7 +1031,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Filestore Enterprise tier provides the lowest latency and highest performance for random I/O workloads with SSD-backed storage.',
     difficulty: 'medium',
-    gcpServices: ['Filestore'],
+    cloudServices: ['Filestore'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -1049,7 +1049,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Run scales from 0 to thousands of instances within seconds, handling extreme traffic spikes for stateless containers.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Run'],
+    cloudServices: ['Cloud Run'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -1067,7 +1067,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Spot VMs with GPUs offer up to 91% discount compared to on-demand GPU instances for interruptible workloads.',
     difficulty: 'easy',
-    gcpServices: ['Compute Engine'],
+    cloudServices: ['Compute Engine'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -1086,7 +1086,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Terraform with Cloud Build provides robust IaC with GitOps workflows. Policy Controller enforces policies on resources.',
     difficulty: 'hard',
-    gcpServices: ['Cloud Build', 'Policy Controller', 'Terraform'],
+    cloudServices: ['Cloud Build', 'Policy Controller', 'Terraform'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -1104,7 +1104,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'VPC Peering cannot connect VPCs with overlapping IP ranges. You must reconfigure IP ranges to eliminate overlap first.',
     difficulty: 'medium',
-    gcpServices: ['VPC', 'VPC Network Peering'],
+    cloudServices: ['VPC', 'VPC Network Peering'],
   },
   {
     domainCode: 'PCA_MANAGE_PROVISION',
@@ -1122,7 +1122,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Config Connector allows managing Google Cloud resources as Kubernetes custom resources using kubectl and Helm.',
     difficulty: 'medium',
-    gcpServices: ['Config Connector', 'GKE'],
+    cloudServices: ['Config Connector', 'GKE'],
   },
 
   // Domain 3: Security and Compliance (9 questions)
@@ -1142,7 +1142,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'VPC Service Controls create a security perimeter that prevents data exfiltration regardless of IAM permissions.',
     difficulty: 'medium',
-    gcpServices: ['VPC Service Controls', 'Cloud Storage'],
+    cloudServices: ['VPC Service Controls', 'Cloud Storage'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1160,7 +1160,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Binary Authorization enforces deploy-time security policies, verifying that container images are signed before allowing deployment.',
     difficulty: 'easy',
-    gcpServices: ['Binary Authorization', 'GKE'],
+    cloudServices: ['Binary Authorization', 'GKE'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1173,7 +1173,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud KMS manages customer-controlled encryption keys used for CMEK in Cloud SQL and other services.',
     difficulty: 'easy',
-    gcpServices: ['Cloud KMS', 'Cloud SQL'],
+    cloudServices: ['Cloud KMS', 'Cloud SQL'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1191,7 +1191,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud DLP is designed to discover, classify, and protect sensitive data. It can scan for PII and apply transformations like redaction.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Data Loss Prevention'],
+    cloudServices: ['Cloud Data Loss Prevention'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1209,7 +1209,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Organization Policy constraints proactively prevent resources from being created outside allowed regions at creation time.',
     difficulty: 'medium',
-    gcpServices: ['Organization Policy Service'],
+    cloudServices: ['Organization Policy Service'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1227,7 +1227,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Compliance Reports Manager provides access to third-party audit reports and certifications that demonstrate compliance.',
     difficulty: 'medium',
-    gcpServices: ['Compliance Reports Manager'],
+    cloudServices: ['Compliance Reports Manager'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1245,7 +1245,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Identity-Aware Proxy implements zero-trust access by verifying user identity and device context before granting access to applications.',
     difficulty: 'medium',
-    gcpServices: ['Identity-Aware Proxy'],
+    cloudServices: ['Identity-Aware Proxy'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1263,7 +1263,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Secret Manager is purpose-built for storing sensitive data with versioning, access auditing, and supports automatic rotation.',
     difficulty: 'easy',
-    gcpServices: ['Secret Manager'],
+    cloudServices: ['Secret Manager'],
   },
   {
     domainCode: 'PCA_SECURITY_COMPLIANCE',
@@ -1281,7 +1281,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Security Command Center is the native security and risk management platform for centralized visibility into security vulnerabilities and threats.',
     difficulty: 'hard',
-    gcpServices: ['Security Command Center'],
+    cloudServices: ['Security Command Center'],
   },
 
   // Domain 4: Analyzing and Optimizing (7 questions)
@@ -1302,7 +1302,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Build handles CI (testing, building). Cloud Deploy provides managed continuous delivery with approval gates and rollback capabilities.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Build', 'Cloud Deploy'],
+    cloudServices: ['Cloud Build', 'Cloud Deploy'],
   },
   {
     domainCode: 'PCA_ANALYZE_OPTIMIZE',
@@ -1320,7 +1320,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'A comprehensive testing strategy includes unit tests with mocks, integration tests with local emulators, and end-to-end tests in staging.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Run', 'Cloud Functions', 'Firestore', 'Pub/Sub'],
+    cloudServices: ['Cloud Run', 'Cloud Functions', 'Firestore', 'Pub/Sub'],
   },
   {
     domainCode: 'PCA_ANALYZE_OPTIMIZE',
@@ -1338,7 +1338,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Active Assist uses machine learning to analyze resource utilization and provides specific recommendations through Recommender.',
     difficulty: 'easy',
-    gcpServices: ['Active Assist', 'Recommender'],
+    cloudServices: ['Active Assist', 'Recommender'],
   },
   {
     domainCode: 'PCA_ANALYZE_OPTIMIZE',
@@ -1356,7 +1356,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Migration Center performs comprehensive TCO analysis including hidden on-premises costs like facilities, power, and personnel.',
     difficulty: 'easy',
-    gcpServices: ['Migration Center'],
+    cloudServices: ['Migration Center'],
   },
   {
     domainCode: 'PCA_ANALYZE_OPTIMIZE',
@@ -1374,7 +1374,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Chaos engineering with gradual fault injection allows testing disaster recovery in production with controlled blast radius.',
     difficulty: 'hard',
-    gcpServices: ['Cloud Monitoring', 'Cloud Logging'],
+    cloudServices: ['Cloud Monitoring', 'Cloud Logging'],
   },
   {
     domainCode: 'PCA_ANALYZE_OPTIMIZE',
@@ -1392,7 +1392,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Blameless post-mortems focus on understanding systemic factors rather than individual blame, encouraging transparency and learning.',
     difficulty: 'medium',
-    gcpServices: [],
+    cloudServices: [],
   },
   {
     domainCode: 'PCA_ANALYZE_OPTIMIZE',
@@ -1410,7 +1410,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'The testing pyramid recommends many unit tests, fewer integration tests, and minimal E2E tests. Running E2E only on main branch balances speed and quality.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Build'],
+    cloudServices: ['Cloud Build'],
   },
 
   // Domain 5: Managing Implementation (6 questions)
@@ -1430,7 +1430,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Apigee provides comprehensive API management including version management, deprecation policies, developer portals, and analytics.',
     difficulty: 'medium',
-    gcpServices: ['Apigee'],
+    cloudServices: ['Apigee'],
   },
   {
     domainCode: 'PCA_MANAGE_IMPL',
@@ -1448,7 +1448,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Trace provides distributed tracing that follows requests across service boundaries, showing latency at each step.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Trace'],
+    cloudServices: ['Cloud Trace'],
   },
   {
     domainCode: 'PCA_MANAGE_IMPL',
@@ -1466,7 +1466,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Terraform with VS Code extension provides IDE integration and terraform plan shows a preview of changes before applying.',
     difficulty: 'easy',
-    gcpServices: ['Terraform'],
+    cloudServices: ['Terraform'],
   },
   {
     domainCode: 'PCA_MANAGE_IMPL',
@@ -1484,7 +1484,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Asset Inventory provides a unified view of resources across the entire organization with a single API call.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Asset Inventory'],
+    cloudServices: ['Cloud Asset Inventory'],
   },
   {
     domainCode: 'PCA_MANAGE_IMPL',
@@ -1502,7 +1502,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'GKE Autopilot manages cluster infrastructure automatically while providing full Kubernetes API compatibility.',
     difficulty: 'easy',
-    gcpServices: ['GKE'],
+    cloudServices: ['GKE'],
   },
   {
     domainCode: 'PCA_MANAGE_IMPL',
@@ -1520,7 +1520,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Shell provides an instant, authenticated command-line environment in the browser with gcloud pre-installed.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Shell'],
+    cloudServices: ['Cloud Shell'],
   },
 
   // Domain 6: Operations Excellence (6 questions)
@@ -1541,7 +1541,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'The Four Golden Signals are Latency, Traffic, Errors, and Saturation. Request latency and error rate directly measure user experience.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Monitoring'],
+    cloudServices: ['Cloud Monitoring'],
   },
   {
     domainCode: 'PCA_OPS_EXCELLENCE',
@@ -1554,7 +1554,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Profiler provides continuous CPU and memory profiling of production applications, showing which functions consume the most resources.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Profiler'],
+    cloudServices: ['Cloud Profiler'],
   },
   {
     domainCode: 'PCA_OPS_EXCELLENCE',
@@ -1572,7 +1572,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Run supports traffic splitting between revisions, enabling canary deployments. You can route a small percentage to the new revision and gradually increase.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Run'],
+    cloudServices: ['Cloud Run'],
   },
   {
     domainCode: 'PCA_OPS_EXCELLENCE',
@@ -1590,7 +1590,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Error budget should balance innovation and reliability. When the budget is healthy, prioritize feature velocity. When depleted, shift focus to reliability work.',
     difficulty: 'hard',
-    gcpServices: [],
+    cloudServices: [],
   },
   {
     domainCode: 'PCA_OPS_EXCELLENCE',
@@ -1608,7 +1608,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'User-perceived availability is best measured by successful requests from the user perspective. Measuring at the load balancer captures all user requests.',
     difficulty: 'medium',
-    gcpServices: ['Cloud Monitoring', 'Cloud Load Balancing'],
+    cloudServices: ['Cloud Monitoring', 'Cloud Load Balancing'],
   },
   {
     domainCode: 'PCA_OPS_EXCELLENCE',
@@ -1626,7 +1626,7 @@ const PCA_SAMPLE_QUESTIONS = [
     explanation:
       'Cloud Deploy is a managed continuous delivery service with deployment pipelines, multiple stages, approval gates, and rollback capabilities.',
     difficulty: 'easy',
-    gcpServices: ['Cloud Deploy'],
+    cloudServices: ['Cloud Deploy'],
   },
 ];
 
@@ -1644,7 +1644,7 @@ for (const q of PCA_SAMPLE_QUESTIONS) {
       correctAnswers: JSON.stringify(q.correctAnswers),
       explanation: q.explanation,
       difficulty: q.difficulty,
-      gcpServices: JSON.stringify(q.gcpServices),
+      cloudServices: JSON.stringify(q.cloudServices),
       isGenerated: 0,
       createdAt: now,
     });

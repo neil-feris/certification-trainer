@@ -60,6 +60,18 @@ export function StudyHub() {
   } = useStudyStore();
 
   const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
+  const selectedCert = useCertificationStore((s) =>
+    s.certifications.find((c) => c.id === s.selectedCertificationId)
+  );
+  const hasWorkbook = selectedCert?.capabilities?.hasWorkbook ?? false;
+
+  // Reset tab when switching to a cert without workbook support
+  useEffect(() => {
+    if (!hasWorkbook && activeTab === 'workbook') {
+      setActiveTab('path');
+    }
+  }, [hasWorkbook, activeTab]);
+
   const drillId = useDrillStore((s) => s.drillId);
   const isDrillActive = useDrillStore((s) => s.isActive);
   const showDrillSummary = useDrillStore((s) => s.showSummary);
@@ -177,12 +189,14 @@ export function StudyHub() {
           >
             Drills
           </button>
-          <button
-            className={`${styles.tab} ${activeTab === 'workbook' ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab('workbook')}
-          >
-            Workbook
-          </button>
+          {hasWorkbook && (
+            <button
+              className={`${styles.tab} ${activeTab === 'workbook' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('workbook')}
+            >
+              Workbook
+            </button>
+          )}
           <button
             className={`${styles.tab} ${activeTab === 'flashcards' ? styles.tabActive : ''}`}
             onClick={() => setActiveTab('flashcards')}
@@ -207,7 +221,7 @@ export function StudyHub() {
           />
         )}
         {activeTab === 'drills' && <DrillHub />}
-        {activeTab === 'workbook' && <WorkbookHub />}
+        {activeTab === 'workbook' && hasWorkbook && <WorkbookHub />}
         {activeTab === 'flashcards' && <FlashcardHub />}
         {activeTab === 'summaries' && <SummaryBrowser />}
       </div>

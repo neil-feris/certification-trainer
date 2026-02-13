@@ -820,6 +820,1242 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 14,
+    name: 'create_service_categories_tables',
+    up: (db) => {
+      const tableExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='service_categories'")
+        .get();
+
+      if (!tableExists) {
+        db.exec(`
+          CREATE TABLE service_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            certification_id INTEGER NOT NULL REFERENCES certifications(id) ON DELETE CASCADE,
+            category_name TEXT NOT NULL,
+            category_id TEXT NOT NULL,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(certification_id, category_id)
+          );
+          CREATE INDEX IF NOT EXISTS service_categories_cert_idx ON service_categories(certification_id);
+        `);
+        console.log('  [migration] Created service_categories table');
+      }
+
+      const itemsTableExists = db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='service_category_items'"
+        )
+        .get();
+
+      if (!itemsTableExists) {
+        db.exec(`
+          CREATE TABLE service_category_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL REFERENCES service_categories(id) ON DELETE CASCADE,
+            service_name TEXT NOT NULL,
+            UNIQUE(category_id, service_name)
+          );
+          CREATE INDEX IF NOT EXISTS service_category_items_cat_idx ON service_category_items(category_id);
+        `);
+        console.log('  [migration] Created service_category_items table');
+      }
+    },
+  },
+  {
+    version: 15,
+    name: 'seed_gcp_service_categories',
+    up: (db) => {
+      const aceCert = db.prepare("SELECT id FROM certifications WHERE code = 'ACE'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!aceCert) {
+        console.log(
+          '  [migration] ACE certification not found, skipping GCP service category seed'
+        );
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM service_categories WHERE certification_id = ?')
+        .get(aceCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] GCP service categories already seeded');
+        return;
+      }
+
+      const categories = [
+        {
+          id: 'compute',
+          name: 'Compute',
+          order: 1,
+          services: [
+            'Compute Engine',
+            'App Engine',
+            'Cloud Functions',
+            'Cloud Run',
+            'GKE',
+            'Anthos',
+          ],
+        },
+        {
+          id: 'storage',
+          name: 'Storage & Databases',
+          order: 2,
+          services: [
+            'Cloud Storage',
+            'Cloud SQL',
+            'Cloud Spanner',
+            'Firestore',
+            'Bigtable',
+            'Memorystore',
+            'Persistent Disk',
+          ],
+        },
+        {
+          id: 'networking',
+          name: 'Networking',
+          order: 3,
+          services: [
+            'VPC',
+            'Cloud Load Balancing',
+            'Cloud CDN',
+            'Cloud DNS',
+            'Cloud Interconnect',
+            'Cloud VPN',
+            'Cloud NAT',
+            'Cloud Armor',
+          ],
+        },
+        {
+          id: 'analytics',
+          name: 'Data & Analytics',
+          order: 4,
+          services: [
+            'BigQuery',
+            'Dataflow',
+            'Dataproc',
+            'Pub/Sub',
+            'Cloud Composer',
+            'Data Catalog',
+          ],
+        },
+        {
+          id: 'ai-ml',
+          name: 'AI & Machine Learning',
+          order: 5,
+          services: [
+            'Vertex AI',
+            'AutoML',
+            'Cloud Vision',
+            'Cloud Natural Language',
+            'Cloud Translation',
+          ],
+        },
+        {
+          id: 'security',
+          name: 'Security & Identity',
+          order: 6,
+          services: [
+            'Cloud IAM',
+            'Cloud KMS',
+            'Secret Manager',
+            'Cloud Audit Logs',
+            'Binary Authorization',
+            'VPC Service Controls',
+          ],
+        },
+        {
+          id: 'operations',
+          name: 'Operations',
+          order: 7,
+          services: [
+            'Cloud Monitoring',
+            'Cloud Logging',
+            'Error Reporting',
+            'Cloud Trace',
+            'Cloud Profiler',
+            'Cloud Debugger',
+          ],
+        },
+      ];
+
+      const insertCategory = db.prepare(
+        'INSERT INTO service_categories (certification_id, category_id, category_name, display_order) VALUES (?, ?, ?, ?)'
+      );
+      const insertItem = db.prepare(
+        'INSERT INTO service_category_items (category_id, service_name) VALUES (?, ?)'
+      );
+
+      for (const cat of categories) {
+        const result = insertCategory.run(aceCert.id, cat.id, cat.name, cat.order);
+        const catDbId = result.lastInsertRowid;
+        for (const svc of cat.services) {
+          insertItem.run(catDbId, svc);
+        }
+      }
+
+      console.log(`  [migration] Seeded ${categories.length} GCP service categories for ACE`);
+    },
+  },
+  {
+    version: 16,
+    name: 'seed_pca_service_categories',
+    up: (db) => {
+      const pcaCert = db.prepare("SELECT id FROM certifications WHERE code = 'PCA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!pcaCert) {
+        console.log('  [migration] PCA certification not found, skipping');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM service_categories WHERE certification_id = ?')
+        .get(pcaCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] PCA service categories already seeded');
+        return;
+      }
+
+      const categories = [
+        {
+          id: 'compute',
+          name: 'Compute',
+          order: 1,
+          services: [
+            'Compute Engine',
+            'App Engine',
+            'Cloud Functions',
+            'Cloud Run',
+            'GKE',
+            'Anthos',
+            'Bare Metal Solution',
+          ],
+        },
+        {
+          id: 'storage',
+          name: 'Storage & Databases',
+          order: 2,
+          services: [
+            'Cloud Storage',
+            'Cloud SQL',
+            'Cloud Spanner',
+            'Firestore',
+            'Bigtable',
+            'Memorystore',
+            'Persistent Disk',
+          ],
+        },
+        {
+          id: 'networking',
+          name: 'Networking',
+          order: 3,
+          services: [
+            'VPC',
+            'Cloud Load Balancing',
+            'Cloud CDN',
+            'Cloud DNS',
+            'Cloud Interconnect',
+            'Cloud VPN',
+            'Cloud NAT',
+            'Cloud Armor',
+            'Network Intelligence Center',
+          ],
+        },
+        {
+          id: 'analytics',
+          name: 'Data & Analytics',
+          order: 4,
+          services: [
+            'BigQuery',
+            'Dataflow',
+            'Dataproc',
+            'Pub/Sub',
+            'Cloud Composer',
+            'Data Catalog',
+            'Looker',
+          ],
+        },
+        {
+          id: 'ai-ml',
+          name: 'AI & Machine Learning',
+          order: 5,
+          services: [
+            'Vertex AI',
+            'AutoML',
+            'Cloud Vision',
+            'Cloud Natural Language',
+            'Cloud Translation',
+          ],
+        },
+        {
+          id: 'security',
+          name: 'Security & Identity',
+          order: 6,
+          services: [
+            'Cloud IAM',
+            'Cloud KMS',
+            'Secret Manager',
+            'Cloud Audit Logs',
+            'Binary Authorization',
+            'VPC Service Controls',
+            'Security Command Center',
+            'Certificate Authority Service',
+            'Identity-Aware Proxy',
+          ],
+        },
+        {
+          id: 'operations',
+          name: 'Management & Operations',
+          order: 7,
+          services: [
+            'Cloud Monitoring',
+            'Cloud Logging',
+            'Error Reporting',
+            'Cloud Trace',
+            'Cloud Profiler',
+            'Cloud Debugger',
+            'Cloud Deploy',
+            'Config Connector',
+          ],
+        },
+        {
+          id: 'app-services',
+          name: 'Application Services',
+          order: 8,
+          services: ['Apigee API Management', 'Cloud Tasks', 'Cloud Scheduler', 'Eventarc'],
+        },
+      ];
+
+      const insertCategory = db.prepare(
+        'INSERT INTO service_categories (certification_id, category_id, category_name, display_order) VALUES (?, ?, ?, ?)'
+      );
+      const insertItem = db.prepare(
+        'INSERT INTO service_category_items (category_id, service_name) VALUES (?, ?)'
+      );
+
+      for (const cat of categories) {
+        const result = insertCategory.run(pcaCert.id, cat.id, cat.name, cat.order);
+        const catDbId = result.lastInsertRowid;
+        for (const svc of cat.services) {
+          insertItem.run(catDbId, svc);
+        }
+      }
+
+      console.log(`  [migration] Seeded ${categories.length} GCP service categories for PCA`);
+    },
+  },
+  {
+    version: 17,
+    name: 'create_learning_path_items_table',
+    up: (db) => {
+      const tableExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='learning_path_items'")
+        .get();
+
+      if (!tableExists) {
+        db.exec(`
+          CREATE TABLE learning_path_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            certification_id INTEGER NOT NULL REFERENCES certifications(id) ON DELETE CASCADE,
+            item_order INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            type TEXT NOT NULL,
+            url TEXT,
+            description TEXT,
+            topics TEXT,
+            why_it_matters TEXT,
+            duration_estimate TEXT,
+            UNIQUE(certification_id, item_order)
+          );
+          CREATE INDEX IF NOT EXISTS learning_path_items_cert_idx ON learning_path_items(certification_id);
+        `);
+        console.log('  [migration] Created learning_path_items table');
+      }
+    },
+  },
+  {
+    version: 18,
+    name: 'seed_ace_learning_path_items',
+    up: (db) => {
+      const aceCert = db.prepare("SELECT id FROM certifications WHERE code = 'ACE'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!aceCert) {
+        console.log('  [migration] ACE certification not found, skipping learning path seed');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM learning_path_items WHERE certification_id = ?')
+        .get(aceCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] ACE learning path items already seeded');
+        return;
+      }
+
+      const items = [
+        {
+          order: 1,
+          title: 'A Tour of Google Cloud Hands-on Labs',
+          type: 'course',
+          description: 'Introduction to Google Cloud through hands-on labs',
+          topics: JSON.stringify(['Cloud Console', 'Cloud Shell', 'GCP basics']),
+          whyItMatters: 'Builds foundational familiarity with the GCP console and lab environment',
+        },
+        {
+          order: 2,
+          title: 'Google Cloud Fundamentals: Core Infrastructure',
+          type: 'course',
+          description: 'Core GCP infrastructure services and concepts',
+          topics: JSON.stringify([
+            'Compute Engine',
+            'Cloud Storage',
+            'VPC',
+            'IAM',
+            'Cloud Monitoring',
+          ]),
+          whyItMatters: 'Covers the core services tested heavily on the ACE exam',
+        },
+        {
+          order: 3,
+          title: 'Getting Started with Google Kubernetes Engine',
+          type: 'course',
+          description: 'GKE deployment and management basics',
+          topics: JSON.stringify(['GKE', 'Kubernetes', 'Containers', 'kubectl']),
+          whyItMatters: 'GKE questions appear frequently on the ACE exam',
+        },
+        {
+          order: 4,
+          title: 'Cloud IAM and Security Fundamentals',
+          type: 'course',
+          description: 'Identity, access management, and security on GCP',
+          topics: JSON.stringify(['IAM', 'Service Accounts', 'Cloud KMS', 'Audit Logs']),
+          whyItMatters: 'IAM is a critical exam domain covering resource access control',
+        },
+        {
+          order: 5,
+          title: 'Networking in Google Cloud',
+          type: 'course',
+          description: 'VPC, load balancing, DNS, and hybrid connectivity',
+          topics: JSON.stringify([
+            'VPC',
+            'Subnets',
+            'Firewall Rules',
+            'Cloud Load Balancing',
+            'Cloud DNS',
+            'Cloud VPN',
+          ]),
+          whyItMatters: 'Networking underpins almost every architectural question on the exam',
+        },
+        {
+          order: 6,
+          title: 'Reliable Google Cloud Infrastructure',
+          type: 'course',
+          description: 'Design and process for reliable cloud solutions',
+          topics: JSON.stringify([
+            'High Availability',
+            'Disaster Recovery',
+            'Monitoring',
+            'Incident Response',
+          ]),
+          whyItMatters: 'Tests your ability to design resilient, production-ready architectures',
+        },
+        {
+          order: 7,
+          title: 'Cloud Load Balancing Skill Badge',
+          type: 'skill_badge',
+          description: 'Hands-on lab: configure HTTP(S) and TCP load balancing',
+          topics: JSON.stringify(['Cloud Load Balancing', 'Instance Groups', 'Health Checks']),
+          whyItMatters: 'Practical experience with load balancers frequently tested on the exam',
+        },
+        {
+          order: 8,
+          title: 'Automating Infrastructure on GCP with Terraform',
+          type: 'course',
+          description: 'Infrastructure as Code with Terraform on GCP',
+          topics: JSON.stringify([
+            'Terraform',
+            'Cloud Deployment Manager',
+            'Infrastructure as Code',
+          ]),
+          whyItMatters: 'IaC is increasingly important for the ACE exam',
+        },
+        {
+          order: 9,
+          title: 'Logging, Monitoring and Observability in GCP',
+          type: 'course',
+          description: 'Cloud Operations suite for monitoring and debugging',
+          topics: JSON.stringify([
+            'Cloud Monitoring',
+            'Cloud Logging',
+            'Error Reporting',
+            'Cloud Trace',
+          ]),
+          whyItMatters: 'Operations questions form a significant portion of the exam',
+        },
+        {
+          order: 10,
+          title: 'App Engine and Cloud Functions Skill Badge',
+          type: 'skill_badge',
+          description: 'Hands-on: deploy serverless applications',
+          topics: JSON.stringify(['App Engine', 'Cloud Functions', 'Cloud Run']),
+          whyItMatters: 'Serverless compute is a key topic on the ACE exam',
+        },
+        {
+          order: 11,
+          title: 'Data and Storage Services',
+          type: 'course',
+          description: 'Cloud SQL, Spanner, Firestore, BigQuery, and more',
+          topics: JSON.stringify([
+            'Cloud SQL',
+            'Cloud Spanner',
+            'Firestore',
+            'BigQuery',
+            'Bigtable',
+          ]),
+          whyItMatters: 'Choosing the right database service is a common exam scenario',
+        },
+        {
+          order: 12,
+          title: 'Cloud Pub/Sub and Dataflow',
+          type: 'course',
+          description: 'Messaging and stream processing on GCP',
+          topics: JSON.stringify(['Pub/Sub', 'Dataflow', 'Event-driven Architecture']),
+          whyItMatters: 'Messaging patterns appear in integration-focused exam questions',
+        },
+        {
+          order: 13,
+          title: 'Preparing for the ACE Certification',
+          type: 'course',
+          description: 'Exam strategies, review, and practice',
+          topics: JSON.stringify(['Exam Tips', 'Review', 'Practice Questions']),
+          whyItMatters: 'Final review and exam-taking strategies before the real exam',
+        },
+        {
+          order: 14,
+          title: 'ACE Certification Exam',
+          type: 'exam',
+          description: 'Take the Associate Cloud Engineer certification exam',
+          topics: JSON.stringify(['All Domains']),
+          whyItMatters: 'The certification exam itself',
+        },
+      ];
+
+      const insert = db.prepare(
+        'INSERT INTO learning_path_items (certification_id, item_order, title, type, description, topics, why_it_matters) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      );
+
+      for (const item of items) {
+        insert.run(
+          aceCert.id,
+          item.order,
+          item.title,
+          item.type,
+          item.description,
+          item.topics,
+          item.whyItMatters
+        );
+      }
+
+      console.log(`  [migration] Seeded ${items.length} learning path items for ACE`);
+    },
+  },
+  {
+    version: 19,
+    name: 'rename_gcp_services_to_cloud_services',
+    up: (db) => {
+      const columns = db.prepare("PRAGMA table_info('questions')").all() as Array<{ name: string }>;
+      const hasGcpServices = columns.some((col) => col.name === 'gcp_services');
+      const hasCloudServices = columns.some((col) => col.name === 'cloud_services');
+
+      if (hasGcpServices && !hasCloudServices) {
+        db.exec('ALTER TABLE questions RENAME COLUMN gcp_services TO cloud_services');
+        console.log('  [migration] Renamed questions.gcp_services → cloud_services');
+      }
+    },
+  },
+  {
+    version: 20,
+    name: 'update_workbook_resources_provider_agnostic',
+    up: (db) => {
+      const columns = db.prepare("PRAGMA table_info('workbook_resources')").all() as Array<{
+        name: string;
+      }>;
+
+      // Rename gcp_service → cloud_service
+      const hasGcpService = columns.some((col) => col.name === 'gcp_service');
+      const hasCloudService = columns.some((col) => col.name === 'cloud_service');
+      if (hasGcpService && !hasCloudService) {
+        db.exec('ALTER TABLE workbook_resources RENAME COLUMN gcp_service TO cloud_service');
+        console.log('  [migration] Renamed workbook_resources.gcp_service → cloud_service');
+      }
+
+      // Add certification_id column
+      const hasCertId = columns.some((col) => col.name === 'certification_id');
+      if (!hasCertId) {
+        db.exec(
+          'ALTER TABLE workbook_resources ADD COLUMN certification_id INTEGER REFERENCES certifications(id)'
+        );
+        const aceCert = db.prepare("SELECT id FROM certifications WHERE code = 'ACE'").get() as
+          | { id: number }
+          | undefined;
+        if (aceCert) {
+          db.prepare(
+            'UPDATE workbook_resources SET certification_id = ? WHERE certification_id IS NULL'
+          ).run(aceCert.id);
+        }
+        console.log('  [migration] Added certification_id to workbook_resources');
+      }
+    },
+  },
+  {
+    version: 21,
+    name: 'add_certification_id_to_spaced_repetition',
+    up: (db) => {
+      const columns = db.prepare("PRAGMA table_info('spaced_repetition')").all() as Array<{
+        name: string;
+      }>;
+      const hasCertId = columns.some((col) => col.name === 'certification_id');
+
+      if (!hasCertId) {
+        db.exec(
+          'ALTER TABLE spaced_repetition ADD COLUMN certification_id INTEGER REFERENCES certifications(id)'
+        );
+        db.exec(`
+          UPDATE spaced_repetition
+          SET certification_id = (
+            SELECT d.certification_id FROM questions q
+            JOIN domains d ON q.domain_id = d.id
+            WHERE q.id = spaced_repetition.question_id
+          )
+          WHERE certification_id IS NULL
+        `);
+        db.exec('CREATE INDEX IF NOT EXISTS sr_cert_idx ON spaced_repetition(certification_id)');
+        console.log('  [migration] Added certification_id to spaced_repetition with backfill');
+      }
+    },
+  },
+  {
+    version: 22,
+    name: 'seed_aws_saa_certification',
+    up: (db) => {
+      const existing = db.prepare("SELECT id FROM certifications WHERE code = 'AWS-SAA'").get();
+      if (existing) {
+        console.log('  [migration] AWS-SAA certification already exists');
+        return;
+      }
+
+      const certResult = db
+        .prepare(
+          `
+        INSERT INTO certifications (code, name, short_name, description, provider, exam_duration_minutes, total_questions, passing_score_percent, is_active, capabilities, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+        )
+        .run(
+          'AWS-SAA',
+          'AWS Solutions Architect Associate',
+          'SAA',
+          'Design and deploy scalable, highly available, and fault-tolerant systems on AWS',
+          'aws',
+          130,
+          65,
+          72,
+          1,
+          JSON.stringify({ hasCaseStudies: false, hasWorkbook: false, hasMasteryMap: true }),
+          Date.now()
+        );
+
+      const certId = certResult.lastInsertRowid;
+
+      const domains = [
+        {
+          code: 'SECURE_ARCH',
+          name: 'Design Secure Architectures',
+          weight: 0.3,
+          order: 1,
+          description: 'Design secure access, application tiers, and data security controls',
+          topics: [
+            {
+              code: 'IAM',
+              name: 'IAM Policies and Roles',
+              description:
+                'IAM users, groups, roles, policies, federation, and cross-account access',
+            },
+            {
+              code: 'VPC_SEC',
+              name: 'VPC Security',
+              description:
+                'Security groups, NACLs, VPC endpoints, PrivateLink, and network isolation',
+            },
+            {
+              code: 'ENCRYPTION',
+              name: 'Encryption and Key Management',
+              description: 'KMS, CloudHSM, ACM, S3 encryption, EBS encryption, and data protection',
+            },
+            {
+              code: 'ORG_SCP',
+              name: 'AWS Organizations and SCPs',
+              description:
+                'Multi-account strategy, Service Control Policies, and organizational units',
+            },
+            {
+              code: 'EDGE_SEC',
+              name: 'Edge Security',
+              description: 'WAF, Shield, Shield Advanced, and DDoS mitigation strategies',
+            },
+            {
+              code: 'IDENTITY',
+              name: 'Identity Federation',
+              description: 'Cognito, SSO, SAML, and identity provider integration',
+            },
+          ],
+        },
+        {
+          code: 'RESILIENT_ARCH',
+          name: 'Design Resilient Architectures',
+          weight: 0.26,
+          order: 2,
+          description: 'Design multi-tier, highly available, and fault-tolerant architectures',
+          topics: [
+            {
+              code: 'HA_DESIGN',
+              name: 'High Availability Design',
+              description: 'Multi-AZ and multi-region patterns, failover strategies',
+            },
+            {
+              code: 'SCALING',
+              name: 'Auto Scaling and Load Balancing',
+              description: 'Auto Scaling groups, ALB, NLB, GWLB, target groups, and health checks',
+            },
+            {
+              code: 'DNS_ROUTING',
+              name: 'DNS and Routing Policies',
+              description: 'Route 53 routing policies, health checks, and DNS failover',
+            },
+            {
+              code: 'DR',
+              name: 'Disaster Recovery',
+              description:
+                'Backup/restore, pilot light, warm standby, and multi-site DR strategies',
+            },
+            {
+              code: 'DECOUPLE',
+              name: 'Decoupling and Messaging',
+              description: 'SQS, SNS, EventBridge, and event-driven architecture patterns',
+            },
+            {
+              code: 'WORKFLOWS',
+              name: 'Workflow Orchestration',
+              description: 'Step Functions, SWF, and distributed system coordination',
+            },
+          ],
+        },
+        {
+          code: 'PERF_ARCH',
+          name: 'Design High-Performing Architectures',
+          weight: 0.24,
+          order: 3,
+          description: 'Select performant storage, compute, database, and networking solutions',
+          topics: [
+            {
+              code: 'COMPUTE',
+              name: 'Compute Selection',
+              description: 'EC2 instance types, placement groups, ENI, and compute optimization',
+            },
+            {
+              code: 'STORAGE',
+              name: 'Storage Solutions',
+              description:
+                'S3, EBS (gp3, io2, st1), EFS, FSx, and storage performance optimization',
+            },
+            {
+              code: 'DATABASE',
+              name: 'Database Solutions',
+              description: 'RDS, Aurora, DynamoDB, ElastiCache, Redshift, and database selection',
+            },
+            {
+              code: 'CACHING',
+              name: 'Caching and Content Delivery',
+              description: 'CloudFront, ElastiCache, DAX, and caching strategies',
+            },
+            {
+              code: 'SERVERLESS',
+              name: 'Serverless Architecture',
+              description: 'Lambda, API Gateway, Fargate, and serverless design patterns',
+            },
+            {
+              code: 'DATA_ANALYTICS',
+              name: 'Data Analytics',
+              description: 'Kinesis, Redshift, Athena, and analytics pipeline design',
+            },
+          ],
+        },
+        {
+          code: 'COST_ARCH',
+          name: 'Design Cost-Optimized Architectures',
+          weight: 0.2,
+          order: 4,
+          description: 'Design cost-effective storage, compute, and database solutions',
+          topics: [
+            {
+              code: 'PRICING',
+              name: 'Pricing Models',
+              description:
+                'Reserved Instances, Savings Plans, Spot Instances, and pricing optimization',
+            },
+            {
+              code: 'STORAGE_TIERS',
+              name: 'Storage Cost Optimization',
+              description: 'S3 storage classes, lifecycle policies, and data transfer costs',
+            },
+            {
+              code: 'RIGHTSIZING',
+              name: 'Right-Sizing and Monitoring',
+              description:
+                'Cost Explorer, Trusted Advisor, Compute Optimizer, and resource optimization',
+            },
+            {
+              code: 'TRANSFER',
+              name: 'Data Transfer Optimization',
+              description:
+                'VPC endpoints, Direct Connect pricing, and cross-region transfer strategies',
+            },
+            {
+              code: 'SERVERLESS_COST',
+              name: 'Serverless Cost Patterns',
+              description: 'Lambda pricing, API Gateway caching, and pay-per-use optimization',
+            },
+            {
+              code: 'TAGGING',
+              name: 'Cost Allocation and Governance',
+              description: 'Tagging strategies, AWS Budgets, and cost allocation reports',
+            },
+          ],
+        },
+      ];
+
+      const insertDomain = db.prepare(
+        'INSERT INTO domains (certification_id, code, name, weight, description, order_index) VALUES (?, ?, ?, ?, ?, ?)'
+      );
+      const insertTopic = db.prepare(
+        'INSERT INTO topics (domain_id, code, name, description) VALUES (?, ?, ?, ?)'
+      );
+
+      for (const domain of domains) {
+        const domainResult = insertDomain.run(
+          certId,
+          domain.code,
+          domain.name,
+          domain.weight,
+          domain.description,
+          domain.order
+        );
+        const domainId = domainResult.lastInsertRowid;
+        for (const topic of domain.topics) {
+          insertTopic.run(domainId, topic.code, topic.name, topic.description);
+        }
+      }
+
+      console.log(
+        `  [migration] Seeded AWS-SAA certification with ${domains.length} domains and ${domains.reduce((sum, d) => sum + d.topics.length, 0)} topics`
+      );
+    },
+  },
+  {
+    version: 23,
+    name: 'seed_aws_service_categories',
+    up: (db) => {
+      const awsCert = db.prepare("SELECT id FROM certifications WHERE code = 'AWS-SAA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!awsCert) {
+        console.log('  [migration] AWS-SAA certification not found, skipping');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM service_categories WHERE certification_id = ?')
+        .get(awsCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] AWS service categories already seeded');
+        return;
+      }
+
+      const categories = [
+        {
+          id: 'compute',
+          name: 'Compute',
+          order: 1,
+          services: ['EC2', 'Lambda', 'ECS', 'EKS', 'Fargate', 'Elastic Beanstalk', 'Batch'],
+        },
+        {
+          id: 'storage',
+          name: 'Storage',
+          order: 2,
+          services: ['S3', 'EBS', 'EFS', 'FSx', 'Storage Gateway', 'Snow Family'],
+        },
+        {
+          id: 'database',
+          name: 'Database',
+          order: 3,
+          services: [
+            'RDS',
+            'Aurora',
+            'DynamoDB',
+            'ElastiCache',
+            'Redshift',
+            'Neptune',
+            'DocumentDB',
+          ],
+        },
+        {
+          id: 'networking',
+          name: 'Networking & Content Delivery',
+          order: 4,
+          services: [
+            'VPC',
+            'ELB (ALB/NLB/GWLB)',
+            'CloudFront',
+            'Route 53',
+            'Direct Connect',
+            'Transit Gateway',
+            'API Gateway',
+            'Global Accelerator',
+          ],
+        },
+        {
+          id: 'security',
+          name: 'Security, Identity & Compliance',
+          order: 5,
+          services: [
+            'IAM',
+            'KMS',
+            'CloudHSM',
+            'WAF',
+            'Shield',
+            'Cognito',
+            'Organizations',
+            'GuardDuty',
+            'Inspector',
+            'Macie',
+          ],
+        },
+        {
+          id: 'management',
+          name: 'Management & Governance',
+          order: 6,
+          services: [
+            'CloudWatch',
+            'CloudTrail',
+            'Config',
+            'Systems Manager',
+            'CloudFormation',
+            'Trusted Advisor',
+            'Service Catalog',
+          ],
+        },
+        {
+          id: 'integration',
+          name: 'Application Integration',
+          order: 7,
+          services: ['SQS', 'SNS', 'EventBridge', 'Step Functions', 'Kinesis', 'AppFlow'],
+        },
+      ];
+
+      const insertCat = db.prepare(
+        'INSERT INTO service_categories (certification_id, category_id, category_name, display_order) VALUES (?, ?, ?, ?)'
+      );
+      const insertItem = db.prepare(
+        'INSERT INTO service_category_items (category_id, service_name) VALUES (?, ?)'
+      );
+
+      for (const cat of categories) {
+        const result = insertCat.run(awsCert.id, cat.id, cat.name, cat.order);
+        const catDbId = result.lastInsertRowid;
+        for (const svc of cat.services) {
+          insertItem.run(catDbId, svc);
+        }
+      }
+
+      console.log(`  [migration] Seeded ${categories.length} AWS service categories`);
+    },
+  },
+  {
+    version: 24,
+    name: 'seed_aws_saa_learning_path',
+    up: (db) => {
+      const awsCert = db.prepare("SELECT id FROM certifications WHERE code = 'AWS-SAA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!awsCert) {
+        console.log('  [migration] AWS-SAA certification not found, skipping');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM learning_path_items WHERE certification_id = ?')
+        .get(awsCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] AWS SAA learning path already seeded');
+        return;
+      }
+
+      const items = [
+        {
+          order: 1,
+          title: 'AWS Cloud Practitioner Essentials',
+          type: 'course',
+          description: 'Foundational AWS cloud concepts and services',
+          topics: JSON.stringify(['AWS Global Infrastructure', 'Core Services', 'Pricing']),
+          whyItMatters: 'Builds baseline AWS knowledge required for SAA topics',
+        },
+        {
+          order: 2,
+          title: 'Architecting on AWS',
+          type: 'course',
+          description: 'Core architectural patterns and best practices',
+          topics: JSON.stringify(['EC2', 'VPC', 'S3', 'IAM', 'RDS']),
+          whyItMatters: 'Covers the foundational services tested on SAA-C03',
+        },
+        {
+          order: 3,
+          title: 'AWS Well-Architected Framework',
+          type: 'reading',
+          description: 'Six pillars of well-architected applications',
+          topics: JSON.stringify([
+            'Operational Excellence',
+            'Security',
+            'Reliability',
+            'Performance',
+            'Cost Optimization',
+            'Sustainability',
+          ]),
+          whyItMatters: 'Well-Architected Framework principles underpin most SAA questions',
+        },
+        {
+          order: 4,
+          title: 'AWS Security Fundamentals',
+          type: 'course',
+          description: 'IAM, encryption, VPC security, and compliance',
+          topics: JSON.stringify(['IAM', 'KMS', 'Security Groups', 'NACLs', 'CloudTrail']),
+          whyItMatters: 'Security is the highest-weighted domain at 30%',
+        },
+        {
+          order: 5,
+          title: 'VPC and Networking Deep Dive',
+          type: 'course',
+          description: 'VPC design, subnets, routing, and hybrid connectivity',
+          topics: JSON.stringify([
+            'VPC',
+            'Subnets',
+            'Route Tables',
+            'NAT Gateway',
+            'Direct Connect',
+            'Transit Gateway',
+          ]),
+          whyItMatters: 'Networking is critical for both security and resilience domains',
+        },
+        {
+          order: 6,
+          title: 'Amazon EC2 and Auto Scaling',
+          type: 'course',
+          description: 'Instance types, placement, scaling policies, and ELB',
+          topics: JSON.stringify(['EC2', 'Auto Scaling', 'ALB', 'NLB', 'Launch Templates']),
+          whyItMatters: 'EC2 and scaling appear in resilience and performance domains',
+        },
+        {
+          order: 7,
+          title: 'AWS Storage Services Deep Dive',
+          type: 'course',
+          description: 'S3, EBS, EFS, and storage class selection',
+          topics: JSON.stringify([
+            'S3',
+            'EBS',
+            'EFS',
+            'FSx',
+            'Storage Gateway',
+            'Lifecycle Policies',
+          ]),
+          whyItMatters: 'Storage selection and optimization are heavily tested',
+        },
+        {
+          order: 8,
+          title: 'AWS Database Services',
+          type: 'course',
+          description: 'RDS, Aurora, DynamoDB, and database migration',
+          topics: JSON.stringify(['RDS', 'Aurora', 'DynamoDB', 'ElastiCache', 'DMS']),
+          whyItMatters: 'Choosing the right database service is a common exam scenario',
+        },
+        {
+          order: 9,
+          title: 'Serverless on AWS',
+          type: 'course',
+          description: 'Lambda, API Gateway, Step Functions, and event-driven design',
+          topics: JSON.stringify(['Lambda', 'API Gateway', 'Step Functions', 'EventBridge', 'SQS']),
+          whyItMatters: 'Serverless patterns appear across performance and cost domains',
+        },
+        {
+          order: 10,
+          title: 'AWS Cost Optimization',
+          type: 'course',
+          description: 'Pricing models, Reserved Instances, Savings Plans, and cost tools',
+          topics: JSON.stringify([
+            'Reserved Instances',
+            'Savings Plans',
+            'Spot Instances',
+            'Cost Explorer',
+            'Budgets',
+          ]),
+          whyItMatters: 'Cost optimization is 20% of the exam',
+        },
+        {
+          order: 11,
+          title: 'Disaster Recovery on AWS',
+          type: 'reading',
+          description: 'DR strategies from backup/restore to multi-site active-active',
+          topics: JSON.stringify(['Backup/Restore', 'Pilot Light', 'Warm Standby', 'Multi-Site']),
+          whyItMatters: 'DR strategy selection is a key topic in resilient architecture',
+        },
+        {
+          order: 12,
+          title: 'AWS Monitoring and Observability',
+          type: 'course',
+          description: 'CloudWatch, CloudTrail, Config, and operational tooling',
+          topics: JSON.stringify(['CloudWatch', 'CloudTrail', 'Config', 'Systems Manager']),
+          whyItMatters: 'Monitoring supports security, resilience, and performance domains',
+        },
+        {
+          order: 13,
+          title: 'SAA-C03 Exam Preparation',
+          type: 'course',
+          description: 'Practice exams, review, and exam strategies',
+          topics: JSON.stringify(['Exam Tips', 'Review', 'Practice Questions']),
+          whyItMatters: 'Final review and exam-taking strategies',
+        },
+        {
+          order: 14,
+          title: 'AWS Solutions Architect Associate Exam',
+          type: 'exam',
+          description: 'Take the SAA-C03 certification exam',
+          topics: JSON.stringify(['All Domains']),
+          whyItMatters: 'The certification exam itself',
+        },
+      ];
+
+      const insert = db.prepare(
+        'INSERT INTO learning_path_items (certification_id, item_order, title, type, description, topics, why_it_matters) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      );
+
+      for (const item of items) {
+        insert.run(
+          awsCert.id,
+          item.order,
+          item.title,
+          item.type,
+          item.description,
+          item.topics,
+          item.whyItMatters
+        );
+      }
+
+      console.log(`  [migration] Seeded ${items.length} learning path items for AWS-SAA`);
+    },
+  },
+  {
+    version: 25,
+    name: 'update_certification_capabilities',
+    up: (db) => {
+      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'ACE'").run(
+        JSON.stringify({ hasCaseStudies: false, hasWorkbook: true, hasMasteryMap: true })
+      );
+
+      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'PCA'").run(
+        JSON.stringify({ hasCaseStudies: true, hasWorkbook: false, hasMasteryMap: true })
+      );
+
+      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'AWS-SAA'").run(
+        JSON.stringify({ hasCaseStudies: false, hasWorkbook: false, hasMasteryMap: true })
+      );
+
+      console.log('  [migration] Updated certification capabilities for ACE, PCA, AWS-SAA');
+    },
+  },
+  {
+    version: 26,
+    name: 'fix_workbook_resources_unique_constraint',
+    up: (db) => {
+      // The original table had UNIQUE on gcp_service (now cloud_service).
+      // For multi-cert support, uniqueness should be (certification_id, cloud_service).
+      // SQLite requires table rebuild to change inline constraints.
+      const hasOldTable = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='workbook_resources'")
+        .get();
+      if (!hasOldTable) return;
+
+      // Pre-migration: check for duplicate (certification_id, cloud_service) pairs
+      const dupes = db
+        .prepare(
+          `SELECT certification_id, cloud_service, COUNT(*) as cnt
+           FROM workbook_resources
+           GROUP BY certification_id, cloud_service
+           HAVING cnt > 1`
+        )
+        .all();
+      if (dupes.length > 0) {
+        console.warn(
+          '  [migration] WARNING: duplicate (certification_id, cloud_service) rows found, deduplicating'
+        );
+        for (const dupe of dupes as Array<{ certification_id: number; cloud_service: string }>) {
+          // Keep the row with the lowest id, delete the rest
+          db.prepare(
+            `DELETE FROM workbook_resources WHERE certification_id = ? AND cloud_service = ? AND id NOT IN (
+              SELECT MIN(id) FROM workbook_resources WHERE certification_id = ? AND cloud_service = ?
+            )`
+          ).run(
+            dupe.certification_id,
+            dupe.cloud_service,
+            dupe.certification_id,
+            dupe.cloud_service
+          );
+        }
+      }
+
+      db.exec(`
+        CREATE TABLE workbook_resources_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cloud_service TEXT NOT NULL,
+          courses TEXT DEFAULT '[]',
+          skill_badges TEXT DEFAULT '[]',
+          documentation_links TEXT DEFAULT '[]',
+          certification_id INTEGER NOT NULL REFERENCES certifications(id)
+        );
+        INSERT INTO workbook_resources_new (id, cloud_service, courses, skill_badges, documentation_links, certification_id)
+          SELECT id, cloud_service, courses, skill_badges, documentation_links, certification_id
+          FROM workbook_resources;
+        DROP TABLE workbook_resources;
+        ALTER TABLE workbook_resources_new RENAME TO workbook_resources;
+        CREATE UNIQUE INDEX IF NOT EXISTS workbook_resources_cert_svc_idx
+          ON workbook_resources(certification_id, cloud_service);
+      `);
+      console.log(
+        '  [migration] Rebuilt workbook_resources with named UNIQUE index workbook_resources_cert_svc_idx'
+      );
+    },
+  },
 ];
 
 /**

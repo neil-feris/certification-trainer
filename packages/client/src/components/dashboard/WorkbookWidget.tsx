@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { workbookApi } from '../../api/client';
+import { useCertificationStore } from '../../stores/certificationStore';
 import styles from './WorkbookWidget.module.css';
 
 // Book icon SVG
@@ -24,15 +25,17 @@ const BookIcon = () => (
 
 export function WorkbookWidget() {
   const navigate = useNavigate();
+  const selectedCertificationId = useCertificationStore((s) => s.selectedCertificationId);
 
   const {
     data: progress,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['workbookProgress'],
-    queryFn: () => workbookApi.getProgress(),
+    queryKey: ['workbookProgress', selectedCertificationId],
+    queryFn: () => workbookApi.getProgress(selectedCertificationId ?? undefined),
     staleTime: 60000, // 1 min cache
+    enabled: selectedCertificationId !== null,
   });
 
   if (isLoading) {
