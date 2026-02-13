@@ -988,11 +988,16 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Session is not active' });
     }
 
-    // Get the question
+    // Get the question and its certification
     const [question] = await db.select().from(questions).where(eq(questions.id, questionId));
     if (!question) {
       return reply.status(404).send({ error: 'Question not found' });
     }
+    const [questionDomain] = await db
+      .select({ certificationId: domains.certificationId })
+      .from(domains)
+      .where(eq(domains.id, question.domainId));
+    const srCertificationId = questionDomain?.certificationId ?? null;
 
     let correctAnswers: number[];
     try {
@@ -1072,6 +1077,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
               .values({
                 userId,
                 questionId,
+                certificationId: srCertificationId,
                 easeFactor: 2.5,
                 interval: 1,
                 repetitions: 0,
@@ -1149,6 +1155,17 @@ export async function studyRoutes(fastify: FastifyInstance) {
         : [];
     const questionsMap = new Map(allQuestions.map((q) => [q.id, q]));
 
+    // Fetch domain→certificationId mapping for SR inserts
+    const domainIds = [...new Set(allQuestions.map((q) => q.domainId))];
+    const domainCerts =
+      domainIds.length > 0
+        ? await db
+            .select({ id: domains.id, certificationId: domains.certificationId })
+            .from(domains)
+            .where(inArray(domains.id, domainIds))
+        : [];
+    const domainCertMap = new Map(domainCerts.map((d) => [d.id, d.certificationId]));
+
     // Fetch all existing responses in one query
     const existingResponses = await db
       .select()
@@ -1188,6 +1205,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     const srToInsert: Array<{
       userId: number;
       questionId: number;
+      certificationId: number | null;
       easeFactor: number;
       interval: number;
       repetitions: number;
@@ -1213,6 +1231,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
           srToInsert.push({
             userId,
             questionId: response.questionId,
+            certificationId: domainCertMap.get(question.domainId) ?? null,
             easeFactor: 2.5,
             interval: 1,
             repetitions: 0,

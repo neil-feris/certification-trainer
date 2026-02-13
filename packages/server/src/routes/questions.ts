@@ -502,9 +502,22 @@ export async function questionRoutes(fastify: FastifyInstance) {
   );
 
   // Get questions due for spaced repetition review
-  fastify.get('/review', async (request) => {
+  fastify.get<{
+    Querystring: { certificationId?: string };
+  }>('/review', async (request) => {
     const now = new Date();
     const userId = parseInt(request.user!.id, 10);
+    const certId = request.query.certificationId
+      ? parseInt(request.query.certificationId, 10)
+      : undefined;
+
+    const conditions = [
+      lte(spacedRepetition.nextReviewAt, now),
+      eq(spacedRepetition.userId, userId),
+    ];
+    if (certId) {
+      conditions.push(eq(spacedRepetition.certificationId, certId));
+    }
 
     const dueQuestions = await db
       .select({
@@ -517,7 +530,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       .innerJoin(questions, eq(spacedRepetition.questionId, questions.id))
       .innerJoin(domains, eq(questions.domainId, domains.id))
       .innerJoin(topics, eq(questions.topicId, topics.id))
-      .where(and(lte(spacedRepetition.nextReviewAt, now), eq(spacedRepetition.userId, userId)))
+      .where(and(...conditions))
       .limit(20);
 
     return dueQuestions.map((r) => ({
@@ -552,12 +565,25 @@ export async function questionRoutes(fastify: FastifyInstance) {
       .where(and(eq(spacedRepetition.questionId, questionId), eq(spacedRepetition.userId, userId)));
 
     if (!sr) {
+      // Derive certificationId from question's domain
+      const [reviewQuestion] = await db
+        .select({ domainId: questions.domainId })
+        .from(questions)
+        .where(eq(questions.id, questionId));
+      const [reviewDomain] = reviewQuestion
+        ? await db
+            .select({ certificationId: domains.certificationId })
+            .from(domains)
+            .where(eq(domains.id, reviewQuestion.domainId))
+        : [undefined];
+
       // Create new record
       [sr] = await db
         .insert(spacedRepetition)
         .values({
           userId,
           questionId,
+          certificationId: reviewDomain?.certificationId ?? null,
           easeFactor: 2.5,
           interval: 1,
           repetitions: 0,

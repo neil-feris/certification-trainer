@@ -295,6 +295,16 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Question is not part of this session' });
       }
 
+      // Look up certificationId for SR insert
+      const [fcQuestion] = await db.select().from(questions).where(eq(questions.id, questionId));
+      const [fcDomain] = fcQuestion
+        ? await db
+            .select({ certificationId: domains.certificationId })
+            .from(domains)
+            .where(eq(domains.id, fcQuestion.domainId))
+        : [undefined];
+      const srCertificationId = fcDomain?.certificationId ?? null;
+
       // Wrap rating operations in transaction for data consistency
       // Note: better-sqlite3 transactions are synchronous - use .all() and .run()
       const srResult = db.transaction((tx) => {
@@ -349,6 +359,7 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
             .values({
               userId,
               questionId,
+              certificationId: srCertificationId,
               easeFactor: 2.5,
               interval: 1,
               repetitions: 0,
