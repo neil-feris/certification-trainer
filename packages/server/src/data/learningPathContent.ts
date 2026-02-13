@@ -12,6 +12,7 @@ export interface LearningPathItemData {
   whyItMatters: string;
 }
 
+/** @deprecated Use DB-backed learningPathItems table instead. Retained for planGenerator compatibility. */
 export const LEARNING_PATH_ITEMS: LearningPathItemData[] = [
   {
     order: 1,

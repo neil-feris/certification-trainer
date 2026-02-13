@@ -1,3 +1,4 @@
+/** @deprecated Use DB-backed serviceCategories/serviceCategoryItems tables instead. Retained for legacy test compatibility. */
 export const GCP_SERVICE_CATEGORIES = [
   {
     id: 'compute',
