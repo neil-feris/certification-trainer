@@ -1015,20 +1015,33 @@ export async function progressRoutes(fastify: FastifyInstance) {
       .where(eq(serviceCategories.certificationId, certId))
       .orderBy(serviceCategories.displayOrder);
 
-    const result: ServiceCategoryData[] = [];
-    for (const cat of categories) {
-      const items = await db
-        .select({ serviceName: serviceCategoryItems.serviceName })
-        .from(serviceCategoryItems)
-        .where(eq(serviceCategoryItems.categoryId, cat.id));
+    // Batch-fetch all items for these categories (avoids N+1)
+    const catIds = categories.map((c) => c.id);
+    const allItems =
+      catIds.length > 0
+        ? await db
+            .select({
+              categoryId: serviceCategoryItems.categoryId,
+              serviceName: serviceCategoryItems.serviceName,
+            })
+            .from(serviceCategoryItems)
+            .where(inArray(serviceCategoryItems.categoryId, catIds))
+        : [];
 
-      result.push({
-        ...cat,
-        services: items.map((i) => i.serviceName),
-      });
+    const itemsByCat = new Map<number, string[]>();
+    for (const item of allItems) {
+      const list = itemsByCat.get(item.categoryId);
+      if (list) {
+        list.push(item.serviceName);
+      } else {
+        itemsByCat.set(item.categoryId, [item.serviceName]);
+      }
     }
 
-    return result;
+    return categories.map((cat) => ({
+      ...cat,
+      services: itemsByCat.get(cat.id) ?? [],
+    })) satisfies ServiceCategoryData[];
   });
 
   // GET /progress/mastery-map - Service mastery grid
