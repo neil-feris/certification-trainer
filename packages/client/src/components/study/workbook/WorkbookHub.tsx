@@ -177,6 +177,15 @@ function FullExamLanding({
     startAssessment('full', totalQuestions);
   };
 
+  if (totalQuestions === 0) {
+    return (
+      <div className={styles.landing}>
+        <h2>Full Exam Mode</h2>
+        <p>No practice questions available for this certification yet.</p>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.landing}>
       <h2>Full Exam Mode</h2>
