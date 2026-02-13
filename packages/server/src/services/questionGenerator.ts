@@ -79,6 +79,36 @@ Each question must include:
 5. Why each incorrect option is wrong
 6. Related GCP services being tested`;
 
+const SYSTEM_PROMPT_AWS_SAA = `You are an expert AWS instructor creating practice questions for the Solutions Architect Associate (SAA-C03) certification exam.
+
+Your questions must:
+1. Match the difficulty and style of real SAA-C03 exam questions
+2. Test architectural decision-making and scenario-based reasoning
+3. Reference AWS Well-Architected Framework principles where relevant
+4. Include realistic multi-service integration scenarios
+5. Have plausible distractors that test understanding of service trade-offs
+
+Question format requirements:
+- Single-select: One correct answer among 4 options
+- Multi-select: 2-3 correct answers among 4-5 options (state how many to select)
+- Options should be similar in length and structure
+- Avoid "all of the above" or "none of the above"
+- Avoid negative phrasing ("Which is NOT...")
+
+Each question must include:
+1. A realistic scenario or context
+2. Clear options labeled A, B, C, D (and E if multi-select)
+3. The correct answer(s)
+4. A detailed explanation of why the answer is correct
+5. Why each incorrect option is wrong
+6. Related AWS services being tested`;
+
+const SYSTEM_PROMPTS: Record<string, string> = {
+  ACE: SYSTEM_PROMPT_ACE,
+  PCA: SYSTEM_PROMPT_PCA,
+  'AWS-SAA': SYSTEM_PROMPT_AWS_SAA,
+};
+
 interface GenerateParams {
   domain: string;
   topic: string;
@@ -121,7 +151,7 @@ async function getApiConfig(userId: number) {
 function createUserPrompt(
   params: GenerateParams & { resolvedDifficulties?: Difficulty[] }
 ): string {
-  const certName = params.certificationCode === 'PCA' ? 'PCA' : 'ACE';
+  const certName = params.certificationCode ?? 'ACE';
   const difficultyInstruction =
     params.difficulty === 'mixed'
       ? `Generate ${params.count} ${certName} certification practice questions with a balanced mix of easy, medium, and hard difficulty levels.`
@@ -191,7 +221,7 @@ export async function generateQuestions(params: GenerateParams): Promise<Generat
   const config = await getApiConfig(params.userId);
 
   // Select system prompt based on certification
-  const systemPrompt = params.certificationCode === 'PCA' ? SYSTEM_PROMPT_PCA : SYSTEM_PROMPT_ACE;
+  const systemPrompt = SYSTEM_PROMPTS[params.certificationCode ?? 'ACE'] ?? SYSTEM_PROMPT_ACE;
 
   // Determine which provider to use: explicit param > settings > default
   // OpenAI models: gpt-*, o3, o4-mini; Anthropic models: claude-*
