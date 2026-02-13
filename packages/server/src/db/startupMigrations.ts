@@ -863,6 +863,280 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 15,
+    name: 'seed_gcp_service_categories',
+    up: (db) => {
+      const aceCert = db.prepare("SELECT id FROM certifications WHERE code = 'ACE'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!aceCert) {
+        console.log(
+          '  [migration] ACE certification not found, skipping GCP service category seed'
+        );
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM service_categories WHERE certification_id = ?')
+        .get(aceCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] GCP service categories already seeded');
+        return;
+      }
+
+      const categories = [
+        {
+          id: 'compute',
+          name: 'Compute',
+          order: 1,
+          services: [
+            'Compute Engine',
+            'App Engine',
+            'Cloud Functions',
+            'Cloud Run',
+            'GKE',
+            'Anthos',
+          ],
+        },
+        {
+          id: 'storage',
+          name: 'Storage & Databases',
+          order: 2,
+          services: [
+            'Cloud Storage',
+            'Cloud SQL',
+            'Cloud Spanner',
+            'Firestore',
+            'Bigtable',
+            'Memorystore',
+            'Persistent Disk',
+          ],
+        },
+        {
+          id: 'networking',
+          name: 'Networking',
+          order: 3,
+          services: [
+            'VPC',
+            'Cloud Load Balancing',
+            'Cloud CDN',
+            'Cloud DNS',
+            'Cloud Interconnect',
+            'Cloud VPN',
+            'Cloud NAT',
+            'Cloud Armor',
+          ],
+        },
+        {
+          id: 'analytics',
+          name: 'Data & Analytics',
+          order: 4,
+          services: [
+            'BigQuery',
+            'Dataflow',
+            'Dataproc',
+            'Pub/Sub',
+            'Cloud Composer',
+            'Data Catalog',
+          ],
+        },
+        {
+          id: 'ai-ml',
+          name: 'AI & Machine Learning',
+          order: 5,
+          services: [
+            'Vertex AI',
+            'AutoML',
+            'Cloud Vision',
+            'Cloud Natural Language',
+            'Cloud Translation',
+          ],
+        },
+        {
+          id: 'security',
+          name: 'Security & Identity',
+          order: 6,
+          services: [
+            'Cloud IAM',
+            'Cloud KMS',
+            'Secret Manager',
+            'Cloud Audit Logs',
+            'Binary Authorization',
+            'VPC Service Controls',
+          ],
+        },
+        {
+          id: 'operations',
+          name: 'Operations',
+          order: 7,
+          services: [
+            'Cloud Monitoring',
+            'Cloud Logging',
+            'Error Reporting',
+            'Cloud Trace',
+            'Cloud Profiler',
+            'Cloud Debugger',
+          ],
+        },
+      ];
+
+      const insertCategory = db.prepare(
+        'INSERT INTO service_categories (certification_id, category_id, category_name, display_order) VALUES (?, ?, ?, ?)'
+      );
+      const insertItem = db.prepare(
+        'INSERT INTO service_category_items (category_id, service_name) VALUES (?, ?)'
+      );
+
+      for (const cat of categories) {
+        const result = insertCategory.run(aceCert.id, cat.id, cat.name, cat.order);
+        const catDbId = result.lastInsertRowid;
+        for (const svc of cat.services) {
+          insertItem.run(catDbId, svc);
+        }
+      }
+
+      console.log(`  [migration] Seeded ${categories.length} GCP service categories for ACE`);
+    },
+  },
+  {
+    version: 16,
+    name: 'seed_pca_service_categories',
+    up: (db) => {
+      const pcaCert = db.prepare("SELECT id FROM certifications WHERE code = 'PCA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!pcaCert) {
+        console.log('  [migration] PCA certification not found, skipping');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM service_categories WHERE certification_id = ?')
+        .get(pcaCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] PCA service categories already seeded');
+        return;
+      }
+
+      const categories = [
+        {
+          id: 'compute',
+          name: 'Compute',
+          order: 1,
+          services: [
+            'Compute Engine',
+            'App Engine',
+            'Cloud Functions',
+            'Cloud Run',
+            'GKE',
+            'Anthos',
+          ],
+        },
+        {
+          id: 'storage',
+          name: 'Storage & Databases',
+          order: 2,
+          services: [
+            'Cloud Storage',
+            'Cloud SQL',
+            'Cloud Spanner',
+            'Firestore',
+            'Bigtable',
+            'Memorystore',
+            'Persistent Disk',
+          ],
+        },
+        {
+          id: 'networking',
+          name: 'Networking',
+          order: 3,
+          services: [
+            'VPC',
+            'Cloud Load Balancing',
+            'Cloud CDN',
+            'Cloud DNS',
+            'Cloud Interconnect',
+            'Cloud VPN',
+            'Cloud NAT',
+            'Cloud Armor',
+          ],
+        },
+        {
+          id: 'analytics',
+          name: 'Data & Analytics',
+          order: 4,
+          services: [
+            'BigQuery',
+            'Dataflow',
+            'Dataproc',
+            'Pub/Sub',
+            'Cloud Composer',
+            'Data Catalog',
+          ],
+        },
+        {
+          id: 'ai-ml',
+          name: 'AI & Machine Learning',
+          order: 5,
+          services: [
+            'Vertex AI',
+            'AutoML',
+            'Cloud Vision',
+            'Cloud Natural Language',
+            'Cloud Translation',
+          ],
+        },
+        {
+          id: 'security',
+          name: 'Security & Identity',
+          order: 6,
+          services: [
+            'Cloud IAM',
+            'Cloud KMS',
+            'Secret Manager',
+            'Cloud Audit Logs',
+            'Binary Authorization',
+            'VPC Service Controls',
+          ],
+        },
+        {
+          id: 'operations',
+          name: 'Operations',
+          order: 7,
+          services: [
+            'Cloud Monitoring',
+            'Cloud Logging',
+            'Error Reporting',
+            'Cloud Trace',
+            'Cloud Profiler',
+            'Cloud Debugger',
+          ],
+        },
+      ];
+
+      const insertCategory = db.prepare(
+        'INSERT INTO service_categories (certification_id, category_id, category_name, display_order) VALUES (?, ?, ?, ?)'
+      );
+      const insertItem = db.prepare(
+        'INSERT INTO service_category_items (category_id, service_name) VALUES (?, ?)'
+      );
+
+      for (const cat of categories) {
+        const result = insertCategory.run(pcaCert.id, cat.id, cat.name, cat.order);
+        const catDbId = result.lastInsertRowid;
+        for (const svc of cat.services) {
+          insertItem.run(catDbId, svc);
+        }
+      }
+
+      console.log(`  [migration] Seeded ${categories.length} GCP service categories for PCA`);
+    },
+  },
 ];
 
 /**
