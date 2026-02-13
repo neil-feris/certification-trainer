@@ -26,7 +26,6 @@ interface NavItem {
   label: string;
   icon: string;
   requiresCaseStudies?: boolean;
-  requiresWorkbook?: boolean;
   requiresMasteryMap?: boolean;
 }
 
