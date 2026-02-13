@@ -91,8 +91,7 @@ describe('GET /progress/service-categories', () => {
     mockParseCertId.mockResolvedValue(1);
 
     // Call 0: categories query
-    // Call 1: items for category 10
-    // Call 2: items for category 20
+    // Call 1: batch items query (all categories at once)
     (mockSelect as any)._setResults([
       [
         {
@@ -110,8 +109,11 @@ describe('GET /progress/service-categories', () => {
           displayOrder: 1,
         },
       ],
-      [{ serviceName: 'EC2' }, { serviceName: 'Lambda' }],
-      [{ serviceName: 'S3' }],
+      [
+        { categoryId: 10, serviceName: 'EC2' },
+        { categoryId: 10, serviceName: 'Lambda' },
+        { categoryId: 20, serviceName: 'S3' },
+      ],
     ]);
 
     const app = await buildApp();
@@ -192,7 +194,7 @@ describe('GET /progress/service-categories', () => {
           displayOrder: 0,
         },
       ],
-      [{ serviceName: 'VPC' }],
+      [{ categoryId: 5, serviceName: 'VPC' }],
     ]);
 
     const app = await buildApp();
