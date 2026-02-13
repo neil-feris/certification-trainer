@@ -5,10 +5,14 @@ export type CertificationProvider = 'gcp' | 'aws' | 'azure';
 
 export interface CertificationCapabilities {
   hasCaseStudies: boolean;
+  hasWorkbook: boolean;
+  hasMasteryMap: boolean;
 }
 
 export const DEFAULT_CERTIFICATION_CAPABILITIES: CertificationCapabilities = {
   hasCaseStudies: false,
+  hasWorkbook: false,
+  hasMasteryMap: false,
 };
 
 export interface Certification {

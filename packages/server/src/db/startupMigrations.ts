@@ -1430,6 +1430,556 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 22,
+    name: 'seed_aws_saa_certification',
+    up: (db) => {
+      const existing = db.prepare("SELECT id FROM certifications WHERE code = 'AWS-SAA'").get();
+      if (existing) {
+        console.log('  [migration] AWS-SAA certification already exists');
+        return;
+      }
+
+      const certResult = db
+        .prepare(
+          `
+        INSERT INTO certifications (code, name, short_name, description, provider, exam_duration_minutes, total_questions, passing_score_percent, is_active, capabilities, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+        )
+        .run(
+          'AWS-SAA',
+          'AWS Solutions Architect Associate',
+          'SAA',
+          'Design and deploy scalable, highly available, and fault-tolerant systems on AWS',
+          'aws',
+          130,
+          65,
+          72,
+          1,
+          JSON.stringify({ hasCaseStudies: false, hasWorkbook: true, hasMasteryMap: true }),
+          Date.now()
+        );
+
+      const certId = certResult.lastInsertRowid;
+
+      const domains = [
+        {
+          code: 'SECURE_ARCH',
+          name: 'Design Secure Architectures',
+          weight: 0.3,
+          order: 1,
+          description: 'Design secure access, application tiers, and data security controls',
+          topics: [
+            {
+              code: 'IAM',
+              name: 'IAM Policies and Roles',
+              description:
+                'IAM users, groups, roles, policies, federation, and cross-account access',
+            },
+            {
+              code: 'VPC_SEC',
+              name: 'VPC Security',
+              description:
+                'Security groups, NACLs, VPC endpoints, PrivateLink, and network isolation',
+            },
+            {
+              code: 'ENCRYPTION',
+              name: 'Encryption and Key Management',
+              description: 'KMS, CloudHSM, ACM, S3 encryption, EBS encryption, and data protection',
+            },
+            {
+              code: 'ORG_SCP',
+              name: 'AWS Organizations and SCPs',
+              description:
+                'Multi-account strategy, Service Control Policies, and organizational units',
+            },
+            {
+              code: 'EDGE_SEC',
+              name: 'Edge Security',
+              description: 'WAF, Shield, Shield Advanced, and DDoS mitigation strategies',
+            },
+            {
+              code: 'IDENTITY',
+              name: 'Identity Federation',
+              description: 'Cognito, SSO, SAML, and identity provider integration',
+            },
+          ],
+        },
+        {
+          code: 'RESILIENT_ARCH',
+          name: 'Design Resilient Architectures',
+          weight: 0.26,
+          order: 2,
+          description: 'Design multi-tier, highly available, and fault-tolerant architectures',
+          topics: [
+            {
+              code: 'HA_DESIGN',
+              name: 'High Availability Design',
+              description: 'Multi-AZ and multi-region patterns, failover strategies',
+            },
+            {
+              code: 'SCALING',
+              name: 'Auto Scaling and Load Balancing',
+              description: 'Auto Scaling groups, ALB, NLB, GWLB, target groups, and health checks',
+            },
+            {
+              code: 'DNS_ROUTING',
+              name: 'DNS and Routing Policies',
+              description: 'Route 53 routing policies, health checks, and DNS failover',
+            },
+            {
+              code: 'DR',
+              name: 'Disaster Recovery',
+              description:
+                'Backup/restore, pilot light, warm standby, and multi-site DR strategies',
+            },
+            {
+              code: 'DECOUPLE',
+              name: 'Decoupling and Messaging',
+              description: 'SQS, SNS, EventBridge, and event-driven architecture patterns',
+            },
+            {
+              code: 'WORKFLOWS',
+              name: 'Workflow Orchestration',
+              description: 'Step Functions, SWF, and distributed system coordination',
+            },
+          ],
+        },
+        {
+          code: 'PERF_ARCH',
+          name: 'Design High-Performing Architectures',
+          weight: 0.24,
+          order: 3,
+          description: 'Select performant storage, compute, database, and networking solutions',
+          topics: [
+            {
+              code: 'COMPUTE',
+              name: 'Compute Selection',
+              description: 'EC2 instance types, placement groups, ENI, and compute optimization',
+            },
+            {
+              code: 'STORAGE',
+              name: 'Storage Solutions',
+              description:
+                'S3, EBS (gp3, io2, st1), EFS, FSx, and storage performance optimization',
+            },
+            {
+              code: 'DATABASE',
+              name: 'Database Solutions',
+              description: 'RDS, Aurora, DynamoDB, ElastiCache, Redshift, and database selection',
+            },
+            {
+              code: 'CACHING',
+              name: 'Caching and Content Delivery',
+              description: 'CloudFront, ElastiCache, DAX, and caching strategies',
+            },
+            {
+              code: 'SERVERLESS',
+              name: 'Serverless Architecture',
+              description: 'Lambda, API Gateway, Fargate, and serverless design patterns',
+            },
+            {
+              code: 'DATA_ANALYTICS',
+              name: 'Data Analytics',
+              description: 'Kinesis, Redshift, Athena, and analytics pipeline design',
+            },
+          ],
+        },
+        {
+          code: 'COST_ARCH',
+          name: 'Design Cost-Optimized Architectures',
+          weight: 0.2,
+          order: 4,
+          description: 'Design cost-effective storage, compute, and database solutions',
+          topics: [
+            {
+              code: 'PRICING',
+              name: 'Pricing Models',
+              description:
+                'Reserved Instances, Savings Plans, Spot Instances, and pricing optimization',
+            },
+            {
+              code: 'STORAGE_TIERS',
+              name: 'Storage Cost Optimization',
+              description: 'S3 storage classes, lifecycle policies, and data transfer costs',
+            },
+            {
+              code: 'RIGHTSIZING',
+              name: 'Right-Sizing and Monitoring',
+              description:
+                'Cost Explorer, Trusted Advisor, Compute Optimizer, and resource optimization',
+            },
+            {
+              code: 'TRANSFER',
+              name: 'Data Transfer Optimization',
+              description:
+                'VPC endpoints, Direct Connect pricing, and cross-region transfer strategies',
+            },
+            {
+              code: 'SERVERLESS_COST',
+              name: 'Serverless Cost Patterns',
+              description: 'Lambda pricing, API Gateway caching, and pay-per-use optimization',
+            },
+            {
+              code: 'TAGGING',
+              name: 'Cost Allocation and Governance',
+              description: 'Tagging strategies, AWS Budgets, and cost allocation reports',
+            },
+          ],
+        },
+      ];
+
+      const insertDomain = db.prepare(
+        'INSERT INTO domains (certification_id, code, name, weight, description, order_index) VALUES (?, ?, ?, ?, ?, ?)'
+      );
+      const insertTopic = db.prepare(
+        'INSERT INTO topics (domain_id, code, name, description) VALUES (?, ?, ?, ?)'
+      );
+
+      for (const domain of domains) {
+        const domainResult = insertDomain.run(
+          certId,
+          domain.code,
+          domain.name,
+          domain.weight,
+          domain.description,
+          domain.order
+        );
+        const domainId = domainResult.lastInsertRowid;
+        for (const topic of domain.topics) {
+          insertTopic.run(domainId, topic.code, topic.name, topic.description);
+        }
+      }
+
+      console.log(
+        `  [migration] Seeded AWS-SAA certification with ${domains.length} domains and ${domains.reduce((sum, d) => sum + d.topics.length, 0)} topics`
+      );
+    },
+  },
+  {
+    version: 23,
+    name: 'seed_aws_service_categories',
+    up: (db) => {
+      const awsCert = db.prepare("SELECT id FROM certifications WHERE code = 'AWS-SAA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!awsCert) {
+        console.log('  [migration] AWS-SAA certification not found, skipping');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM service_categories WHERE certification_id = ?')
+        .get(awsCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] AWS service categories already seeded');
+        return;
+      }
+
+      const categories = [
+        {
+          id: 'compute',
+          name: 'Compute',
+          order: 1,
+          services: ['EC2', 'Lambda', 'ECS', 'EKS', 'Fargate', 'Elastic Beanstalk', 'Batch'],
+        },
+        {
+          id: 'storage',
+          name: 'Storage',
+          order: 2,
+          services: ['S3', 'EBS', 'EFS', 'FSx', 'Storage Gateway', 'Snow Family'],
+        },
+        {
+          id: 'database',
+          name: 'Database',
+          order: 3,
+          services: [
+            'RDS',
+            'Aurora',
+            'DynamoDB',
+            'ElastiCache',
+            'Redshift',
+            'Neptune',
+            'DocumentDB',
+          ],
+        },
+        {
+          id: 'networking',
+          name: 'Networking & Content Delivery',
+          order: 4,
+          services: [
+            'VPC',
+            'ELB (ALB/NLB/GWLB)',
+            'CloudFront',
+            'Route 53',
+            'Direct Connect',
+            'Transit Gateway',
+            'API Gateway',
+            'Global Accelerator',
+          ],
+        },
+        {
+          id: 'security',
+          name: 'Security, Identity & Compliance',
+          order: 5,
+          services: [
+            'IAM',
+            'KMS',
+            'CloudHSM',
+            'WAF',
+            'Shield',
+            'Cognito',
+            'Organizations',
+            'GuardDuty',
+            'Inspector',
+            'Macie',
+          ],
+        },
+        {
+          id: 'management',
+          name: 'Management & Governance',
+          order: 6,
+          services: [
+            'CloudWatch',
+            'CloudTrail',
+            'Config',
+            'Systems Manager',
+            'CloudFormation',
+            'Trusted Advisor',
+            'Service Catalog',
+          ],
+        },
+        {
+          id: 'integration',
+          name: 'Application Integration',
+          order: 7,
+          services: ['SQS', 'SNS', 'EventBridge', 'Step Functions', 'Kinesis', 'AppFlow'],
+        },
+      ];
+
+      const insertCat = db.prepare(
+        'INSERT INTO service_categories (certification_id, category_id, category_name, display_order) VALUES (?, ?, ?, ?)'
+      );
+      const insertItem = db.prepare(
+        'INSERT INTO service_category_items (category_id, service_name) VALUES (?, ?)'
+      );
+
+      for (const cat of categories) {
+        const result = insertCat.run(awsCert.id, cat.id, cat.name, cat.order);
+        const catDbId = result.lastInsertRowid;
+        for (const svc of cat.services) {
+          insertItem.run(catDbId, svc);
+        }
+      }
+
+      console.log(`  [migration] Seeded ${categories.length} AWS service categories`);
+    },
+  },
+  {
+    version: 24,
+    name: 'seed_aws_saa_learning_path',
+    up: (db) => {
+      const awsCert = db.prepare("SELECT id FROM certifications WHERE code = 'AWS-SAA'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!awsCert) {
+        console.log('  [migration] AWS-SAA certification not found, skipping');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM learning_path_items WHERE certification_id = ?')
+        .get(awsCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] AWS SAA learning path already seeded');
+        return;
+      }
+
+      const items = [
+        {
+          order: 1,
+          title: 'AWS Cloud Practitioner Essentials',
+          type: 'course',
+          description: 'Foundational AWS cloud concepts and services',
+          topics: JSON.stringify(['AWS Global Infrastructure', 'Core Services', 'Pricing']),
+          whyItMatters: 'Builds baseline AWS knowledge required for SAA topics',
+        },
+        {
+          order: 2,
+          title: 'Architecting on AWS',
+          type: 'course',
+          description: 'Core architectural patterns and best practices',
+          topics: JSON.stringify(['EC2', 'VPC', 'S3', 'IAM', 'RDS']),
+          whyItMatters: 'Covers the foundational services tested on SAA-C03',
+        },
+        {
+          order: 3,
+          title: 'AWS Well-Architected Framework',
+          type: 'reading',
+          description: 'Six pillars of well-architected applications',
+          topics: JSON.stringify([
+            'Operational Excellence',
+            'Security',
+            'Reliability',
+            'Performance',
+            'Cost Optimization',
+            'Sustainability',
+          ]),
+          whyItMatters: 'Well-Architected Framework principles underpin most SAA questions',
+        },
+        {
+          order: 4,
+          title: 'AWS Security Fundamentals',
+          type: 'course',
+          description: 'IAM, encryption, VPC security, and compliance',
+          topics: JSON.stringify(['IAM', 'KMS', 'Security Groups', 'NACLs', 'CloudTrail']),
+          whyItMatters: 'Security is the highest-weighted domain at 30%',
+        },
+        {
+          order: 5,
+          title: 'VPC and Networking Deep Dive',
+          type: 'course',
+          description: 'VPC design, subnets, routing, and hybrid connectivity',
+          topics: JSON.stringify([
+            'VPC',
+            'Subnets',
+            'Route Tables',
+            'NAT Gateway',
+            'Direct Connect',
+            'Transit Gateway',
+          ]),
+          whyItMatters: 'Networking is critical for both security and resilience domains',
+        },
+        {
+          order: 6,
+          title: 'Amazon EC2 and Auto Scaling',
+          type: 'course',
+          description: 'Instance types, placement, scaling policies, and ELB',
+          topics: JSON.stringify(['EC2', 'Auto Scaling', 'ALB', 'NLB', 'Launch Templates']),
+          whyItMatters: 'EC2 and scaling appear in resilience and performance domains',
+        },
+        {
+          order: 7,
+          title: 'AWS Storage Services Deep Dive',
+          type: 'course',
+          description: 'S3, EBS, EFS, and storage class selection',
+          topics: JSON.stringify([
+            'S3',
+            'EBS',
+            'EFS',
+            'FSx',
+            'Storage Gateway',
+            'Lifecycle Policies',
+          ]),
+          whyItMatters: 'Storage selection and optimization are heavily tested',
+        },
+        {
+          order: 8,
+          title: 'AWS Database Services',
+          type: 'course',
+          description: 'RDS, Aurora, DynamoDB, and database migration',
+          topics: JSON.stringify(['RDS', 'Aurora', 'DynamoDB', 'ElastiCache', 'DMS']),
+          whyItMatters: 'Choosing the right database service is a common exam scenario',
+        },
+        {
+          order: 9,
+          title: 'Serverless on AWS',
+          type: 'course',
+          description: 'Lambda, API Gateway, Step Functions, and event-driven design',
+          topics: JSON.stringify(['Lambda', 'API Gateway', 'Step Functions', 'EventBridge', 'SQS']),
+          whyItMatters: 'Serverless patterns appear across performance and cost domains',
+        },
+        {
+          order: 10,
+          title: 'AWS Cost Optimization',
+          type: 'course',
+          description: 'Pricing models, Reserved Instances, Savings Plans, and cost tools',
+          topics: JSON.stringify([
+            'Reserved Instances',
+            'Savings Plans',
+            'Spot Instances',
+            'Cost Explorer',
+            'Budgets',
+          ]),
+          whyItMatters: 'Cost optimization is 20% of the exam',
+        },
+        {
+          order: 11,
+          title: 'Disaster Recovery on AWS',
+          type: 'reading',
+          description: 'DR strategies from backup/restore to multi-site active-active',
+          topics: JSON.stringify(['Backup/Restore', 'Pilot Light', 'Warm Standby', 'Multi-Site']),
+          whyItMatters: 'DR strategy selection is a key topic in resilient architecture',
+        },
+        {
+          order: 12,
+          title: 'AWS Monitoring and Observability',
+          type: 'course',
+          description: 'CloudWatch, CloudTrail, Config, and operational tooling',
+          topics: JSON.stringify(['CloudWatch', 'CloudTrail', 'Config', 'Systems Manager']),
+          whyItMatters: 'Monitoring supports security, resilience, and performance domains',
+        },
+        {
+          order: 13,
+          title: 'SAA-C03 Exam Preparation',
+          type: 'course',
+          description: 'Practice exams, review, and exam strategies',
+          topics: JSON.stringify(['Exam Tips', 'Review', 'Practice Questions']),
+          whyItMatters: 'Final review and exam-taking strategies',
+        },
+        {
+          order: 14,
+          title: 'AWS Solutions Architect Associate Exam',
+          type: 'exam',
+          description: 'Take the SAA-C03 certification exam',
+          topics: JSON.stringify(['All Domains']),
+          whyItMatters: 'The certification exam itself',
+        },
+      ];
+
+      const insert = db.prepare(
+        'INSERT INTO learning_path_items (certification_id, item_order, title, type, description, topics, why_it_matters) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      );
+
+      for (const item of items) {
+        insert.run(
+          awsCert.id,
+          item.order,
+          item.title,
+          item.type,
+          item.description,
+          item.topics,
+          item.whyItMatters
+        );
+      }
+
+      console.log(`  [migration] Seeded ${items.length} learning path items for AWS-SAA`);
+    },
+  },
+  {
+    version: 25,
+    name: 'update_certification_capabilities',
+    up: (db) => {
+      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'ACE'").run(
+        JSON.stringify({ hasCaseStudies: false, hasWorkbook: true, hasMasteryMap: true })
+      );
+
+      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'PCA'").run(
+        JSON.stringify({ hasCaseStudies: true, hasWorkbook: false, hasMasteryMap: true })
+      );
+
+      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'AWS-SAA'").run(
+        JSON.stringify({ hasCaseStudies: false, hasWorkbook: true, hasMasteryMap: true })
+      );
+
+      console.log('  [migration] Updated certification capabilities for ACE, PCA, AWS-SAA');
+    },
+  },
 ];
 
 /**
