@@ -3399,6 +3399,11 @@ const migrations: Migration[] = [
         }
 
         console.log(`  [migration] Inserted ${insertedCount} AWS SAA-C03 sample questions`);
+        if (insertedCount < sampleQuestions.length) {
+          console.warn(
+            `  [migration] WARNING: Only ${insertedCount}/${sampleQuestions.length} questions inserted — domain/topic codes may be mismatched`
+          );
+        }
       } else {
         console.log('  [migration] AWS SAA workbook questions already exist, skipping');
       }
