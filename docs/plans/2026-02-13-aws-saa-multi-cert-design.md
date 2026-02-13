@@ -124,7 +124,7 @@ const systemPrompt = SYSTEM_PROMPTS[certCode] ?? SYSTEM_PROMPT_GENERIC;
 | Mastery map | Yes | Yes | Service categories from DB |
 | Study plans | Yes | Yes | Per-cert learning path from DB |
 | Learning path | Yes | Yes | Migrated to DB |
-| Workbook | Yes | Yes | AWS official practice questions |
+| Workbook | Yes | Planned | Infra ready, needs AWS practice question seeding |
 | Spaced repetition | Yes | Yes | Add certificationId filter |
 | Achievements | Yes | Yes | Cert-agnostic |
 | Streaks/XP | Yes | Yes | Cert-agnostic |

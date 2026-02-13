@@ -18,6 +18,7 @@ import {
   studyPlanTasks,
   spacedRepetition,
   learningPathProgress,
+  learningPathItems,
 } from '../db/schema.js';
 import type {
   StudyPlanWithDays,
@@ -27,7 +28,6 @@ import type {
   DomainReadiness,
 } from '@ace-prep/shared';
 import { calculateReadinessScore } from './readinessService.js';
-import { LEARNING_PATH_ITEMS } from '../data/learningPathContent.js';
 
 type DB = BetterSQLite3Database<typeof schemaTypes>;
 
@@ -101,16 +101,30 @@ export async function generateStudyPlan(
     .all();
 
   const completedSet = new Set(completedItems.map((item) => item.pathItemOrder));
-  const incompleteLearningItems = LEARNING_PATH_ITEMS.filter(
-    (item) => !completedSet.has(item.order)
-  ).map((item) => item.order);
 
-  // Get count of due spaced repetition cards
+  // Query learning path items from DB (cert-scoped) instead of deprecated constant
+  const allPathItems = await db
+    .select({ itemOrder: learningPathItems.itemOrder })
+    .from(learningPathItems)
+    .where(eq(learningPathItems.certificationId, certificationId))
+    .all();
+
+  const incompleteLearningItems = allPathItems
+    .filter((item) => !completedSet.has(item.itemOrder))
+    .map((item) => item.itemOrder);
+
+  // Get count of due spaced repetition cards for this certification
   const now = new Date();
   const dueCardsResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(spacedRepetition)
-    .where(and(eq(spacedRepetition.userId, userId), lte(spacedRepetition.nextReviewAt, now)))
+    .where(
+      and(
+        eq(spacedRepetition.userId, userId),
+        eq(spacedRepetition.certificationId, certificationId),
+        lte(spacedRepetition.nextReviewAt, now)
+      )
+    )
     .get();
 
   const dueReviewCards = dueCardsResult?.count ?? 0;
@@ -497,14 +511,27 @@ export async function regenerateStudyPlan(
     .all();
 
   const completedSet = new Set(completedItems.map((item) => item.pathItemOrder));
-  const incompleteLearningItems = LEARNING_PATH_ITEMS.filter(
-    (item) => !completedSet.has(item.order)
-  ).map((item) => item.order);
+
+  const allPathItems = await db
+    .select({ itemOrder: learningPathItems.itemOrder })
+    .from(learningPathItems)
+    .where(eq(learningPathItems.certificationId, plan.certificationId))
+    .all();
+
+  const incompleteLearningItems = allPathItems
+    .filter((item) => !completedSet.has(item.itemOrder))
+    .map((item) => item.itemOrder);
 
   const dueCardsResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(spacedRepetition)
-    .where(and(eq(spacedRepetition.userId, plan.userId), lte(spacedRepetition.nextReviewAt, today)))
+    .where(
+      and(
+        eq(spacedRepetition.userId, plan.userId),
+        eq(spacedRepetition.certificationId, plan.certificationId),
+        lte(spacedRepetition.nextReviewAt, today)
+      )
+    )
     .get();
 
   const targetDate = new Date(plan.targetExamDate);

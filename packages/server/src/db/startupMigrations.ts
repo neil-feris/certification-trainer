@@ -1979,17 +1979,36 @@ const migrations: Migration[] = [
     version: 25,
     name: 'update_certification_capabilities',
     up: (db) => {
-      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'ACE'").run(
-        JSON.stringify({ hasCaseStudies: false, hasWorkbook: true, hasMasteryMap: true })
-      );
+      // Merge new capability flags into existing JSON to preserve any manually-added fields
+      const mergeCapabilities = (code: string, updates: Record<string, boolean>) => {
+        const row = db
+          .prepare('SELECT capabilities FROM certifications WHERE code = ?')
+          .get(code) as { capabilities: string | null } | undefined;
 
-      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'PCA'").run(
-        JSON.stringify({ hasCaseStudies: true, hasWorkbook: false, hasMasteryMap: true })
-      );
+        const existing = row?.capabilities ? JSON.parse(row.capabilities) : {};
+        const merged = { ...existing, ...updates };
 
-      db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'AWS-SAA'").run(
-        JSON.stringify({ hasCaseStudies: false, hasWorkbook: false, hasMasteryMap: true })
-      );
+        db.prepare('UPDATE certifications SET capabilities = ? WHERE code = ?').run(
+          JSON.stringify(merged),
+          code
+        );
+      };
+
+      mergeCapabilities('ACE', {
+        hasCaseStudies: false,
+        hasWorkbook: true,
+        hasMasteryMap: true,
+      });
+      mergeCapabilities('PCA', {
+        hasCaseStudies: true,
+        hasWorkbook: false,
+        hasMasteryMap: true,
+      });
+      mergeCapabilities('AWS-SAA', {
+        hasCaseStudies: false,
+        hasWorkbook: false,
+        hasMasteryMap: true,
+      });
 
       console.log('  [migration] Updated certification capabilities for ACE, PCA, AWS-SAA');
     },
@@ -2054,6 +2073,17 @@ const migrations: Migration[] = [
       console.log(
         '  [migration] Rebuilt workbook_resources with named UNIQUE index workbook_resources_cert_svc_idx'
       );
+    },
+  },
+  {
+    version: 27,
+    name: 'add_spaced_repetition_composite_index',
+    up: (db) => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS sr_user_cert_idx
+          ON spaced_repetition(user_id, certification_id);
+      `);
+      console.log('  [migration] Created sr_user_cert_idx composite index');
     },
   },
 ];
