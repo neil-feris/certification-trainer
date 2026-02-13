@@ -105,12 +105,18 @@ export async function generateStudyPlan(
     (item) => !completedSet.has(item.order)
   ).map((item) => item.order);
 
-  // Get count of due spaced repetition cards
+  // Get count of due spaced repetition cards for this certification
   const now = new Date();
   const dueCardsResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(spacedRepetition)
-    .where(and(eq(spacedRepetition.userId, userId), lte(spacedRepetition.nextReviewAt, now)))
+    .where(
+      and(
+        eq(spacedRepetition.userId, userId),
+        eq(spacedRepetition.certificationId, certificationId),
+        lte(spacedRepetition.nextReviewAt, now)
+      )
+    )
     .get();
 
   const dueReviewCards = dueCardsResult?.count ?? 0;
@@ -504,7 +510,13 @@ export async function regenerateStudyPlan(
   const dueCardsResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(spacedRepetition)
-    .where(and(eq(spacedRepetition.userId, plan.userId), lte(spacedRepetition.nextReviewAt, today)))
+    .where(
+      and(
+        eq(spacedRepetition.userId, plan.userId),
+        eq(spacedRepetition.certificationId, plan.certificationId),
+        lte(spacedRepetition.nextReviewAt, today)
+      )
+    )
     .get();
 
   const targetDate = new Date(plan.targetExamDate);
