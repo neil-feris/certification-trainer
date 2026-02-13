@@ -2075,6 +2075,17 @@ const migrations: Migration[] = [
       );
     },
   },
+  {
+    version: 27,
+    name: 'add_spaced_repetition_composite_index',
+    up: (db) => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS sr_user_cert_idx
+          ON spaced_repetition(user_id, certification_id);
+      `);
+      console.log('  [migration] Created sr_user_cert_idx composite index');
+    },
+  },
 ];
 
 /**

@@ -208,6 +208,7 @@ export const spacedRepetition = sqliteTable(
     uniqueIndex('sr_user_question_idx').on(table.userId, table.questionId),
     index('sr_next_review_idx').on(table.nextReviewAt),
     index('sr_user_idx').on(table.userId),
+    index('sr_user_cert_idx').on(table.userId, table.certificationId),
   ]
 );
 
