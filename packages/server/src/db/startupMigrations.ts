@@ -2006,6 +2006,34 @@ const migrations: Migration[] = [
         .get();
       if (!hasOldTable) return;
 
+      // Pre-migration: check for duplicate (certification_id, cloud_service) pairs
+      const dupes = db
+        .prepare(
+          `SELECT certification_id, cloud_service, COUNT(*) as cnt
+           FROM workbook_resources
+           GROUP BY certification_id, cloud_service
+           HAVING cnt > 1`
+        )
+        .all();
+      if (dupes.length > 0) {
+        console.warn(
+          '  [migration] WARNING: duplicate (certification_id, cloud_service) rows found, deduplicating'
+        );
+        for (const dupe of dupes as Array<{ certification_id: number; cloud_service: string }>) {
+          // Keep the row with the lowest id, delete the rest
+          db.prepare(
+            `DELETE FROM workbook_resources WHERE certification_id = ? AND cloud_service = ? AND id NOT IN (
+              SELECT MIN(id) FROM workbook_resources WHERE certification_id = ? AND cloud_service = ?
+            )`
+          ).run(
+            dupe.certification_id,
+            dupe.cloud_service,
+            dupe.certification_id,
+            dupe.cloud_service
+          );
+        }
+      }
+
       db.exec(`
         CREATE TABLE workbook_resources_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2013,17 +2041,18 @@ const migrations: Migration[] = [
           courses TEXT DEFAULT '[]',
           skill_badges TEXT DEFAULT '[]',
           documentation_links TEXT DEFAULT '[]',
-          certification_id INTEGER NOT NULL REFERENCES certifications(id),
-          UNIQUE(certification_id, cloud_service)
+          certification_id INTEGER NOT NULL REFERENCES certifications(id)
         );
         INSERT INTO workbook_resources_new (id, cloud_service, courses, skill_badges, documentation_links, certification_id)
           SELECT id, cloud_service, courses, skill_badges, documentation_links, certification_id
           FROM workbook_resources;
         DROP TABLE workbook_resources;
         ALTER TABLE workbook_resources_new RENAME TO workbook_resources;
+        CREATE UNIQUE INDEX IF NOT EXISTS workbook_resources_cert_svc_idx
+          ON workbook_resources(certification_id, cloud_service);
       `);
       console.log(
-        '  [migration] Rebuilt workbook_resources with composite UNIQUE(certification_id, cloud_service)'
+        '  [migration] Rebuilt workbook_resources with named UNIQUE index workbook_resources_cert_svc_idx'
       );
     },
   },
