@@ -1006,8 +1006,8 @@ export const workbookApi = {
       body: JSON.stringify(data),
     }),
 
-  getResources: (gcpServices: string[]) =>
+  getResources: (cloudServices: string[]) =>
     request<WorkbookResource[]>(
-      `/workbook/resources?services=${encodeURIComponent(gcpServices.join(','))}`
+      `/workbook/resources?services=${encodeURIComponent(cloudServices.join(','))}`
     ),
 };

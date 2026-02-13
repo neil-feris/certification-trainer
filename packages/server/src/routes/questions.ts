@@ -207,7 +207,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
       options: JSON.parse(r.question.options as string),
       correctAnswers: JSON.parse(r.question.correctAnswers as string),
-      gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+      cloudServices: r.question.cloudServices ? JSON.parse(r.question.cloudServices as string) : [],
       isGenerated: r.question.isGenerated ?? false,
       domain: r.domain,
       topic: r.topic,
@@ -334,8 +334,8 @@ export async function questionRoutes(fastify: FastifyInstance) {
       ...result.question,
       options: JSON.parse(result.question.options as string),
       correctAnswers: JSON.parse(result.question.correctAnswers as string),
-      gcpServices: result.question.gcpServices
-        ? JSON.parse(result.question.gcpServices as string)
+      cloudServices: result.question.cloudServices
+        ? JSON.parse(result.question.cloudServices as string)
         : [],
       domain: result.domain,
       topic: result.topic,
@@ -476,7 +476,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
                 correctAnswers: JSON.stringify(q.correctAnswers),
                 explanation: q.explanation,
                 difficulty: q.difficulty,
-                gcpServices: JSON.stringify(q.gcpServices),
+                cloudServices: JSON.stringify(q.cloudServices),
                 isGenerated: true,
                 createdAt: now,
               }))
@@ -524,7 +524,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       ...r.question,
       options: JSON.parse(r.question.options as string),
       correctAnswers: JSON.parse(r.question.correctAnswers as string),
-      gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+      cloudServices: r.question.cloudServices ? JSON.parse(r.question.cloudServices as string) : [],
       domain: r.domain,
       topic: r.topic,
       spacedRepetition: r.sr,
@@ -1031,7 +1031,9 @@ export async function questionRoutes(fastify: FastifyInstance) {
           difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
           options: JSON.parse(r.question.options as string),
           correctAnswers: JSON.parse(r.question.correctAnswers as string),
-          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          cloudServices: r.question.cloudServices
+            ? JSON.parse(r.question.cloudServices as string)
+            : [],
           isGenerated: r.question.isGenerated ?? false,
           domain: r.domain,
           topic: r.topic,
@@ -1075,7 +1077,9 @@ export async function questionRoutes(fastify: FastifyInstance) {
           difficulty: r.question.difficulty as 'easy' | 'medium' | 'hard',
           options: JSON.parse(r.question.options as string),
           correctAnswers: JSON.parse(r.question.correctAnswers as string),
-          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          cloudServices: r.question.cloudServices
+            ? JSON.parse(r.question.cloudServices as string)
+            : [],
           isGenerated: r.question.isGenerated ?? false,
           domain: r.domain,
           topic: r.topic,

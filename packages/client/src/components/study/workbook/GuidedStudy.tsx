@@ -121,7 +121,7 @@ export function GuidedStudy({ onExit }: Props) {
             selectedAnswers={selectedAnswers}
             options={question.options}
             masteryLevel={feedback?.masteryLevel ?? 'needs_work'}
-            gcpServices={question.gcpServices}
+            cloudServices={question.cloudServices}
           />
           <div className={styles.actions}>
             <button onClick={handleNext} className={styles.primaryButton}>

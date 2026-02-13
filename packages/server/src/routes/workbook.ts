@@ -177,7 +177,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
         questionType: q.questionType,
         options: q.options,
         difficulty: q.difficulty,
-        gcpServices: q.gcpServices,
+        cloudServices: q.cloudServices,
         domain: q.domain,
         topic: q.topic,
         orderIndex: q.orderIndex,

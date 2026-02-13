@@ -1355,6 +1355,20 @@ const migrations: Migration[] = [
       console.log(`  [migration] Seeded ${items.length} learning path items for ACE`);
     },
   },
+  {
+    version: 19,
+    name: 'rename_gcp_services_to_cloud_services',
+    up: (db) => {
+      const columns = db.prepare("PRAGMA table_info('questions')").all() as Array<{ name: string }>;
+      const hasGcpServices = columns.some((col) => col.name === 'gcp_services');
+      const hasCloudServices = columns.some((col) => col.name === 'cloud_services');
+
+      if (hasGcpServices && !hasCloudServices) {
+        db.exec('ALTER TABLE questions RENAME COLUMN gcp_services TO cloud_services');
+        console.log('  [migration] Renamed questions.gcp_services → cloud_services');
+      }
+    },
+  },
 ];
 
 /**

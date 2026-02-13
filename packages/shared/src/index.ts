@@ -154,7 +154,7 @@ export interface Question {
   correctAnswers: number[];
   explanation: string;
   difficulty: Difficulty;
-  gcpServices: string[];
+  cloudServices: string[];
   isGenerated: boolean;
   createdAt: Date;
 }
@@ -412,7 +412,7 @@ export interface QuestionForSession {
   options: string[];
   // correctAnswers and explanation are OMITTED to prevent cheating
   difficulty: Difficulty;
-  gcpServices: string[];
+  cloudServices: string[];
   isGenerated: boolean;
   createdAt: Date;
   domain: Domain;
@@ -478,7 +478,7 @@ export interface GeneratedQuestion {
   options: string[];
   correctAnswers: number[];
   explanation: string;
-  gcpServices: string[];
+  cloudServices: string[];
   difficulty: Difficulty;
 }
 
@@ -951,7 +951,7 @@ export interface NoteQuestionDetail {
   text: string;
   options: string[];
   correctAnswers: number[];
-  gcpServices: string[];
+  cloudServices: string[];
   explanation: string | null;
 }
 
@@ -1566,7 +1566,7 @@ export interface WorkbookQuestion {
   correctAnswers?: number[]; // Only included after answer submission in guided mode
   explanation?: string; // Only included after answer submission
   difficulty: string;
-  gcpServices: string[];
+  cloudServices: string[];
   domain: { id: number; code: string; name: string };
   topic: { id: number; code: string; name: string };
   orderIndex: number;

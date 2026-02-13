@@ -11,7 +11,7 @@ export interface WorkbookQuestion {
   correctAnswers: number[];
   explanation: string;
   difficulty: string;
-  gcpServices: string[];
+  cloudServices: string[];
   domain: { id: number; code: string; name: string };
   topic: { id: number; code: string; name: string };
   orderIndex: number;
@@ -60,7 +60,7 @@ export async function getWorkbookQuestions(): Promise<WorkbookQuestion[]> {
     correctAnswers: JSON.parse(r.question.correctAnswers as string),
     explanation: r.question.explanation,
     difficulty: r.question.difficulty,
-    gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+    cloudServices: r.question.cloudServices ? JSON.parse(r.question.cloudServices as string) : [],
     domain: { id: r.domain.id, code: r.domain.code, name: r.domain.name },
     topic: { id: r.topic.id, code: r.topic.code, name: r.topic.name },
     orderIndex: index + 1,
@@ -540,13 +540,13 @@ export async function getWorkbookBenchmark(userId: number): Promise<WorkbookBenc
 /**
  * Get learning resources for a list of GCP services
  */
-export async function getResourcesByServices(gcpServices: string[]): Promise<WorkbookResource[]> {
-  if (gcpServices.length === 0) return [];
+export async function getResourcesByServices(cloudServices: string[]): Promise<WorkbookResource[]> {
+  if (cloudServices.length === 0) return [];
 
   const resources = await db
     .select()
     .from(workbookResources)
-    .where(inArray(workbookResources.gcpService, gcpServices));
+    .where(inArray(workbookResources.gcpService, cloudServices));
 
   return resources.map((r) => ({
     gcpService: r.gcpService,

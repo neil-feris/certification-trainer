@@ -44,8 +44,8 @@ const masteryMapQuerySchema = z.object({
   certificationId: z.string().regex(/^\d+$/).transform(Number),
 });
 
-/** Safely parse gcpServices JSON field, returning empty array on error */
-function safeParseGcpServices(raw: string | null): string[] {
+/** Safely parse cloudServices JSON field, returning empty array on error */
+function safeParseCloudServices(raw: string | null): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -1022,7 +1022,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
       .select({
         questionId: examResponses.questionId,
         isCorrect: examResponses.isCorrect,
-        gcpServices: questions.gcpServices,
+        cloudServices: questions.cloudServices,
         completedAt: exams.completedAt,
       })
       .from(examResponses)
@@ -1035,7 +1035,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
     const allQuestions = await db
       .select({
         id: questions.id,
-        gcpServices: questions.gcpServices,
+        cloudServices: questions.cloudServices,
       })
       .from(questions)
       .innerJoin(domains, eq(domains.id, questions.domainId))
@@ -1067,7 +1067,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     // Count total questions per service
     for (const q of allQuestions) {
-      const services = safeParseGcpServices(q.gcpServices as string | null);
+      const services = safeParseCloudServices(q.cloudServices as string | null);
       for (const serviceName of services) {
         const id = toServiceId(serviceName);
         const stats = serviceStats.get(id) || {
@@ -1083,7 +1083,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
     // Aggregate user responses per service
     for (const resp of responses) {
-      const services = safeParseGcpServices(resp.gcpServices as string | null);
+      const services = safeParseCloudServices(resp.cloudServices as string | null);
       for (const serviceName of services) {
         const id = toServiceId(serviceName);
         const stats = serviceStats.get(id) || {

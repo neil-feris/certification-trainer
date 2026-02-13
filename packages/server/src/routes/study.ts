@@ -544,7 +544,9 @@ export async function studyRoutes(fastify: FastifyInstance) {
           correctAnswers: JSON.parse(q.question.correctAnswers as string),
           explanation: q.question.explanation,
           difficulty: q.question.difficulty,
-          gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+          cloudServices: q.question.cloudServices
+            ? JSON.parse(q.question.cloudServices as string)
+            : [],
           isGenerated: q.question.isGenerated || true,
           createdAt: q.question.createdAt,
           domain: {
@@ -807,7 +809,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       questionType: q.question.questionType,
       options: JSON.parse(q.question.options as string),
       difficulty: q.question.difficulty,
-      gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+      cloudServices: q.question.cloudServices ? JSON.parse(q.question.cloudServices as string) : [],
       domain: {
         id: q.domain.id,
         name: q.domain.name,
@@ -883,7 +885,9 @@ export async function studyRoutes(fastify: FastifyInstance) {
             questionType: q.question.questionType,
             options: JSON.parse(q.question.options as string),
             difficulty: q.question.difficulty,
-            gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+            cloudServices: q.question.cloudServices
+              ? JSON.parse(q.question.cloudServices as string)
+              : [],
             caseStudyId: q.question.caseStudyId ?? undefined,
             domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
             topic: { id: q.topic.id, name: q.topic.name },
@@ -1385,7 +1389,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       correctAnswers: JSON.parse(q.question.correctAnswers as string),
       explanation: q.question.explanation,
       difficulty: q.question.difficulty,
-      gcpServices: q.question.gcpServices ? JSON.parse(q.question.gcpServices as string) : [],
+      cloudServices: q.question.cloudServices ? JSON.parse(q.question.cloudServices as string) : [],
       caseStudyId: q.question.caseStudyId ?? undefined,
       domain: { id: q.domain.id, name: q.domain.name, code: q.domain.code },
       topic: { id: q.topic.id, name: q.topic.name },

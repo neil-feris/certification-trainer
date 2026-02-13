@@ -123,7 +123,9 @@ export async function noteRoutes(fastify: FastifyInstance) {
         text: row.question.questionText,
         options: JSON.parse(row.question.options as string),
         correctAnswers: JSON.parse(row.question.correctAnswers as string),
-        gcpServices: row.question.gcpServices ? JSON.parse(row.question.gcpServices as string) : [],
+        cloudServices: row.question.cloudServices
+          ? JSON.parse(row.question.cloudServices as string)
+          : [],
         explanation: row.question.explanation,
       },
       domain: row.domain,

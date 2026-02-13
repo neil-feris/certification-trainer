@@ -20,7 +20,7 @@ interface StudyQuestion {
   correctAnswers?: number[];
   explanation?: string;
   difficulty: string;
-  gcpServices: string[];
+  cloudServices: string[];
   domain: { id: number; name: string; code: string };
   topic: { id: number; name: string };
   caseStudy?: CaseStudy;
@@ -136,7 +136,7 @@ export const useStudyStore = create<StudySessionState>()(
                     correctAnswers: q.correctAnswers,
                     explanation: q.explanation,
                     difficulty: q.difficulty,
-                    gcpServices: q.gcpServices,
+                    cloudServices: q.cloudServices,
                     domain: { id: q.domainId, name: '', code: '' },
                     topic: { id: q.topicId, name: '' },
                   }));
@@ -590,7 +590,7 @@ export const useStudyStore = create<StudySessionState>()(
           questionType: q.questionType,
           options: q.options,
           difficulty: q.difficulty,
-          gcpServices: q.gcpServices,
+          cloudServices: q.cloudServices,
           domain: q.domain,
           topic: q.topic,
           // correctAnswers and explanation intentionally omitted

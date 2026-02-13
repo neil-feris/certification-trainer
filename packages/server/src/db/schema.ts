@@ -115,7 +115,7 @@ export const questions = sqliteTable(
     correctAnswers: text('correct_answers').notNull(), // JSON array of indices
     explanation: text('explanation').notNull(),
     difficulty: text('difficulty').notNull(), // 'easy' | 'medium' | 'hard'
-    gcpServices: text('gcp_services'), // JSON array
+    cloudServices: text('cloud_services'), // JSON array of provider services
     isGenerated: integer('is_generated', { mode: 'boolean' }).default(true),
     source: text('source').$type<'generated' | 'seed' | 'workbook'>().default('generated'),
     thumbsUpCount: integer('thumbs_up_count').notNull().default(0),

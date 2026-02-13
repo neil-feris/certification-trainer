@@ -10,7 +10,7 @@ interface Props {
   selectedAnswers: number[];
   options: string[];
   masteryLevel: string;
-  gcpServices: string[];
+  cloudServices: string[];
 }
 
 // External link icon
@@ -77,13 +77,13 @@ export function FeedbackPanel({
   selectedAnswers,
   options,
   masteryLevel,
-  gcpServices,
+  cloudServices,
 }: Props) {
   // Fetch resources for the GCP services in this question
   const { data: resources, isLoading: resourcesLoading } = useQuery({
-    queryKey: ['workbookResources', gcpServices],
-    queryFn: () => workbookApi.getResources(gcpServices),
-    enabled: gcpServices.length > 0,
+    queryKey: ['workbookResources', cloudServices],
+    queryFn: () => workbookApi.getResources(cloudServices),
+    enabled: cloudServices.length > 0,
     staleTime: 300000, // 5 min cache
   });
 
@@ -142,11 +142,11 @@ export function FeedbackPanel({
       </div>
 
       {/* GCP Services */}
-      {gcpServices.length > 0 && (
+      {cloudServices.length > 0 && (
         <div className={styles.section}>
           <h4 className={styles.sectionTitle}>GCP Services</h4>
           <div className={styles.tags}>
-            {gcpServices.map((service) => (
+            {cloudServices.map((service) => (
               <span key={service} className={styles.tag}>
                 {service}
               </span>
@@ -161,7 +161,7 @@ export function FeedbackPanel({
 
         {resourcesLoading && <p className={styles.placeholder}>Loading resources...</p>}
 
-        {!resourcesLoading && !hasResources && gcpServices.length > 0 && (
+        {!resourcesLoading && !hasResources && cloudServices.length > 0 && (
           <p className={styles.placeholder}>No specific resources found for these services.</p>
         )}
 

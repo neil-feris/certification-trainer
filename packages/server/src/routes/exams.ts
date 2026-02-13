@@ -109,7 +109,9 @@ export async function examRoutes(fastify: FastifyInstance) {
           caseStudyId: r.question.caseStudyId ?? undefined,
           options: JSON.parse(r.question.options as string),
           correctAnswers: JSON.parse(r.question.correctAnswers as string),
-          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          cloudServices: r.question.cloudServices
+            ? JSON.parse(r.question.cloudServices as string)
+            : [],
           domain: r.domain,
           topic: r.topic,
           caseStudy: mapCaseStudyRecord(r.caseStudy),
@@ -636,7 +638,9 @@ export async function examRoutes(fastify: FastifyInstance) {
           caseStudyId: r.question.caseStudyId ?? undefined,
           options: JSON.parse(r.question.options as string),
           correctAnswers: JSON.parse(r.question.correctAnswers as string),
-          gcpServices: r.question.gcpServices ? JSON.parse(r.question.gcpServices as string) : [],
+          cloudServices: r.question.cloudServices
+            ? JSON.parse(r.question.cloudServices as string)
+            : [],
           domain: r.domain,
           topic: r.topic,
           caseStudy: mapCaseStudyRecord(r.caseStudy),

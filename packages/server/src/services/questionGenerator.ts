@@ -173,7 +173,7 @@ Respond with valid JSON matching this exact schema:
       "options": ["A. option text", "B. option text", "C. option text", "D. option text"],
       "correctAnswers": [0],
       "explanation": "string - detailed explanation",
-      "gcpServices": ["Service1", "Service2"],
+      "cloudServices": ["Service1", "Service2"],
       "difficulty": "${params.difficulty}"
     }
   ]
@@ -379,7 +379,7 @@ function validateQuestions(
       options: q.options,
       correctAnswers: q.correctAnswers,
       explanation: q.explanation,
-      gcpServices: q.gcpServices || [],
+      cloudServices: q.cloudServices || q.gcpServices || [],
       difficulty,
     };
   });
