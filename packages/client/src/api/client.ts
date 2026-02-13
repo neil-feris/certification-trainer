@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react';
 import type {
+  ReadinessProjection,
   LearningPathItem,
   LearningPathStats,
   LearningPathDetailResponse,
@@ -443,10 +444,13 @@ export const examApi = {
   },
   get: (id: number) => request<any>(`/exams/${id}`),
   create: (options?: CreateExamRequest) =>
-    request<{ examId: number; totalQuestions: number }>('/exams', {
-      method: 'POST',
-      body: JSON.stringify(options || {}),
-    }),
+    request<{ examId: number; totalQuestions: number; recommendedDurationSeconds: number }>(
+      '/exams',
+      {
+        method: 'POST',
+        body: JSON.stringify(options || {}),
+      }
+    ),
   submitAnswer: (
     examId: number,
     data: { questionId: number; selectedAnswers: number[]; timeSpentSeconds?: number }
@@ -638,6 +642,11 @@ export const progressApi = {
   },
   getMasteryMap: (certificationId: number) => {
     return request<MasteryMapResponse>(`/progress/mastery-map?certificationId=${certificationId}`);
+  },
+  getReadinessProjection: (certificationId: number) => {
+    return request<ReadinessProjection>(
+      `/progress/readiness-projection?certificationId=${certificationId}`
+    );
   },
 };
 

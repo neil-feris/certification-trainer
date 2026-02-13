@@ -12,16 +12,29 @@ import type { CacheStatus } from '@ace-prep/shared';
 import {
   EXAM_SIZE_OPTIONS as EXAM_SIZES,
   EXAM_SIZE_DEFAULT,
+  ADAPTIVE_TIMER_MAP,
   type ExamSize,
 } from '@ace-prep/shared';
 import styles from './ExamSetup.module.css';
 
-// UI-specific metadata for each exam size
+function formatDuration(seconds: number): string {
+  if (seconds >= 3600) {
+    const hrs = seconds / 3600;
+    return hrs === 1 ? '1 hr' : `${hrs} hrs`;
+  }
+  return `~${Math.round(seconds / 60)} min`;
+}
+
+// UI-specific metadata for each exam size (duration derived from ADAPTIVE_TIMER_MAP)
 const EXAM_SIZE_UI: Record<ExamSize, { label: string; description: string; duration: string }> = {
-  10: { label: '10', description: 'Quick Practice', duration: '~12 min' },
-  15: { label: '15', description: 'Short', duration: '~18 min' },
-  25: { label: '25', description: 'Medium', duration: '~30 min' },
-  50: { label: '50', description: 'Full Exam', duration: '2 hrs' },
+  10: {
+    label: '10',
+    description: 'Quick Practice',
+    duration: formatDuration(ADAPTIVE_TIMER_MAP[10]),
+  },
+  15: { label: '15', description: 'Short', duration: formatDuration(ADAPTIVE_TIMER_MAP[15]) },
+  25: { label: '25', description: 'Medium', duration: formatDuration(ADAPTIVE_TIMER_MAP[25]) },
+  50: { label: '50', description: 'Full Exam', duration: formatDuration(ADAPTIVE_TIMER_MAP[50]) },
 };
 
 // Fetches and displays domains for the selected certification
@@ -103,7 +116,9 @@ export function ExamSetup() {
         questionCount: selectedSize,
         certificationId: selectedCertificationId ?? undefined,
       });
-      navigate(`/exam/${result.examId}`);
+      navigate(`/exam/${result.examId}`, {
+        state: { recommendedDurationSeconds: result.recommendedDurationSeconds },
+      });
     } catch (err: any) {
       // Check if this is a network error - offer offline fallback
       if (isNetworkError(err) || !navigator.onLine) {

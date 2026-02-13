@@ -220,6 +220,50 @@
   color: var(--text-muted);
 }
 
+/* Projection Widget */
+.projectionWidget {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.projectionReady {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.projectionDate {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent-primary);
+}
+
+.projectionMeta {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.projectionMeta[data-on-track="true"] {
+  color: var(--success);
+}
+
+.projectionMeta[data-on-track="false"] {
+  color: var(--warning);
+}
+
+.projectionEmpty {
+  margin-top: 4px;
+}
+
+.projectionEmptyLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 /* Quick Actions - mobile only */
 .quickActions {
   display: none;

@@ -773,6 +773,53 @@ const migrations: Migration[] = [
       console.log(`  [migration] Seeded ${resources.length} workbook resources`);
     },
   },
+  {
+    version: 13,
+    name: 'add_question_encounters_and_difficulty_calibration',
+    up: (db) => {
+      // Create question_encounters table
+      const tableExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='question_encounters'")
+        .get();
+
+      if (!tableExists) {
+        db.exec(`
+          CREATE TABLE question_encounters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+            encounter_count INTEGER NOT NULL DEFAULT 1,
+            last_seen_at INTEGER NOT NULL
+          );
+
+          CREATE UNIQUE INDEX question_encounters_user_question_idx ON question_encounters(user_id, question_id);
+          CREATE INDEX question_encounters_user_idx ON question_encounters(user_id);
+          CREATE INDEX question_encounters_last_seen_idx ON question_encounters(user_id, last_seen_at);
+        `);
+        console.log('  [migration] Created question_encounters table');
+      }
+
+      // Add difficulty calibration columns to questions table
+      const columns = db.prepare("PRAGMA table_info('questions')").all() as Array<{
+        name: string;
+      }>;
+
+      if (!columns.some((col) => col.name === 'empirical_difficulty')) {
+        db.exec(`ALTER TABLE questions ADD COLUMN empirical_difficulty TEXT`);
+        console.log('  [migration] Added empirical_difficulty column to questions');
+      }
+
+      if (!columns.some((col) => col.name === 'attempt_count')) {
+        db.exec(`ALTER TABLE questions ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0`);
+        console.log('  [migration] Added attempt_count column to questions');
+      }
+
+      if (!columns.some((col) => col.name === 'correct_count')) {
+        db.exec(`ALTER TABLE questions ADD COLUMN correct_count INTEGER NOT NULL DEFAULT 0`);
+        console.log('  [migration] Added correct_count column to questions');
+      }
+    },
+  },
 ];
 
 /**

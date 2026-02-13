@@ -1,0 +1,222 @@
+# Ralph Progress Log
+Started: Thu 12 Feb 2026 18:32:20 SAST
+
+## Codebase Patterns
+- Shared package is single file: `packages/shared/src/index.ts` (~1700 lines), all types/constants exported from there
+- Shared must build first (`npm run build -w @ace-prep/shared`) before server/client typecheck
+- ExamSize type is `10 | 15 | 25 | 50` from `EXAM_SIZE_OPTIONS` const array
+- Use `as const` for constant arrays, derive types with `(typeof X)[number]`
+- Pre-existing lint warnings (192) are all `no-console` and `no-explicit-any` — no errors
+- lint-staged runs automatically on commit via pre-commit hook
+- Migrations in `startupMigrations.ts` use synchronous better-sqlite3 only — no async/await
+- Latest migration version is 13 — next should be 14
+- Schema type exports go at the bottom of `schema.ts` with pattern `TypeRecord` (select) and `NewType` (insert)
+- Drizzle schema table definitions use `sqliteTable` with index functions as 3rd arg returning array
+- Tests mocking db: use `vi.hoisted()` to declare mock fns, then `vi.mock('../db/index.js', () => ...)` with those refs
+- `feedbackService.test.ts` has pre-existing NODE_MODULE_VERSION failure — ignore in test runs
+- Export `_testing` object from services for direct unit testing of pure functions (avoids heavy DB mocks)
+- Don't use `require()` in tests for ESM modules — use static `import` after `vi.mock()`
+- Only destructure mock refs you use in test assertions — lint catches unused destructured vars from hoisted blocks
+- `selectQuestions()` returns `number[]` (IDs) — fetch full records via `inArray(questions.id, ids)` for response creation
+- `recordEncounters()` is synchronous — no await needed, call after response insertion
+- `updateQuestionStats()` and `recalibrateIfReady()` are synchronous — call fire-and-forget from answer submission paths
+- `parseCertificationIdFromQuery()` is the standard helper for cert ID validation in progress routes — auto-sends error response on failure
+- Dashboard stats grid: use `statCard` + `statLabel` header pattern; add new widget cards inline in `statsGrid`
+- CSS data attributes (`data-on-track="true"`) + attribute selectors preferred over className composition for binary conditional styles
+- `readinessSnapshots` has `overallScore` (real 0-100) and `calculatedAt` (timestamp) — good for time-series analysis
+- Pace calculation: exams, studySessions, flashcardSessions all share `status`/`completedAt`/`userId`/`certificationId` columns
+- Test mock for sequential `.all()` calls: use call counter in `mockImplementation` to return different data per invocation
+
+---
+
+## 2026-02-12 - US-001
+- Implemented: AdaptiveSelectionConfig, QuestionEncounter, DifficultyCalibration, ReadinessProjection interfaces
+- Added ADAPTIVE_DEFAULTS constant, AdaptiveTimerConfig type, ADAPTIVE_TIMER_MAP constant
+- Files changed: `packages/shared/src/index.ts` (+68 lines)
+- **Learnings for future iterations:**
+  - All shared types live in a single `index.ts` — append new sections at the end with section comment headers
+  - Shared `dist/` is gitignored, only source matters for commits
+  - Build shared first, then typecheck server+client to validate
+---
+
+## 2026-02-12 - US-002
+- Implemented: `questionEncounters` table in schema.ts with userId, questionId, encounterCount, lastSeenAt + unique index
+- Added `empiricalDifficulty`, `attemptCount`, `correctCount` columns to `questions` table in schema.ts
+- Added migration version 13 in `startupMigrations.ts` — creates table + ALTER TABLE for 3 new columns (all idempotent)
+- Added type exports: `QuestionEncounterRecord`, `NewQuestionEncounter`
+- Files changed: `packages/server/src/db/schema.ts`, `packages/server/src/db/startupMigrations.ts`
+- **Learnings for future iterations:**
+  - Migration column existence checks use `PRAGMA table_info('tablename')` then `.some(col => col.name === 'x')`
+  - Table existence checks use `SELECT name FROM sqlite_master WHERE type='table' AND name='x'`
+  - Each ALTER TABLE must be a separate `db.exec()` call in SQLite (can't batch them)
+  - Indexes on `question_encounters` include composite (user_id, last_seen_at) for recent encounter queries
+---
+
+## 2026-02-12 - US-003
+- Implemented: `encounterService.ts` with `recordEncounters(userId, questionIds)` and `getRecentEncounters(userId, limit)`
+- `recordEncounters` uses synchronous `db.transaction()` — loops through questionIds, upserts each (select → insert or update)
+- `getRecentEncounters` is async, queries with `orderBy(desc(lastSeenAt))` and `limit()`
+- Full test suite with `vi.hoisted()` + `vi.mock()` pattern for mocking Drizzle db module
+- Files changed: `packages/server/src/services/encounterService.ts`, `packages/server/src/services/encounterService.test.ts`
+- **Learnings for future iterations:**
+  - `vi.mock()` factory is hoisted above variable declarations — must use `vi.hoisted()` to declare mock fns accessible in factory
+  - Drizzle chain mocking pattern: define full chain (select→from→where→all, insert→values→run, update→set→where→run) inside `vi.hoisted()`, return all needed refs
+  - `feedbackService.test.ts` has pre-existing failure (NODE_MODULE_VERSION mismatch) — not related to adaptive learning changes
+  - Services that write use synchronous `db.transaction()`, services that only read can use `async` + `await db.select()`
+---
+
+## 2026-02-12 - US-004
+- Implemented: `adaptiveSelector.ts` with `selectQuestions(params)` — core adaptive question selection algorithm
+- Weak area weighting: queries `performanceStats` for domain-level accuracy, applies multipliers (5x <50%, 3x <70%, 2x unseen, 0.5x mastered >90% with 10+ attempts)
+- Cooldown enforcement: excludes recently-seen questions from `questionEncounters`, auto-shrinks window (half → none) if pool too small
+- Difficulty progression: beginner (<50% overall) gets 1.5x easy / 0.5x hard, advanced (>75%) gets 1.5x hard / 0.5x easy, intermediate balanced
+- Fallback to `ORDER BY RANDOM()` when adaptive pool insufficient (candidates <= requested count)
+- Weighted random sampling without replacement via cumulative weight traversal
+- Exports `_testing` object with internals for direct unit testing of pure functions
+- 20 unit tests covering: weak area weights, difficulty multipliers, weighted sampling, overall accuracy calc, integration with mocked DB
+- Files changed: `packages/server/src/services/adaptiveSelector.ts`, `packages/server/src/services/adaptiveSelector.test.ts`
+- **Learnings for future iterations:**
+  - Don't use `require()` for ESM modules in tests — use static `import` at top level after `vi.mock()`
+  - Export `_testing` object for pure function unit testing — avoids heavy DB mock chains for core logic
+  - Only destructure mock refs you actually use in test assertions — lint catches unused vars from hoisted destructuring
+  - `notInArray` from drizzle-orm for cooldown exclusion queries
+  - Mock chain for multi-join queries: `select → from → innerJoin → where → all` (innerJoin returns object with `where`)
+  - `performanceStats` has domain-level aggregates only — no per-question tracking, must use domain accuracy as proxy
+---
+
+## 2026-02-12 - US-005
+- Integrated adaptive selection into `POST /api/exams` exam creation endpoint
+- Replaced `baseQuery.orderBy(sql\`RANDOM()\`).limit(targetCount)` with `selectQuestions()` call
+- `selectQuestions` returns question IDs → fetch full records with `inArray(questions.id, selectedIds)`
+- Passes `focusDomains` as `domainIds` to selector when provided in request body
+- Added `recordEncounters(userId, selectedQuestionIds)` call after exam response insertion
+- API contract unchanged: still returns `{ examId, totalQuestions }`
+- Cold-start users: `selectQuestions` handles zero performance history via its fallback to RANDOM()
+- Files changed: `packages/server/src/routes/exams.ts`
+- **Learnings for future iterations:**
+  - `selectQuestions` returns `number[]` (IDs only) — must fetch full question records separately for exam response creation
+  - `recordEncounters` is synchronous (uses `db.transaction()`) — can call it fire-and-forget, no await needed
+  - Keep the available count check before calling `selectQuestions` — the selector has its own fallback but the count check provides a better user error message
+  - Route integration is minimal: import 2 services, replace 1 query line, add 1 encounter recording line
+---
+
+## 2026-02-12 - US-006
+- Integrated adaptive selection into `POST /api/drills` drill creation endpoint
+- Replaced manual `weak_areas` performance query + `ORDER BY RANDOM()` with `selectQuestions()` call
+- Mode mapping: `domain` mode passes `domainIds: [domainId]`, `weak_areas` and `all` modes pass no domain filter (selector's weak area weighting handles prioritization naturally)
+- Added `recordEncounters(userId, selectedQuestionIds)` after session creation
+- Removed unused `performanceStats` import (no longer needed — selector handles performance queries internally)
+- API contract unchanged: still returns `{ drillId, questions, startedAt, timeLimitSeconds }`
+- Files changed: `packages/server/src/routes/drills.ts`
+- **Learnings for future iterations:**
+  - Drill modes don't need special handling for `weak_areas` — the adaptive selector's weak area weighting already prioritizes domains with <70% accuracy, achieving the same effect without the manual `performanceStats` query
+  - Drill route needed domain/topic join for question formatting (unlike exams which just needed flat question records) — use the joined select when the response includes domain/topic metadata
+  - `selectedQuestionIds.length > 0` guard needed before `inArray()` — Drizzle/SQLite doesn't handle empty `IN ()` clause gracefully
+---
+
+## 2026-02-12 - US-007
+- Integrated adaptive selection into `POST /api/study/flashcards` for non-bookmarked sessions
+- When `bookmarkedOnly` is false: uses `selectQuestions()` with userId, certificationId, count, and domainId filter
+- When `bookmarkedOnly` is true: preserves existing `ORDER BY RANDOM()` behavior with bookmark ID filtering
+- Added `recordEncounters(userId, questionIds)` after session creation for all sessions (bookmarked and adaptive)
+- Files changed: `packages/server/src/routes/flashcards.ts`
+- **Learnings for future iterations:**
+  - `selectQuestions` doesn't support `topicId` filtering — only `domainIds`. When a topic is specified, pass the parent domain to the selector. Topic-level granularity is less critical since adaptive weighting operates at domain level anyway
+  - Flashcard route's bookmarked path needs its own conditions array with `inArray(questions.id, bookmarkedQuestionIds)` — can't share the same query path as adaptive selection
+  - The GET `/:sessionId` endpoint fetches full question data separately (domain/topic joins) after session creation — the POST only stores question IDs, so `selectQuestions` returning IDs is sufficient
+  - `recordEncounters` should be called for all sessions (including bookmarked) since encounter tracking is about cooldown windows regardless of selection method
+---
+
+## 2026-02-12 - US-008
+- Implemented: `difficultyCalibration.ts` with `updateQuestionStats(questionId, isCorrect)`, `recalibrateIfReady(questionId)`, `getCalibratedDifficulty(questionId)`
+- `updateQuestionStats` increments attemptCount (always) and correctCount (if correct) on questions table using SQL increment expressions
+- `recalibrateIfReady` checks min 5 attempts threshold, computes Bayesian confidence = 1 - 1/sqrt(sampleSize), derives empirical label (>80%=easy, 50-80%=medium, <50%=hard), blends with original via numeric mapping (easy=1, medium=2, hard=3) and stores result
+- `getCalibratedDifficulty` returns empiricalDifficulty if set, falls back to original difficulty, defaults to 'medium' for missing questions
+- Exports `_testing` object with pure functions: `empiricalLabel`, `confidence`, `blendDifficulty`, `difficultyToNumeric`, `numericToDifficulty`
+- 24 unit tests covering: empirical label thresholds, confidence curve behavior, difficulty numeric mapping, blend formula at 0/0.5/1 confidence, updateQuestionStats correct/incorrect paths, recalibrateIfReady threshold/calibration behavior, getCalibratedDifficulty fallback chain
+- Files changed: `packages/server/src/services/difficultyCalibration.ts`, `packages/server/src/services/difficultyCalibration.test.ts`
+- **Learnings for future iterations:**
+  - Bayesian confidence `1 - 1/sqrt(n)` is 0 at n=1, ~0.553 at n=5 (threshold), approaches 1 — good gradual ramp
+  - Numeric difficulty mapping (easy=1, medium=2, hard=3) allows linear interpolation then re-bucketing via thresholds (≤1.5=easy, ≤2.5=medium, >2.5=hard)
+  - `updateQuestionStats` and `recalibrateIfReady` are both synchronous (no async) since they use `.run()` — can be called fire-and-forget from answer submission paths
+  - Keep `getCalibratedDifficulty` async for consistency with other read services, even though better-sqlite3 is synchronous under the hood
+---
+
+## 2026-02-12 - US-009
+- Wired `updateQuestionStats()` + `recalibrateIfReady()` into all answer submission paths:
+  - **exams.ts**: PATCH `/:id/answer` (single answer) and POST `/:id/submit-batch` (batch submit)
+  - **drills.ts**: PATCH `/:id/answer` (drill answer submission)
+  - **flashcards.ts**: POST `/:sessionId/rate` (flashcard rating — maps SM-2 ratings to correct/incorrect)
+- SM-2 rating mapping: `good`/`easy` = correct, `again`/`hard` = incorrect
+- All calibration calls are fire-and-forget (synchronous, non-blocking) — placed after the main DB write but before the return
+- Batch submit recomputes `isCorrect` from `questionMap` for calibration (same logic as the update loop, avoids capturing closure variable)
+- No API response shape changes — only added side-effect calls
+- Files changed: `packages/server/src/routes/exams.ts`, `packages/server/src/routes/drills.ts`, `packages/server/src/routes/flashcards.ts`
+- **Learnings for future iterations:**
+  - Route integration for calibration is minimal: import 2 functions, add 2 lines per answer path
+  - Batch submit path already has `questionMap` and `isCorrect` computed in the `updatePromises.map()` — but those are async closures, so for the calibration loop after `Promise.all`, re-derive `isCorrect` from the questionMap to avoid scoping issues
+  - Flashcard SM-2 mapping: `rating === 'good' || rating === 'easy'` is the correct boundary — `hard` means the user struggled (incorrect for calibration purposes)
+  - Pre-existing `feedbackService.test.ts` failure (NODE_MODULE_VERSION) is still unrelated — all 228 actual tests pass
+---
+
+## 2026-02-12 - US-010
+- Implemented adaptive exam timer: exam duration now scales by question count instead of hardcoded 2 hours
+- Server: POST `/api/exams` now returns `recommendedDurationSeconds` from `ADAPTIVE_TIMER_MAP[targetCount]`
+- Client API: Updated response type to include `recommendedDurationSeconds`
+- ExamSetup.tsx: Duration display now derives from `ADAPTIVE_TIMER_MAP` via `formatDuration()` helper instead of hardcoded strings
+- ExamSetup.tsx: Passes `recommendedDurationSeconds` to ExamContainer via React Router navigation state
+- examStore.ts: Replaced hardcoded `EXAM_DURATION = 7200` with `getExamDuration(questionCount)` helper using `ADAPTIVE_TIMER_MAP`
+- examStore.ts: Added `examDuration` state field to track total duration per exam; `startExam` now accepts optional `durationSeconds` param
+- examStore.ts: Offline exam creation/resume uses `getExamDuration()` based on question count
+- ExamContainer.tsx: Reads `recommendedDurationSeconds` from `location.state` and passes to `startExam`
+- 50-question exam retains 2-hour timer (ADAPTIVE_TIMER_MAP[50] = 7200)
+- Files changed: `packages/server/src/routes/exams.ts`, `packages/client/src/api/client.ts`, `packages/client/src/components/exam/ExamSetup.tsx`, `packages/client/src/components/exam/ExamContainer.tsx`, `packages/client/src/stores/examStore.ts`
+- **Learnings for future iterations:**
+  - React Router navigation state (`navigate(path, { state: ... })`) is the cleanest way to pass one-shot data from creation flow to the target page — no URL params needed
+  - `useLocation().state` returns `unknown` — cast with `as any` for optional property access
+  - When replacing a module-level constant with a function, use `replace_all` carefully — the constant name might appear as a substring of other identifiers (e.g., `DEFAULT_EXAM_DURATION` contains `EXAM_DURATION`)
+  - Zustand stores with `persist` middleware need new state fields added to both the interface and all `set({...})` reset call sites — easy to miss some
+  - The `formatDuration` helper keeps ExamSetup display consistent with timer map values — changing `ADAPTIVE_TIMER_MAP` automatically updates the UI
+---
+
+## 2026-02-12 - US-011
+- Implemented: `readinessProjection.ts` with `projectReadiness(userId, certificationId)` returning `ReadinessProjection`
+- Linear regression on `readinessSnapshots` (last 30 days) to derive improvement rate (points/day)
+- Study pace from completed exams + study sessions + flashcard sessions in last 30 days, normalized to sessions/week
+- Projects days remaining as `(passingScore - currentScore) / improvementRate` with ceiling rounding
+- `isProjectable` = false when <3 snapshots, zero/negative improvement rate, or projection >365 days
+- Already-passing users: `daysRemaining: 0, isOnTrack: true, projectedReadyDate: null`
+- `calculateRequiredPace` provides guidance on needed study intensity
+- Exports `_testing` object with pure functions: `linearRegression`, `projectDaysRemaining`, `calculateRequiredPace`
+- 24 unit tests: linearRegression (7 — positive/negative/flat/noisy/single/empty/identical-x), projectDaysRemaining (7), calculateRequiredPace (4), constants (2), integration with mocked DB (4 — insufficient data, declining, positive trend, already passing)
+- Files changed: `packages/server/src/services/readinessProjection.ts`, `packages/server/src/services/readinessProjection.test.ts`
+- **Learnings for future iterations:**
+  - `readinessSnapshots` stores `overallScore` (0-100 real) and `calculatedAt` (timestamp mode) — ideal for time-series regression
+  - Services that only read can import `db` directly from `../db/index.js` (no param passing needed)
+  - `Promise.all` for parallel independent queries (snapshots, activity counts, passing score) — significantly faster than sequential
+  - Linear regression with 2+ points is sufficient mathematically but 3+ gives more reliable projections in practice
+  - Pace calculation across 3 tables (exams, studySessions, flashcardSessions) — all have `status`, `completedAt`, `userId`, `certificationId` columns for consistent filtering
+  - Test mock pattern for multiple sequential `.all()` calls: use call counter in `mockImplementation` to return different data per invocation
+---
+
+## 2026-02-12 - US-012
+- Added `GET /api/progress/readiness-projection` endpoint in `progress.ts` calling `projectReadiness(userId, certId)`
+- Added `getReadinessProjection(certificationId)` to client `progressApi` in `client.ts`
+- Added projection section to `ReadinessPage.tsx`:
+  - Displays projected ready date, days remaining, improvement rate, current/required pace, on-track status
+  - Shows "exam ready" state when `daysRemaining === 0`
+  - Gracefully handles `isProjectable: false` with "Not enough data" message
+- Added compact projection widget to `Dashboard.tsx` in the stats grid:
+  - Shows projected date (month + day) and days remaining with on-track indicator
+  - Color-coded: green for on track, amber for behind pace
+  - Shows "Not enough data yet" when insufficient snapshots
+- Styled using existing CSS variables (`--bg-secondary`, `--border-color`, `--success`, `--warning`, `--text-muted`, etc.)
+- Responsive: projection stats grid collapses from 4 to 2 columns on mobile
+- Files changed: `packages/server/src/routes/progress.ts`, `packages/client/src/api/client.ts`, `packages/client/src/components/progress/ReadinessPage.tsx`, `packages/client/src/components/progress/ReadinessPage.module.css`, `packages/client/src/components/dashboard/Dashboard.tsx`, `packages/client/src/components/dashboard/Dashboard.module.css`
+- **Learnings for future iterations:**
+  - `parseCertificationIdFromQuery` is the standard utility for query param cert ID parsing in progress routes — handles validation and error response
+  - Dashboard stats grid uses `statCard` class — add new stat cards in the same pattern with `statLabel` header + content below
+  - CSS data attributes (`data-on-track="true"`) + CSS attribute selectors is the pattern for conditional styling (avoid className composition for binary states)
+  - TanStack Query `useQuery` infers the return type from `queryFn` — no need to import the return type for type safety in the component
+  - ReadinessPage already fetches readiness + history — adding a third query for projection fits naturally alongside them with same staleTime (300s)
+---

@@ -1,0 +1,211 @@
+{
+  "project": "ace-prep",
+  "feature": "adaptive-learning-engine",
+  "branchName": "ralph/adaptive-learning-engine",
+  "description": "Replace random question selection with intelligent adaptive learning across exams, drills, and flashcards",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add shared types for adaptive learning engine",
+      "description": "As a developer, I need TypeScript types and constants for the adaptive learning system so all packages share a common contract.",
+      "acceptanceCriteria": [
+        "Add AdaptiveSelectionConfig interface with weights, cooldown window size, difficulty progression thresholds",
+        "Add QuestionEncounter interface (userId, questionId, lastSeenAt, encounterCount)",
+        "Add DifficultyCalibration interface (questionId, empiricalDifficulty, sampleSize, confidenceScore)",
+        "Add ReadinessProjection interface (projectedReadyDate, currentPace, requiredPace, daysRemaining, isOnTrack)",
+        "Add ADAPTIVE_DEFAULTS constant with default config values",
+        "Add AdaptiveTimerConfig type mapping ExamSize to recommended duration seconds",
+        "Export all new types from @ace-prep/shared",
+        "Shared package builds successfully",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add DB schema and migration for question encounters and difficulty calibration",
+      "description": "As a developer, I need database tables to track when users see questions and to store empirical difficulty data, so the adaptive selector has data to work with.",
+      "acceptanceCriteria": [
+        "Add questionEncounters table to schema.ts with userId, questionId, lastSeenAt, encounterCount, unique index on (userId, questionId)",
+        "Add empiricalDifficulty, attemptCount, correctCount columns to questions table in schema.ts",
+        "Add startup migration version 13 that creates table and adds columns (idempotent)",
+        "Migration uses synchronous better-sqlite3 operations only",
+        "Server starts successfully with migration applied",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Build question encounter recording service",
+      "description": "As a developer, I need a service that records when a user sees a question, so the adaptive selector can enforce cooldown windows.",
+      "acceptanceCriteria": [
+        "Create services/encounterService.ts with recordEncounters(userId, questionIds) function",
+        "Upserts into questionEncounters: increment encounterCount, update lastSeenAt",
+        "Add getRecentEncounters(userId, limit) returning N most recently seen question IDs",
+        "Batch upsert uses single synchronous transaction",
+        "Unit tests cover first encounter, subsequent encounter, getRecentEncounters ordering",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Build adaptive question selector service",
+      "description": "As a developer, I need the core adaptive selection algorithm that replaces ORDER BY RANDOM() with intelligent question selection based on user performance, cooldown, and difficulty progression.",
+      "acceptanceCriteria": [
+        "Create services/adaptiveSelector.ts with selectQuestions(params) function",
+        "Weak area weighting: <70% accuracy gets 3x, <50% gets 5x, 0 attempts gets 2x, >90% with 10+ attempts gets 0.5x",
+        "Cooldown enforcement: exclude recently-seen questions (default window 30), auto-shrink if pool too small",
+        "Difficulty progression: bias easy for beginners (<50%), balanced for intermediate (50-75%), bias hard for advanced (>75%)",
+        "Fallback to RANDOM() when adaptive pool insufficient",
+        "Returns array of question IDs in randomized order",
+        "Unit tests cover weak area weighting, cooldown exclusion, difficulty progression, sparse pool fallback",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Integrate adaptive selection into exam creation",
+      "description": "As a developer, I need exam creation to use adaptive selection instead of ORDER BY RANDOM().",
+      "acceptanceCriteria": [
+        "Modify POST /api/exams to call selectQuestions() instead of orderBy(RANDOM())",
+        "Pass focusDomains from request body as domain filter if provided",
+        "Call recordEncounters(userId, selectedQuestionIds) after exam creation",
+        "Existing exam creation API contract unchanged",
+        "Works for cold-start users with no performance history",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Integrate adaptive selection into drill creation",
+      "description": "As a developer, I need drill creation to use adaptive selection, replacing the manual weak_areas query.",
+      "acceptanceCriteria": [
+        "Modify POST /api/drills to call selectQuestions() with appropriate mode",
+        "weak_areas mode passes mode: 'weak_areas' to selector",
+        "domain mode passes domainId filter to selector",
+        "all mode calls selector with mode: 'balanced'",
+        "Call recordEncounters() after drill creation",
+        "Existing drill API contract unchanged",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Integrate adaptive selection into flashcard sessions",
+      "description": "As a developer, I need flashcard session creation to use adaptive selection for non-bookmarked sessions.",
+      "acceptanceCriteria": [
+        "Modify POST /api/study/flashcards to call selectQuestions() when bookmarkedOnly is false",
+        "Keep existing behavior when bookmarkedOnly is true",
+        "Pass domain/topic filters from request to selector",
+        "Call recordEncounters() after session creation",
+        "Existing flashcard API contract unchanged",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Build difficulty calibration service with Bayesian threshold",
+      "description": "As a developer, I need a service that recalculates question difficulty based on actual user performance using Bayesian confidence scaling.",
+      "acceptanceCriteria": [
+        "Create services/difficultyCalibration.ts with updateQuestionStats(questionId, isCorrect)",
+        "Add recalibrateIfReady(questionId) with Bayesian threshold: min 5 attempts, confidence = 1 - 1/sqrt(sampleSize)",
+        "Blended difficulty: (1 - confidence) * original + confidence * empirical",
+        "Empirical mapping: >80% correct = easy, 50-80% = medium, <50% = hard",
+        "Add getCalibratedDifficulty(questionId) with fallback to original",
+        "Unit tests cover threshold behavior, confidence scaling, blending formula",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Wire difficulty calibration into answer submission flows",
+      "description": "As a developer, I need every answered question to feed the calibration service so difficulty labels improve over time.",
+      "acceptanceCriteria": [
+        "Call updateQuestionStats() in exam answer paths (single and batch submit in exams.ts)",
+        "Call updateQuestionStats() in drill answer submission (drills.ts)",
+        "Call updateQuestionStats() in flashcard rating (flashcards.ts, map SM-2 ratings to correct/incorrect)",
+        "Calibration does not block answer response",
+        "No change to any API response shapes",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Implement adaptive exam timer",
+      "description": "As a developer, I need the exam timer to scale proportionally to question count instead of hardcoded 2 hours.",
+      "acceptanceCriteria": [
+        "Add ADAPTIVE_TIMER_MAP to shared: { 10: 720, 15: 1080, 25: 1800, 50: 7200 }",
+        "POST /api/exams response includes recommendedDurationSeconds based on question count",
+        "ExamSetup.tsx duration display uses the map instead of hardcoded strings",
+        "examStore.ts uses recommendedDurationSeconds from API instead of EXAM_DURATION constant",
+        "ExamContainer timer counts down from adaptive duration",
+        "50-question exam retains 2-hour timer",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Build predictive readiness projection service",
+      "description": "As a developer, I need a service that projects when a user will be exam-ready based on study pace and score improvement rate.",
+      "acceptanceCriteria": [
+        "Create services/readinessProjection.ts with projectReadiness(userId, certificationId)",
+        "Query readinessSnapshots for last 14+ days of history",
+        "Calculate study pace from sessions + exams in last 30 days",
+        "Calculate improvement rate via linear regression on readiness snapshots",
+        "Project ready date by extrapolating to passing threshold (certifications.passingScorePercent)",
+        "Return ReadinessProjection with projectedReadyDate, currentPace, improvementRate, isProjectable",
+        "isProjectable false if <3 data points or zero/negative improvement rate",
+        "Unit tests cover positive trend projection, negative trend, insufficient data",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add predictive readiness API endpoint and UI widget",
+      "description": "As a developer, I need the readiness projection exposed via API and displayed on readiness page and dashboard.",
+      "acceptanceCriteria": [
+        "Add GET /api/progress/readiness-projection endpoint calling projectReadiness()",
+        "Add projection section to ReadinessPage.tsx showing projected date, pace, improvement rate",
+        "Add compact projection widget to Dashboard.tsx",
+        "Style using existing CSS variables and patterns",
+        "Gracefully handle isProjectable: false state with helpful message",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { examApi, bookmarksApi } from '../../api/client';
 import { useExamStore } from '../../stores/examStore';
@@ -19,6 +19,7 @@ const DIFFICULTY_STYLES: Record<string, string> = {
 export function ExamContainer() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -91,7 +92,8 @@ export function ExamContainer() {
 
     if (examData && (!examId || examId !== parseInt(id!))) {
       const questions = examData.responses.map((r: any) => r.question);
-      startExam(parseInt(id!), questions);
+      const durationFromNav = (location.state as any)?.recommendedDurationSeconds;
+      startExam(parseInt(id!), questions, durationFromNav);
     }
   }, [examData, id, showRecoveryModal, isOfflineRoute]);
 

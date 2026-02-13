@@ -13,7 +13,12 @@ import {
 } from '../db/schema.js';
 import { randomBytes } from 'crypto';
 import { eq, sql, and, inArray } from 'drizzle-orm';
-import { EXAM_SIZE_OPTIONS, EXAM_SIZE_DEFAULT, type ExamSize } from '@ace-prep/shared';
+import {
+  EXAM_SIZE_OPTIONS,
+  EXAM_SIZE_DEFAULT,
+  ADAPTIVE_TIMER_MAP,
+  type ExamSize,
+} from '@ace-prep/shared';
 import { resolveCertificationId, parseCertificationIdFromQuery } from '../db/certificationUtils.js';
 import {
   idParamSchema,
@@ -27,6 +32,9 @@ import { authenticate } from '../middleware/auth.js';
 import { mapCaseStudyRecord } from '../utils/mappers.js';
 import { updateStreak } from '../services/streakService.js';
 import { awardCustomXP } from '../services/xpService.js';
+import { selectQuestions } from '../services/adaptiveSelector.js';
+import { recordEncounters } from '../services/encounterService.js';
+import { updateQuestionStats, recalibrateIfReady } from '../services/difficultyCalibration.js';
 import {
   checkAndUnlock,
   checkDomainExpert,
@@ -135,7 +143,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     }
     const targetCount = questionCount as ExamSize;
 
-    // Build base query - filter by certification's domains and optionally focus domains
+    // Build base query to check available questions
     const whereCondition =
       focusDomains && focusDomains.length > 0
         ? and(eq(domains.certificationId, certId), inArray(questions.domainId, focusDomains))
@@ -161,11 +169,24 @@ export async function examRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Use SQLite RANDOM() for efficient random selection - avoids loading all questions into memory
-    const selectedQuestions = await baseQuery.orderBy(sql`RANDOM()`).limit(targetCount);
+    // Use adaptive question selection instead of ORDER BY RANDOM()
+    const userId = parseInt(request.user!.id, 10);
+    const selectedQuestionIds = await selectQuestions({
+      userId,
+      certificationId: certId,
+      count: targetCount,
+      domainIds: focusDomains && focusDomains.length > 0 ? focusDomains : undefined,
+    });
+
+    // Fetch full question records and preserve adaptive selection order
+    const fetchedQuestions = await db
+      .select()
+      .from(questions)
+      .where(inArray(questions.id, selectedQuestionIds));
+    const questionMap = new Map(fetchedQuestions.map((q) => [q.id, q]));
+    const selectedQuestions = selectedQuestionIds.map((id) => questionMap.get(id)!).filter(Boolean);
 
     // Create exam
-    const userId = parseInt(request.user!.id, 10);
     const [newExam] = await db
       .insert(exams)
       .values({
@@ -182,14 +203,21 @@ export async function examRoutes(fastify: FastifyInstance) {
       selectedQuestions.map((q, i) => ({
         userId,
         examId: newExam.id,
-        questionId: q.question.id,
+        questionId: q.id,
         selectedAnswers: JSON.stringify([]),
         orderIndex: i,
         flagged: false,
       }))
     );
 
-    return { examId: newExam.id, totalQuestions: selectedQuestions.length };
+    // Record question encounters for cooldown tracking
+    recordEncounters(userId, selectedQuestionIds);
+
+    return {
+      examId: newExam.id,
+      totalQuestions: selectedQuestions.length,
+      recommendedDurationSeconds: ADAPTIVE_TIMER_MAP[targetCount] ?? 7200,
+    };
   });
 
   // Batch submit answers for all questions (performance optimization)
@@ -266,6 +294,26 @@ export async function examRoutes(fastify: FastifyInstance) {
 
     await Promise.all(updatePromises);
 
+    // Feed difficulty calibration for all submitted questions (fire-and-forget, synchronous)
+    for (const response of submittedResponses) {
+      const question = questionMap.get(response.questionId);
+      if (!question) continue;
+      const correctAnswers = JSON.parse(question.correctAnswers as string) as number[];
+      const isCorrect =
+        response.selectedAnswers.length === correctAnswers.length &&
+        response.selectedAnswers.every((a) => correctAnswers.includes(a)) &&
+        correctAnswers.every((a) => response.selectedAnswers.includes(a));
+      try {
+        updateQuestionStats(response.questionId, isCorrect);
+        recalibrateIfReady(response.questionId);
+      } catch (err) {
+        request.log.error(
+          { err, questionId: response.questionId },
+          'Difficulty calibration failed'
+        );
+      }
+    }
+
     return { success: true, processedCount: submittedResponses.length };
   });
 
@@ -323,6 +371,14 @@ export async function examRoutes(fastify: FastifyInstance) {
         flagged: flagged ?? false,
       })
       .where(and(eq(examResponses.examId, examId), eq(examResponses.questionId, questionId)));
+
+    // Feed difficulty calibration (fire-and-forget, synchronous)
+    try {
+      updateQuestionStats(questionId, isCorrect);
+      recalibrateIfReady(questionId);
+    } catch (err) {
+      request.log.error({ err, questionId }, 'Difficulty calibration failed');
+    }
 
     return { success: true, isCorrect };
   });

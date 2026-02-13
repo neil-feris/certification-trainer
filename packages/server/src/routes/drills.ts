@@ -29,6 +29,9 @@ import { checkAnswerCorrect } from '../utils/scoring.js';
 import { resolveCertificationId } from '../db/certificationUtils.js';
 import { authenticate } from '../middleware/auth.js';
 import { awardCustomXP } from '../services/xpService.js';
+import { selectQuestions } from '../services/adaptiveSelector.js';
+import { recordEncounters } from '../services/encounterService.js';
+import { updateQuestionStats, recalibrateIfReady } from '../services/difficultyCalibration.js';
 import {
   checkAndUnlock,
   checkDomainExpert,
@@ -51,72 +54,64 @@ export async function drillRoutes(fastify: FastifyInstance) {
     const certId = await resolveCertificationId(certificationId, reply);
     if (certId === null) return; // Error already sent
 
-    // Build where condition based on mode
-    let whereCondition = eq(domains.certificationId, certId);
+    // Use adaptive question selection instead of ORDER BY RANDOM()
+    const userId = parseInt(request.user!.id, 10);
 
+    // Map drill mode to domain filter for adaptive selector
+    let domainIds: number[] | undefined;
     if (mode === 'domain' && domainId) {
-      // Filter by specific domain (within certification)
-      whereCondition = and(eq(domains.certificationId, certId), eq(questions.domainId, domainId))!;
+      domainIds = [domainId];
     } else if (mode === 'weak_areas') {
-      // Get weak areas from performance stats (accuracy < 70%) for this user
-      const userId = parseInt(request.user!.id, 10);
-      const weakStats = await db
-        .select({
-          topicId: performanceStats.topicId,
-          domainId: performanceStats.domainId,
-        })
+      // Query domains with <70% accuracy for this user and certification
+      const weakDomains = await db
+        .select({ domainId: performanceStats.domainId })
         .from(performanceStats)
+        .innerJoin(domains, eq(performanceStats.domainId, domains.id))
         .where(
           and(
-            sql`(${performanceStats.correctAttempts} * 1.0 / NULLIF(${performanceStats.totalAttempts}, 0)) < 0.7`,
+            eq(performanceStats.userId, userId),
+            eq(domains.certificationId, certId),
             sql`${performanceStats.totalAttempts} > 0`,
-            eq(performanceStats.userId, userId)
+            sql`CAST(${performanceStats.correctAttempts} AS REAL) / ${performanceStats.totalAttempts} < 0.7`
           )
         );
-
-      if (weakStats.length > 0) {
-        const weakTopicIds = weakStats
-          .filter((s) => s.topicId !== null)
-          .map((s) => s.topicId as number);
-        const weakDomainIds = weakStats.filter((s) => s.topicId === null).map((s) => s.domainId);
-
-        if (weakTopicIds.length > 0) {
-          whereCondition = and(
-            eq(domains.certificationId, certId),
-            inArray(questions.topicId, weakTopicIds)
-          )!;
-        } else if (weakDomainIds.length > 0) {
-          whereCondition = and(
-            eq(domains.certificationId, certId),
-            inArray(questions.domainId, weakDomainIds)
-          )!;
-        }
+      if (weakDomains.length > 0) {
+        domainIds = weakDomains.map((d) => d.domainId);
       }
-      // If no weak areas found, use certification filter only (fallback)
+      // If no weak domains found, leave domainIds undefined (all domains)
     }
 
-    // Build query with where condition
-    const questionQuery = db
-      .select({
-        question: questions,
-        domain: domains,
-        topic: topics,
-      })
-      .from(questions)
-      .innerJoin(domains, eq(questions.domainId, domains.id))
-      .innerJoin(topics, eq(questions.topicId, topics.id))
-      .where(whereCondition);
+    const selectedQuestionIds = await selectQuestions({
+      userId,
+      certificationId: certId,
+      count: questionCount,
+      domainIds,
+    });
 
-    // Use SQL RANDOM() to select random questions efficiently
-    // This avoids loading all questions into memory and shuffling in JS
-    const selectedQuestions = await questionQuery.orderBy(sql`RANDOM()`).limit(questionCount);
+    // Fetch full question records and preserve adaptive selection order
+    const fetchedQuestions =
+      selectedQuestionIds.length > 0
+        ? await db
+            .select({
+              question: questions,
+              domain: domains,
+              topic: topics,
+            })
+            .from(questions)
+            .innerJoin(domains, eq(questions.domainId, domains.id))
+            .innerJoin(topics, eq(questions.topicId, topics.id))
+            .where(inArray(questions.id, selectedQuestionIds))
+        : [];
+    const drillQuestionMap = new Map(fetchedQuestions.map((q) => [q.question.id, q]));
+    const selectedQuestions = selectedQuestionIds
+      .map((id) => drillQuestionMap.get(id)!)
+      .filter(Boolean);
 
     if (selectedQuestions.length === 0) {
       return reply.status(404).send({ error: 'No questions found for the specified criteria' });
     }
 
     // Create a study session with sessionType='timed_drill'
-    const userId = parseInt(request.user!.id, 10);
     const [session] = await db
       .insert(studySessions)
       .values({
@@ -130,6 +125,9 @@ export async function drillRoutes(fastify: FastifyInstance) {
         totalQuestions: selectedQuestions.length,
       })
       .returning();
+
+    // Record question encounters for cooldown tracking
+    recordEncounters(userId, selectedQuestionIds);
 
     // Format questions for response - SECURITY: No answers revealed
     const formattedQuestions = selectedQuestions.map((q) => ({
@@ -304,6 +302,14 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
       return wasAddedToSR;
     });
+
+    // Feed difficulty calibration (fire-and-forget, synchronous)
+    try {
+      updateQuestionStats(questionId, isCorrect);
+      recalibrateIfReady(questionId);
+    } catch (err) {
+      request.log.error({ err, questionId }, 'Difficulty calibration failed');
+    }
 
     // Return correctAnswers and explanation ONLY after user has submitted
     return {
