@@ -864,6 +864,29 @@ export const serviceCategoryItems = sqliteTable(
   ]
 );
 
+// ============ LEARNING PATH ITEMS (Per-Certification) ============
+export const learningPathItems = sqliteTable(
+  'learning_path_items',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    certificationId: integer('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    itemOrder: integer('item_order').notNull(),
+    title: text('title').notNull(),
+    type: text('type').notNull(), // 'course' | 'skill_badge' | 'lab' | 'exam' | 'reading'
+    url: text('url'),
+    description: text('description'),
+    topics: text('topics'), // JSON array of strings
+    whyItMatters: text('why_it_matters'),
+    durationEstimate: text('duration_estimate'),
+  },
+  (table) => [
+    uniqueIndex('learning_path_items_cert_order_idx').on(table.certificationId, table.itemOrder),
+    index('learning_path_items_cert_idx').on(table.certificationId),
+  ]
+);
+
 // ============ EXAM SHARING ============
 export const examShares = sqliteTable(
   'exam_shares',

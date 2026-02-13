@@ -1137,6 +1137,224 @@ const migrations: Migration[] = [
       console.log(`  [migration] Seeded ${categories.length} GCP service categories for PCA`);
     },
   },
+  {
+    version: 17,
+    name: 'create_learning_path_items_table',
+    up: (db) => {
+      const tableExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='learning_path_items'")
+        .get();
+
+      if (!tableExists) {
+        db.exec(`
+          CREATE TABLE learning_path_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            certification_id INTEGER NOT NULL REFERENCES certifications(id) ON DELETE CASCADE,
+            item_order INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            type TEXT NOT NULL,
+            url TEXT,
+            description TEXT,
+            topics TEXT,
+            why_it_matters TEXT,
+            duration_estimate TEXT,
+            UNIQUE(certification_id, item_order)
+          );
+          CREATE INDEX IF NOT EXISTS learning_path_items_cert_idx ON learning_path_items(certification_id);
+        `);
+        console.log('  [migration] Created learning_path_items table');
+      }
+    },
+  },
+  {
+    version: 18,
+    name: 'seed_ace_learning_path_items',
+    up: (db) => {
+      const aceCert = db.prepare("SELECT id FROM certifications WHERE code = 'ACE'").get() as
+        | { id: number }
+        | undefined;
+
+      if (!aceCert) {
+        console.log('  [migration] ACE certification not found, skipping learning path seed');
+        return;
+      }
+
+      const existing = db
+        .prepare('SELECT COUNT(*) as count FROM learning_path_items WHERE certification_id = ?')
+        .get(aceCert.id) as { count: number };
+
+      if (existing.count > 0) {
+        console.log('  [migration] ACE learning path items already seeded');
+        return;
+      }
+
+      const items = [
+        {
+          order: 1,
+          title: 'A Tour of Google Cloud Hands-on Labs',
+          type: 'course',
+          description: 'Introduction to Google Cloud through hands-on labs',
+          topics: JSON.stringify(['Cloud Console', 'Cloud Shell', 'GCP basics']),
+          whyItMatters: 'Builds foundational familiarity with the GCP console and lab environment',
+        },
+        {
+          order: 2,
+          title: 'Google Cloud Fundamentals: Core Infrastructure',
+          type: 'course',
+          description: 'Core GCP infrastructure services and concepts',
+          topics: JSON.stringify([
+            'Compute Engine',
+            'Cloud Storage',
+            'VPC',
+            'IAM',
+            'Cloud Monitoring',
+          ]),
+          whyItMatters: 'Covers the core services tested heavily on the ACE exam',
+        },
+        {
+          order: 3,
+          title: 'Getting Started with Google Kubernetes Engine',
+          type: 'course',
+          description: 'GKE deployment and management basics',
+          topics: JSON.stringify(['GKE', 'Kubernetes', 'Containers', 'kubectl']),
+          whyItMatters: 'GKE questions appear frequently on the ACE exam',
+        },
+        {
+          order: 4,
+          title: 'Cloud IAM and Security Fundamentals',
+          type: 'course',
+          description: 'Identity, access management, and security on GCP',
+          topics: JSON.stringify(['IAM', 'Service Accounts', 'Cloud KMS', 'Audit Logs']),
+          whyItMatters: 'IAM is a critical exam domain covering resource access control',
+        },
+        {
+          order: 5,
+          title: 'Networking in Google Cloud',
+          type: 'course',
+          description: 'VPC, load balancing, DNS, and hybrid connectivity',
+          topics: JSON.stringify([
+            'VPC',
+            'Subnets',
+            'Firewall Rules',
+            'Cloud Load Balancing',
+            'Cloud DNS',
+            'Cloud VPN',
+          ]),
+          whyItMatters: 'Networking underpins almost every architectural question on the exam',
+        },
+        {
+          order: 6,
+          title: 'Reliable Google Cloud Infrastructure',
+          type: 'course',
+          description: 'Design and process for reliable cloud solutions',
+          topics: JSON.stringify([
+            'High Availability',
+            'Disaster Recovery',
+            'Monitoring',
+            'Incident Response',
+          ]),
+          whyItMatters: 'Tests your ability to design resilient, production-ready architectures',
+        },
+        {
+          order: 7,
+          title: 'Cloud Load Balancing Skill Badge',
+          type: 'skill_badge',
+          description: 'Hands-on lab: configure HTTP(S) and TCP load balancing',
+          topics: JSON.stringify(['Cloud Load Balancing', 'Instance Groups', 'Health Checks']),
+          whyItMatters: 'Practical experience with load balancers frequently tested on the exam',
+        },
+        {
+          order: 8,
+          title: 'Automating Infrastructure on GCP with Terraform',
+          type: 'course',
+          description: 'Infrastructure as Code with Terraform on GCP',
+          topics: JSON.stringify([
+            'Terraform',
+            'Cloud Deployment Manager',
+            'Infrastructure as Code',
+          ]),
+          whyItMatters: 'IaC is increasingly important for the ACE exam',
+        },
+        {
+          order: 9,
+          title: 'Logging, Monitoring and Observability in GCP',
+          type: 'course',
+          description: 'Cloud Operations suite for monitoring and debugging',
+          topics: JSON.stringify([
+            'Cloud Monitoring',
+            'Cloud Logging',
+            'Error Reporting',
+            'Cloud Trace',
+          ]),
+          whyItMatters: 'Operations questions form a significant portion of the exam',
+        },
+        {
+          order: 10,
+          title: 'App Engine and Cloud Functions Skill Badge',
+          type: 'skill_badge',
+          description: 'Hands-on: deploy serverless applications',
+          topics: JSON.stringify(['App Engine', 'Cloud Functions', 'Cloud Run']),
+          whyItMatters: 'Serverless compute is a key topic on the ACE exam',
+        },
+        {
+          order: 11,
+          title: 'Data and Storage Services',
+          type: 'course',
+          description: 'Cloud SQL, Spanner, Firestore, BigQuery, and more',
+          topics: JSON.stringify([
+            'Cloud SQL',
+            'Cloud Spanner',
+            'Firestore',
+            'BigQuery',
+            'Bigtable',
+          ]),
+          whyItMatters: 'Choosing the right database service is a common exam scenario',
+        },
+        {
+          order: 12,
+          title: 'Cloud Pub/Sub and Dataflow',
+          type: 'course',
+          description: 'Messaging and stream processing on GCP',
+          topics: JSON.stringify(['Pub/Sub', 'Dataflow', 'Event-driven Architecture']),
+          whyItMatters: 'Messaging patterns appear in integration-focused exam questions',
+        },
+        {
+          order: 13,
+          title: 'Preparing for the ACE Certification',
+          type: 'course',
+          description: 'Exam strategies, review, and practice',
+          topics: JSON.stringify(['Exam Tips', 'Review', 'Practice Questions']),
+          whyItMatters: 'Final review and exam-taking strategies before the real exam',
+        },
+        {
+          order: 14,
+          title: 'ACE Certification Exam',
+          type: 'exam',
+          description: 'Take the Associate Cloud Engineer certification exam',
+          topics: JSON.stringify(['All Domains']),
+          whyItMatters: 'The certification exam itself',
+        },
+      ];
+
+      const insert = db.prepare(
+        'INSERT INTO learning_path_items (certification_id, item_order, title, type, description, topics, why_it_matters) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      );
+
+      for (const item of items) {
+        insert.run(
+          aceCert.id,
+          item.order,
+          item.title,
+          item.type,
+          item.description,
+          item.topics,
+          item.whyItMatters
+        );
+      }
+
+      console.log(`  [migration] Seeded ${items.length} learning path items for ACE`);
+    },
+  },
 ];
 
 /**
