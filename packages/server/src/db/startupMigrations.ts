@@ -1457,7 +1457,7 @@ const migrations: Migration[] = [
           65,
           72,
           1,
-          JSON.stringify({ hasCaseStudies: false, hasWorkbook: true, hasMasteryMap: true }),
+          JSON.stringify({ hasCaseStudies: false, hasWorkbook: false, hasMasteryMap: true }),
           Date.now()
         );
 
@@ -1974,7 +1974,7 @@ const migrations: Migration[] = [
       );
 
       db.prepare("UPDATE certifications SET capabilities = ? WHERE code = 'AWS-SAA'").run(
-        JSON.stringify({ hasCaseStudies: false, hasWorkbook: true, hasMasteryMap: true })
+        JSON.stringify({ hasCaseStudies: false, hasWorkbook: false, hasMasteryMap: true })
       );
 
       console.log('  [migration] Updated certification capabilities for ACE, PCA, AWS-SAA');
