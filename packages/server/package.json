@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@ace-prep/shared": "*",
-    "@anthropic-ai/sdk": "^0.71.2",
+    "@anthropic-ai/sdk": "^0.74.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
@@ -30,10 +30,10 @@
     "@sentry/node": "^10.36.0",
     "better-sqlite3": "^12.6.2",
     "drizzle-orm": "^0.45.1",
-    "fastify": "^5.7.1",
+    "fastify": "^5.7.4",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
-    "openai": "^6.16.0",
+    "openai": "^6.22.0",
     "pdfkit": "^0.17.2",
     "web-push": "^3.6.7",
     "zod": "^4.3.6"
