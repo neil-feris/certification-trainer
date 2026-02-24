@@ -108,8 +108,13 @@
 }
 
 .domainSelect:focus {
-  outline: none;
   border-color: var(--accent-primary);
+  outline: none;
+}
+
+.domainSelect:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .domainSelect:disabled {

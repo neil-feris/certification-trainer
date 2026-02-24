@@ -116,8 +116,13 @@
 }
 
 .textarea:focus {
-  outline: none;
   border-color: var(--accent-primary);
+  outline: none;
+}
+
+.textarea:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 @keyframes fadeOut {
