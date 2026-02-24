@@ -46,6 +46,7 @@ import { readFileSync } from 'fs';
 import { certificateRoutes } from './routes/certificates.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { workbookRoutes } from './routes/workbook.js';
+import { zodValidationPlugin } from './plugins/zodValidation.js';
 import { startNotificationScheduler } from './jobs/notificationScheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -95,6 +96,9 @@ await fastify.register(rateLimit, {
     retryAfter: context.after,
   }),
 });
+
+// Register Zod validation enforcement (logs warnings for unvalidated POST/PUT/PATCH routes)
+await fastify.register(zodValidationPlugin);
 
 // API routes
 fastify.register(authRoutes, { prefix: '/api/auth' });

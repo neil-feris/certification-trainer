@@ -22,7 +22,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
   // Get current settings for authenticated user
   fastify.get('/', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const allSettings = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
 
     const dbValues: Record<string, string> = {};
@@ -60,7 +60,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const updates = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const now = new Date();
 
     for (const [key, value] of Object.entries(updates)) {
@@ -118,11 +118,11 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         });
         return { success: true, message: 'OpenAI API connected successfully' };
       }
-    } catch (error: any) {
+    } catch (error) {
+      fastify.log.error(error, 'API connection test failed');
       return reply.status(400).send({
         success: false,
         error: 'API connection failed',
-        message: error.message,
       });
     }
   });

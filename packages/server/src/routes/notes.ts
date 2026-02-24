@@ -30,7 +30,7 @@ export async function noteRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const { questionId, content } = parseResult.data;
 
     return Sentry.startSpan({ op: 'db.note', name: 'Save Note' }, async (span) => {
@@ -86,7 +86,7 @@ export async function noteRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const { questionId } = parseResult.data;
 
     const note = db
@@ -100,7 +100,7 @@ export async function noteRoutes(fastify: FastifyInstance) {
 
   // GET /api/notes - List all user notes with question text and topic
   fastify.get('/', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const notesWithQuestions = db
       .select({
@@ -140,7 +140,7 @@ export async function noteRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const { questionId } = parseResult.data;
 
     const existing = db

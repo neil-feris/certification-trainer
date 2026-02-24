@@ -9,12 +9,13 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { verifyAccessToken, JwtPayload } from '../services/jwt.js';
 
-// Extend FastifyRequest to include user property
+// Extend FastifyRequest to include user property and parsed userId
 declare module 'fastify' {
   interface FastifyRequest {
     user?: {
       id: string;
     };
+    userId?: number;
   }
 }
 
@@ -55,6 +56,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   try {
     const payload: JwtPayload = verifyAccessToken(token);
     request.user = { id: payload.userId };
+    request.userId = Number(payload.userId);
   } catch {
     reply.status(401).send({ error: 'Unauthorized' });
   }
@@ -81,6 +83,7 @@ export async function optionalAuth(request: FastifyRequest, reply: FastifyReply)
   try {
     const payload: JwtPayload = verifyAccessToken(token);
     request.user = { id: payload.userId };
+    request.userId = Number(payload.userId);
   } catch {
     reply.status(401).send({ error: 'Unauthorized' });
   }

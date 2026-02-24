@@ -41,7 +41,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
   }>('/progress', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     return getWorkbookProgressForUser(userId, certId);
   });
 
@@ -51,7 +51,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
   }>('/benchmark', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     return getWorkbookBenchmark(userId, certId);
   });
 
@@ -81,7 +81,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
   }>('/guided/next', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     return getNextGuidedQuestion(userId, certId);
   });
 
@@ -95,7 +95,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
     }
 
     const { questionId, selectedAnswers } = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     try {
       const result = await submitWorkbookAnswer(userId, questionId, selectedAnswers);
@@ -132,15 +132,15 @@ export async function workbookRoutes(fastify: FastifyInstance) {
         streakUpdate,
         achievementsUnlocked,
       };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return reply.status(404).send({ error: message });
+    } catch (error) {
+      fastify.log.error(error, 'Failed to submit workbook answer');
+      return reply.status(404).send({ error: 'Question not found' });
     }
   });
 
   // Reset progress (for full exam mode)
   fastify.post('/reset', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     await resetWorkbookProgress(userId);
 
     // Invalidate readiness cache since workbook progress affects readiness score
@@ -166,7 +166,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
     }
 
     const { count, type } = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // For full exam, get all 41 questions
     const questionCount = type === 'full' ? 41 : count;
@@ -225,7 +225,7 @@ export async function workbookRoutes(fastify: FastifyInstance) {
     }
 
     const { responses, totalTimeSeconds, assessmentType } = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Validate time against server-tracked start time
     const assessmentKey = `${userId}-${assessmentType}`;

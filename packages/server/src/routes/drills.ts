@@ -55,7 +55,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
     if (certId === null) return; // Error already sent
 
     // Use adaptive question selection instead of ORDER BY RANDOM()
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Map drill mode to domain filter for adaptive selector
     let domainIds: number[] | undefined;
@@ -165,7 +165,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const drillId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const bodyResult = submitDrillAnswerSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -336,7 +336,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const drillId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const bodyResult = completeDrillSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -495,7 +495,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
 
   // Get active drill session (for recovery)
   fastify.get('/active', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const [session] = await db
       .select()
       .from(studySessions)
@@ -597,7 +597,7 @@ export async function drillRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const drillId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify ownership
     const [session] = await db

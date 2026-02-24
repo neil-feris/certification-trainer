@@ -49,7 +49,7 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
     }
 
     const { certificationId, domainId, topicId, bookmarkedOnly, count } = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Resolve certification
     const certId = await resolveCertificationId(certificationId, reply);
@@ -153,7 +153,7 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
     }
 
     const { sessionId } = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Fetch session and verify ownership
     const [session] = await db
@@ -273,7 +273,7 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
 
       const { sessionId } = paramResult.data;
       const { questionId, rating } = bodyResult.data;
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Verify session exists, belongs to user, and is in_progress
       const [session] = await db
@@ -422,7 +422,7 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
 
   // GET /api/study/flashcards/last-session - Get last completed flashcard session stats
   fastify.get('/last-session', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const [session] = await db
       .select()
@@ -471,7 +471,7 @@ export async function flashcardRoutes(fastify: FastifyInstance) {
       }
 
       const { sessionId } = paramResult.data;
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Verify session exists, belongs to user, and is in_progress
       const [session] = await db

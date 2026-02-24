@@ -35,7 +35,7 @@ export async function bookmarkRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const { targetType, targetId } = parseResult.data;
 
     return Sentry.startSpan({ op: 'db.bookmark', name: 'Toggle Bookmark' }, async (span) => {
@@ -83,7 +83,7 @@ export async function bookmarkRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const { type } = parseResult.data;
 
     return Sentry.startSpan({ op: 'db.bookmark', name: 'List Bookmarks' }, async () => {
@@ -101,7 +101,7 @@ export async function bookmarkRoutes(fastify: FastifyInstance) {
 
   // GET /api/bookmarks/questions - List bookmarked questions with full data
   fastify.get('/questions', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     return Sentry.startSpan({ op: 'db.bookmark', name: 'List Bookmarked Questions' }, async () => {
       const bookmarkedQuestions = db
@@ -140,7 +140,7 @@ export async function bookmarkRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const { targetType, targetId } = parseResult.data;
 
     const existing = db
