@@ -37,6 +37,7 @@ import {
   bulkQuestionsQuerySchema,
   feedbackRatingSchema,
   reportIssueSchema,
+  qotdCompleteSchema,
   formatZodError,
   PAGINATION_DEFAULTS,
 } from '../validation/schemas.js';
@@ -114,7 +115,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
     } = parseResult.data;
 
     // Used for bookmarked filter
-    const userId = bookmarked ? parseInt(request.user!.id, 10) : undefined;
+    const userId = bookmarked ? request.userId! : undefined;
 
     // Build WHERE conditions dynamically
     const conditions = [];
@@ -407,7 +408,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const userId = parseInt(request.user!.id, 10);
+        const userId = request.userId!;
         const generatedQuestions = await generateQuestions({
           domain: domain.name,
           topic: topic.name,
@@ -491,11 +492,10 @@ export async function questionRoutes(fastify: FastifyInstance) {
           questions: inserted,
           ...(skipped.length > 0 && { duplicatesSkipped: skipped }),
         };
-      } catch (error: any) {
+      } catch (error) {
         fastify.log.error(error);
         return reply.status(500).send({
           error: 'Failed to generate questions',
-          message: error.message,
         });
       }
     }
@@ -506,7 +506,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
     Querystring: { certificationId?: string };
   }>('/review', async (request) => {
     const now = new Date();
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const certId = request.query.certificationId
       ? parseInt(request.query.certificationId, 10)
       : undefined;
@@ -556,7 +556,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const { questionId, quality } = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Get or create spaced repetition record for this user
     let [sr] = await db
@@ -706,7 +706,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'certificationId is required' });
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     // Get all question IDs for this certification (needed whether selection exists or not)
@@ -822,14 +822,13 @@ export async function questionRoutes(fastify: FastifyInstance) {
   fastify.post<{
     Body: QotdCompletionRequest;
   }>('/qotd/complete', async (request, reply) => {
-    const { certificationId, questionId, selectedAnswers } = request.body;
-    const userId = parseInt(request.user!.id, 10);
-    const today = new Date().toISOString().split('T')[0];
-
-    // Validate input
-    if (!certificationId || !questionId || !selectedAnswers) {
-      return reply.status(400).send({ error: 'Missing required fields' });
+    const bodyResult = qotdCompleteSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
     }
+    const { certificationId, questionId, selectedAnswers } = bodyResult.data;
+    const userId = request.userId!;
+    const today = new Date().toISOString().split('T')[0];
 
     // Get today's selection
     const selection = await db
@@ -960,7 +959,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
         return reply.status(400).send(formatZodError(parseResult.error));
       }
       const { certificationId, limit } = parseResult.data;
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Verify certification exists
       const [certification] = await db
@@ -1139,7 +1138,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const questionId = parseResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const feedback = await getUserFeedback(userId, questionId);
     const response: UserFeedbackResponse = feedback;
@@ -1160,7 +1159,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       }
 
       const questionId = paramResult.data.id;
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
       const { rating } = bodyResult.data;
 
       const aggregates = await submitRating(userId, questionId, rating);
@@ -1181,7 +1180,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const questionId = parseResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const aggregates = await removeRating(userId, questionId);
 
@@ -1206,7 +1205,7 @@ export async function questionRoutes(fastify: FastifyInstance) {
       }
 
       const questionId = paramResult.data.id;
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
       const { issueType, comment } = bodyResult.data;
 
       const aggregates = await submitReport(userId, questionId, issueType, comment);

@@ -32,8 +32,12 @@ export const config = {
 
   // JWT
   jwt: {
-    secret: process.env.JWT_SECRET || 'dev-jwt-secret-not-for-production',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-jwt-refresh-secret-not-for-production',
+    secret: isProduction
+      ? requireEnv('JWT_SECRET')
+      : process.env.JWT_SECRET || 'dev-jwt-secret-not-for-production',
+    refreshSecret: isProduction
+      ? requireEnv('JWT_REFRESH_SECRET')
+      : process.env.JWT_REFRESH_SECRET || 'dev-jwt-refresh-secret-not-for-production',
     accessTokenExpiry: '1h',
     refreshTokenExpiry: '7d',
   },

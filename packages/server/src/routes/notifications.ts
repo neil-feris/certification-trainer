@@ -58,7 +58,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
    * Check if user has an active subscription and push is supported
    */
   fastify.get('/status', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const [subscription] = await db
       .select()
@@ -83,7 +83,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
     }
 
     const { endpoint, keys } = parseResult.data;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const now = new Date();
 
     // Upsert subscription - handles race condition with ON CONFLICT
@@ -129,7 +129,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'endpoint is required' });
     }
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     await db
       .delete(schema.pushSubscriptions)
@@ -148,7 +148,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
    * Get notification preferences for the authenticated user
    */
   fastify.get('/preferences', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const [prefs] = await db
       .select()
@@ -190,7 +190,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       }
 
       const updates = parseResult.data;
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
       const now = new Date();
 
       // Upsert preferences with ON CONFLICT to avoid race conditions

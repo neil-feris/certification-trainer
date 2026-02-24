@@ -115,7 +115,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Get learning path items from database
       const pathItems = await db
@@ -157,7 +157,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Check if already completed (for this certification and user)
       const [existing] = await db
@@ -209,7 +209,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Check if already completed (for this certification and user)
       const [existing] = await db
@@ -309,7 +309,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       const progress = await db
         .select()
@@ -377,7 +377,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
 
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Find the requested item from database
       const [itemData] = await db
@@ -687,11 +687,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
           .returning();
 
         return { success: true, summary: saved };
-      } catch (error: any) {
+      } catch (error) {
         fastify.log.error(error);
         return reply.status(500).send({
           error: 'Failed to generate study summary',
-          message: error.message,
         });
       }
     }
@@ -750,11 +749,10 @@ export async function studyRoutes(fastify: FastifyInstance) {
         });
 
         return { success: true, explanation };
-      } catch (error: any) {
+      } catch (error) {
         fastify.log.error(error);
         return reply.status(500).send({
           error: 'Failed to generate explanation',
-          message: error.message,
         });
       }
     }
@@ -828,7 +826,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     }
 
     // Create the session
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const [session] = await db
       .insert(studySessions)
       .values({
@@ -875,7 +873,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       const [session] = await db
         .select()
@@ -968,7 +966,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const sessionId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const bodyResult = submitStudyAnswerSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -1128,7 +1126,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const sessionId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const bodyResult = completeStudySessionSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -1384,7 +1382,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const sessionId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify ownership
     const [session] = await db
@@ -1465,7 +1463,7 @@ export async function studyRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const topicId = paramResult.data.topicId;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Get all exam responses for this topic for this user
     const responses = await db

@@ -10,7 +10,7 @@ export async function achievementRoutes(fastify: FastifyInstance) {
 
   // GET /api/achievements - all definitions with user unlock status
   fastify.get('/', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Get user's unlocked achievements
     const userUnlocks = await db
@@ -45,7 +45,7 @@ export async function achievementRoutes(fastify: FastifyInstance) {
 
   // GET /api/achievements/progress - progress toward locked achievements
   fastify.get('/progress', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Get user's unlocked achievements
     const userUnlocks = await db

@@ -18,7 +18,11 @@
   max-width: 480px;
   width: 100%;
   animation: slideUp 0.3s ease;
-  outline: none;
+}
+
+.modal:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .header {
@@ -72,13 +76,18 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   color: var(--text-primary);
-  outline: none;
   transition: border-color var(--transition-fast);
   cursor: pointer;
 }
 
 .dateInput:focus {
   border-color: var(--accent-primary);
+  outline: none;
+}
+
+.dateInput:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .dateInput:disabled {

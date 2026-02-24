@@ -93,7 +93,7 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
     const certId = await resolveCertificationId(certificationId, reply);
     if (certId === null) return;
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Validate target date is in the future
     const targetDate = new Date(targetExamDate);
@@ -109,11 +109,10 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
       const plan = await generateStudyPlan(userId, certId, targetExamDate, db);
       const response = buildStudyPlanResponse(plan);
       return reply.status(201).send(response);
-    } catch (error: any) {
+    } catch (error) {
       fastify.log.error(error, 'Failed to generate study plan');
       return reply.status(500).send({
         error: 'Failed to generate study plan',
-        message: error.message,
       });
     }
   });
@@ -123,7 +122,7 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const plan = await getActiveStudyPlan(userId, certId, db);
 
@@ -141,7 +140,7 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const planId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const plan = await getStudyPlanWithDays(planId, db);
 
@@ -174,7 +173,7 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
     }
     const { notes } = bodyResult.data;
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify plan exists and belongs to user
     const [plan] = await db
@@ -284,7 +283,7 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const planId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify ownership
     const [plan] = await db
@@ -327,7 +326,7 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
     }
     const { keepCompletedTasks } = bodyResult.data;
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify ownership
     const [existingPlan] = await db
@@ -353,11 +352,10 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
       };
 
       return response;
-    } catch (error: any) {
+    } catch (error) {
       fastify.log.error(error, 'Failed to regenerate study plan');
       return reply.status(500).send({
         error: 'Failed to regenerate study plan',
-        message: error.message,
       });
     }
   });

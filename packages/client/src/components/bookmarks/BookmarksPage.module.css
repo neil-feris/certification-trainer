@@ -91,8 +91,13 @@
 }
 
 .searchInput:focus {
-  outline: none;
   border-color: var(--accent-primary);
+  outline: none;
+}
+
+.searchInput:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .searchWrapper {

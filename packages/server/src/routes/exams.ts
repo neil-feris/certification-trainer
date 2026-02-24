@@ -26,6 +26,7 @@ import {
   submitAnswerSchema,
   batchSubmitSchema,
   completeExamSchema,
+  offlineSubmitSchema,
   formatZodError,
 } from '../validation/schemas.js';
 import { authenticate } from '../middleware/auth.js';
@@ -57,7 +58,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
 
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const allExams = await db
       .select()
       .from(exams)
@@ -73,7 +74,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(parseResult.error));
     }
     const examId = parseResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const [exam] = await db
       .select()
@@ -172,7 +173,7 @@ export async function examRoutes(fastify: FastifyInstance) {
     }
 
     // Use adaptive question selection instead of ORDER BY RANDOM()
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const selectedQuestionIds = await selectQuestions({
       userId,
       certificationId: certId,
@@ -188,29 +189,36 @@ export async function examRoutes(fastify: FastifyInstance) {
     const questionMap = new Map(fetchedQuestions.map((q) => [q.id, q]));
     const selectedQuestions = selectedQuestionIds.map((id) => questionMap.get(id)!).filter(Boolean);
 
-    // Create exam
-    const [newExam] = await db
-      .insert(exams)
-      .values({
-        userId,
-        certificationId: certId,
-        startedAt: new Date(),
-        totalQuestions: selectedQuestions.length,
-        status: 'in_progress',
-      })
-      .returning();
+    // Create exam and responses atomically
+    // Note: better-sqlite3 transactions are synchronous — no async/await
+    const newExam = db.transaction((tx) => {
+      const [exam] = tx
+        .insert(exams)
+        .values({
+          userId,
+          certificationId: certId,
+          startedAt: new Date(),
+          totalQuestions: selectedQuestions.length,
+          status: 'in_progress',
+        })
+        .returning()
+        .all();
 
-    // Create exam responses (batch insert for performance)
-    await db.insert(examResponses).values(
-      selectedQuestions.map((q, i) => ({
-        userId,
-        examId: newExam.id,
-        questionId: q.id,
-        selectedAnswers: JSON.stringify([]),
-        orderIndex: i,
-        flagged: false,
-      }))
-    );
+      tx.insert(examResponses)
+        .values(
+          selectedQuestions.map((q, i) => ({
+            userId,
+            examId: exam.id,
+            questionId: q.id,
+            selectedAnswers: JSON.stringify([]),
+            orderIndex: i,
+            flagged: false,
+          }))
+        )
+        .run();
+
+      return exam;
+    });
 
     // Record question encounters for cooldown tracking
     recordEncounters(userId, selectedQuestionIds);
@@ -239,7 +247,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Validate request body
     const bodyResult = batchSubmitSchema.safeParse(request.body);
@@ -334,7 +342,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify exam ownership
     const [exam] = await db
@@ -395,7 +403,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const bodyResult = completeExamSchema.safeParse(request.body);
     if (!bodyResult.success) {
@@ -564,7 +572,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify ownership and update
     await db
@@ -582,7 +590,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const [exam] = await db
       .select()
@@ -662,7 +670,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Verify exam ownership and completion
     const [exam] = await db
@@ -720,7 +728,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(formatZodError(paramResult.error));
     }
     const examId = paramResult.data.id;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Get exam with ownership check
     const [exam] = await db
@@ -807,7 +815,11 @@ export async function examRoutes(fastify: FastifyInstance) {
       syncQueueItemId?: string;
     };
   }>('/offline-submit', async (request, reply) => {
-    const userId = parseInt(request.user!.id, 10);
+    const bodyResult = offlineSubmitSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send(formatZodError(bodyResult.error));
+    }
+    const userId = request.userId!;
     const {
       offlineExamId,
       certificationId,
@@ -815,7 +827,7 @@ export async function examRoutes(fastify: FastifyInstance) {
       totalTimeSeconds,
       startedAt,
       completedAt,
-    } = request.body;
+    } = bodyResult.data;
 
     // Generate content hash for secondary deduplication
     // This catches duplicates even if offlineExamId is lost (e.g., app restart)

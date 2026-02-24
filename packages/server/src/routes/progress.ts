@@ -102,7 +102,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
     Querystring: { certificationId?: string; granularity?: string };
   }>('/trends', async (request, reply) => {
     const { certificationId: certIdStr, granularity: granularityStr } = request.query;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Validate granularity
     const validGranularities: Granularity[] = ['attempt', 'day', 'week'];
@@ -213,7 +213,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Querystring: { certificationId?: string };
   }>('/study-time', async (request, reply) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const certificationId = await parseCertificationIdFromQuery(
       request.query.certificationId,
       reply
@@ -377,13 +377,13 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
   // Get user's current streak data
   fastify.get('/streak', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     return getStreak(userId);
   });
 
   // Get user's XP and level data
   fastify.get('/xp', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     return getXP(userId);
   });
 
@@ -391,7 +391,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Querystring: { limit?: string };
   }>('/xp/history', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const limitStr = request.query.limit;
 
     // Default 20, max 50
@@ -437,7 +437,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
       try {
         const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
         if (certId === null) return;
-        const userId = parseInt(request.user!.id, 10);
+        const userId = request.userId!;
 
         // Parse include param to determine which fields to return
         const includeSet = new Set((request.query.include || '').split(',').filter(Boolean));
@@ -521,10 +521,8 @@ export async function progressRoutes(fastify: FastifyInstance) {
         return response;
       } catch (error) {
         request.log.error({ err: error }, 'Readiness calculation failed');
-        console.error('Readiness error:', error);
         return reply.status(500).send({
           error: 'Failed to calculate readiness',
-          message: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     }
@@ -546,7 +544,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return;
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Default 30, max 90
       let limit = 30;
@@ -586,7 +584,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
   }>('/readiness-projection', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return;
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     try {
       const projection = await projectReadiness(userId, certId);
@@ -595,7 +593,6 @@ export async function progressRoutes(fastify: FastifyInstance) {
       request.log.error({ err: error }, 'Readiness projection failed');
       return reply.status(500).send({
         error: 'Failed to calculate readiness projection',
-        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   });
@@ -606,7 +603,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Single aggregated query for exam stats (filtered by certification and user)
       const [examStats] = await db
@@ -770,7 +767,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: { certificationId?: string } }>('/domains', async (request, reply) => {
     const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
     if (certId === null) return; // Error already sent
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     // Single query: topics with domain info and aggregated response stats (filtered by certification and user)
     const topicStatsRaw = await db
@@ -877,7 +874,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const certId = await parseCertificationIdFromQuery(request.query.certificationId, reply);
       if (certId === null) return; // Error already sent
-      const userId = parseInt(request.user!.id, 10);
+      const userId = request.userId!;
 
       // Single query: topics with domain info and aggregated stats (filtered by certification and user)
       const topicStatsRaw = await db
@@ -948,7 +945,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
   // Get exam history
   fastify.get('/history', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const allExams = await db
       .select()
       .from(exams)
@@ -961,7 +958,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
 
   // Export all progress data for authenticated user
   fastify.post('/export', async (request) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
     const allExams = await db.select().from(exams).where(eq(exams.userId, userId));
     const allResponses = await db
       .select()
@@ -1048,7 +1045,7 @@ export async function progressRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Querystring: { certificationId: string };
   }>('/mastery-map', async (request, reply) => {
-    const userId = parseInt(request.user!.id, 10);
+    const userId = request.userId!;
 
     const queryResult = masteryMapQuerySchema.safeParse(request.query);
     if (!queryResult.success) {

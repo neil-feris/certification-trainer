@@ -174,7 +174,6 @@ select {
   border-radius: var(--border-radius);
   padding: 10px 14px;
   color: var(--text-primary);
-  outline: none;
   transition: border-color var(--transition-fast);
 }
 
@@ -182,6 +181,14 @@ input:focus,
 textarea:focus,
 select:focus {
   border-color: var(--accent-primary);
+  outline: none;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 input::placeholder {

@@ -106,9 +106,14 @@
 }
 
 .modelSelect:focus {
-  outline: none;
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+  outline: none;
+}
+
+.modelSelect:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .modelSelect option {
