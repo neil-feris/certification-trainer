@@ -8,7 +8,7 @@ import { FastifyInstance } from 'fastify';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { formatZodError } from '../validation/schemas.js';
 import { getVapidPublicKey, isPushConfigured } from '../services/pushNotificationService.js';
 
@@ -50,15 +50,20 @@ export async function notificationRoutes(fastify: FastifyInstance) {
     return { publicKey };
   });
 
-  // All remaining routes require authentication
-  fastify.addHook('preHandler', authenticate);
-
   /**
    * GET /api/notifications/status
    * Check if user has an active subscription and push is supported
+   * NOTE: Uses optionalAuth - returns isSubscribed:false when not authenticated
    */
-  fastify.get('/status', async (request) => {
-    const userId = request.userId!;
+  fastify.get('/status', { preHandler: optionalAuth }, async (request) => {
+    const userId = request.userId;
+
+    if (!userId) {
+      return {
+        isConfigured: isPushConfigured(),
+        isSubscribed: false,
+      };
+    }
 
     const [subscription] = await db
       .select()
@@ -71,6 +76,9 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       isSubscribed: Boolean(subscription),
     };
   });
+
+  // All remaining routes require authentication
+  fastify.addHook('preHandler', authenticate);
 
   /**
    * POST /api/notifications/subscribe

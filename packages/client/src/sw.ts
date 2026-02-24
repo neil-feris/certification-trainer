@@ -10,7 +10,7 @@
  */
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { CacheFirst, NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 
 // Declare self as ServiceWorkerGlobalScope for TypeScript
@@ -41,13 +41,18 @@ precacheAndRoute(self.__WB_MANIFEST);
 // RUNTIME CACHING
 // =============================================================================
 
-// Cache-first for static assets (JS, CSS, fonts, images)
+// Network-only for third-party requests (e.g. Cloudflare beacon, analytics)
+// Prevents SW from trying to cache external origins and throwing no-response errors
+registerRoute(({ url }) => url.origin !== self.location.origin, new NetworkOnly());
+
+// Cache-first for same-origin static assets (JS, CSS, fonts, images)
 registerRoute(
-  ({ request }) =>
-    request.destination === 'style' ||
-    request.destination === 'script' ||
-    request.destination === 'font' ||
-    request.destination === 'image',
+  ({ request, url }) =>
+    url.origin === self.location.origin &&
+    (request.destination === 'style' ||
+      request.destination === 'script' ||
+      request.destination === 'font' ||
+      request.destination === 'image'),
   new CacheFirst({
     cacheName: 'ace-prep-static-assets',
     plugins: [
