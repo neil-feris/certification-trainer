@@ -342,6 +342,39 @@ export const completeWorkbookAssessmentSchema = z.object({
   assessmentType: z.enum(['quick', 'full']),
 });
 
+// ============ Offline Submit Schema ============
+
+export const offlineSubmitSchema = z.object({
+  offlineExamId: z.string().min(1, 'Offline exam ID is required'),
+  certificationId: z.number().int().positive('Certification ID must be a positive integer'),
+  questions: z
+    .array(
+      z.object({
+        questionId: z.number().int().positive('Question ID must be a positive integer'),
+        selectedAnswers: z.array(z.number().int().min(0)),
+        isCorrect: z.boolean(),
+        flagged: z.boolean(),
+        timeSpentSeconds: z.number().int().min(0),
+      })
+    )
+    .min(1, 'At least one question response is required')
+    .max(200),
+  totalTimeSeconds: z.number().int().min(0),
+  startedAt: z.string().min(1, 'startedAt is required'),
+  completedAt: z.string().min(1, 'completedAt is required'),
+  isOffline: z.literal(true),
+  clientTimestamp: z.string().min(1, 'clientTimestamp is required'),
+  syncQueueItemId: z.string().optional(),
+});
+
+// ============ QOTD Complete Schema ============
+
+export const qotdCompleteSchema = z.object({
+  certificationId: z.number().int().positive('Certification ID must be a positive integer'),
+  questionId: z.number().int().positive('Question ID must be a positive integer'),
+  selectedAnswers: z.array(z.number().int().min(0)).min(1, 'At least one answer is required'),
+});
+
 // ============ Helper for validation errors ============
 
 export function formatZodError(error: z.ZodError): { error: string; details: z.ZodIssue[] } {
