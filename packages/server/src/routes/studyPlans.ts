@@ -127,7 +127,7 @@ export async function studyPlanRoutes(fastify: FastifyInstance) {
     const plan = await getActiveStudyPlan(userId, certId, db);
 
     if (!plan) {
-      return reply.status(404).send({ error: 'No active study plan found' });
+      return reply.send(null);
     }
 
     return buildStudyPlanResponse(plan);
