@@ -18,6 +18,9 @@ const sqlite: DatabaseType = new Database(dbPath);
 
 // Enable WAL mode for better performance
 sqlite.pragma('journal_mode = WAL');
+sqlite.pragma('busy_timeout = 5000');
+sqlite.pragma('synchronous = NORMAL');
+sqlite.pragma('cache_size = -64000');
 
 export const db = drizzle(sqlite, { schema });
 export { schema };

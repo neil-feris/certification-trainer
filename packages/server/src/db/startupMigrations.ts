@@ -3430,6 +3430,14 @@ const migrations: Migration[] = [
       console.log('  [migration] Updated AWS-SAA capabilities: hasWorkbook = true');
     },
   },
+  {
+    version: 29,
+    name: 'add_questions_source_index',
+    up: (db) => {
+      db.exec('CREATE INDEX IF NOT EXISTS idx_questions_source ON questions(source)');
+      console.log('  [migration] Created index on questions.source');
+    },
+  },
 ];
 
 /**
