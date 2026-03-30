@@ -10,17 +10,17 @@
   },
   "dependencies": {
     "@ace-prep/shared": "*",
-    "@sentry/react": "^10.36.0",
-    "@tanstack/react-query": "^5.90.20",
+    "@sentry/react": "^10.46.0",
+    "@tanstack/react-query": "^5.95.2",
     "html2canvas": "^1.4.1",
     "idb-keyval": "^6.2.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router-dom": "^7.1.1",
+    "react-router-dom": "^7.13.2",
     "react-swipeable": "^7.0.2",
-    "recharts": "^3.7.0",
+    "recharts": "^3.8.1",
     "vite-plugin-pwa": "^1.2.0",
-    "zustand": "^5.0.10"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@types/react": "^19.2.9",
